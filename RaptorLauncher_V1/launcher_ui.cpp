@@ -15,14 +15,26 @@ static bool inGameMenu = false;
 static std::vector<String> gameList;
 static int gameIndex = 0;
 
+// -------------------------
+// Réglages d'affichage
+// -------------------------
+static const int MAIN_TITLE_Y      = 10;
+static const int MAIN_MENU_Y0      = 50;
+static const int MAIN_MENU_STEP    = 30;
+
+static const int GAME_BACK_Y       = 10;
+static const int GAME_TITLE_Y      = 40;
+static const int GAME_LIST_Y0      = 80;
+static const int GAME_LIST_STEP    = 28;
+
 // ---------- Menu principal ----------
 static int menuHitTest(int x, int y) {
   (void)x;
 
-  if (y >= 35 && y <= 60)   return 0; // Jeux
-  if (y >= 65 && y <= 90)   return 1; // Parametres
-  if (y >= 95 && y <= 120)  return 2; // Test tactile
-  if (y >= 125 && y <= 150) return 3; // Test audio
+  if (y >= 45 && y <= 65)   return 0; // Jeux
+  if (y >= 75 && y <= 95)   return 1; // Parametres
+  if (y >= 105 && y <= 125) return 2; // Test tactile
+  if (y >= 135 && y <= 155) return 3; // Test audio
 
   return -1;
 }
@@ -31,15 +43,15 @@ static int menuHitTest(int x, int y) {
 static int gameMenuHitTest(int x, int y) {
   (void)x;
 
-  // Zone "retour" en haut
-  if (y >= 0 && y <= 25) {
+  // Zone retour
+  if (y >= 0 && y <= 30) {
     return -2;
   }
 
-  // Liste des jeux à partir de y=40, pas de 20 px
+  // Zone liste des jeux
   for (int i = 0; i < (int)gameList.size(); i++) {
-    int y0 = 40 + i * 20;
-    int y1 = y0 + 18;
+    int y0 = GAME_LIST_Y0 + i * GAME_LIST_STEP;
+    int y1 = y0 + 22;
     if (y >= y0 && y <= y1) {
       return i;
     }
@@ -51,36 +63,37 @@ static int gameMenuHitTest(int x, int y) {
 static void drawMainMenu() {
   displayClear();
 
-  displayDrawText(10, 10, "Raptor Launcher");
-  displayDrawText(10, 40,  gSelected == 0 ? "> Jeux" : "  Jeux");
-  displayDrawText(10, 70,  gSelected == 1 ? "> Parametres" : "  Parametres");
-  displayDrawText(10, 100, gSelected == 2 ? "> Test tactile" : "  Test tactile");
-  displayDrawText(10, 130, gSelected == 3 ? "> Test audio" : "  Test audio");
+  displayDrawText(10, MAIN_TITLE_Y, "Raptor Launcher");
+
+  displayDrawText(10, MAIN_MENU_Y0 + 0 * MAIN_MENU_STEP, gSelected == 0 ? "> Jeux" : "  Jeux");
+  displayDrawText(10, MAIN_MENU_Y0 + 1 * MAIN_MENU_STEP, gSelected == 1 ? "> Parametres" : "  Parametres");
+  displayDrawText(10, MAIN_MENU_Y0 + 2 * MAIN_MENU_STEP, gSelected == 2 ? "> Test tactile" : "  Test tactile");
+  displayDrawText(10, MAIN_MENU_Y0 + 3 * MAIN_MENU_STEP, gSelected == 3 ? "> Test audio" : "  Test audio");
 
   char buf[64];
   snprintf(buf, sizeof(buf), "Touch: %d , %d   ", gTouchX, gTouchY);
-  displayDrawText(10, 200, buf);
+  displayDrawText(10, 210, buf);
 }
 
 static void drawGameMenu() {
   displayClear();
 
-  displayDrawText(10, 10, "< Retour");
-  displayDrawText(10, 30, "Liste des jeux :");
+  displayDrawText(10, GAME_BACK_Y, "< Retour");
+  displayDrawText(10, GAME_TITLE_Y, "Liste des jeux :");
 
   if (gameList.empty()) {
-    displayDrawText(10, 60, "Aucun jeu trouve");
+    displayDrawText(10, GAME_LIST_Y0, "Aucun jeu trouve");
   } else {
     for (int i = 0; i < (int)gameList.size(); i++) {
       String line = (i == gameIndex ? "> " : "  ");
       line += gameList[i];
-      displayDrawText(10, 40 + i * 20, line.c_str());
+      displayDrawText(10, GAME_LIST_Y0 + i * GAME_LIST_STEP, line.c_str());
     }
   }
 
   char buf[64];
   snprintf(buf, sizeof(buf), "Touch: %d , %d   ", gTouchX, gTouchY);
-  displayDrawText(10, 200, buf);
+  displayDrawText(10, 210, buf);
 }
 
 void launcherInit() {
@@ -133,7 +146,7 @@ void launcherUpdate() {
         // Parametres
         displayClear();
         displayDrawText(10, 10, "Parametres");
-        displayDrawText(10, 40, "Pas encore implemente");
+        displayDrawText(10, 50, "Pas encore implemente");
         delay(800);
         gNeedsRedraw = true;
       }
@@ -141,7 +154,7 @@ void launcherUpdate() {
         // Test tactile
         displayClear();
         displayDrawText(10, 10, "Test tactile");
-        displayDrawText(10, 40, "Touchez l'ecran");
+        displayDrawText(10, 50, "Touchez l'ecran");
         delay(800);
         gNeedsRedraw = true;
       }
@@ -149,7 +162,7 @@ void launcherUpdate() {
         // Test audio
         displayClear();
         displayDrawText(10, 10, "Test audio");
-        displayDrawText(10, 40, "Message serie seulement");
+        displayDrawText(10, 50, "Message serie seulement");
         audioTestBeep();
         delay(800);
         gNeedsRedraw = true;
@@ -168,8 +181,8 @@ void launcherUpdate() {
 
         displayClear();
         displayDrawText(10, 10, "Jeu selectionne :");
-        displayDrawText(10, 40, gameList[gameIndex].c_str());
-        displayDrawText(10, 70, "Lancement plus tard");
+        displayDrawText(10, 50, gameList[gameIndex].c_str());
+        displayDrawText(10, 90, "Lancement plus tard");
         Serial.print("[GAME] selection = ");
         Serial.println(gameList[gameIndex]);
         delay(1000);
