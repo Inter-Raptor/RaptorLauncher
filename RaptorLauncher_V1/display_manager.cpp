@@ -117,10 +117,9 @@ bool displayDrawBMP(const char* path, int x, int y) {
     return false;
   }
 
-  // --- Header BMP 14 octets ---
   uint8_t fileHeader[14];
   if (bmpFile.read(fileHeader, 14) != 14) {
-    Serial.println("[BMP] lecture fileHeader impossible");
+    Serial.println("[BMP] header erreur");
     bmpFile.close();
     return false;
   }
@@ -132,82 +131,51 @@ bool displayDrawBMP(const char* path, int x, int y) {
   }
 
   uint32_t dataOffset =
-      (uint32_t)fileHeader[10] |
-      ((uint32_t)fileHeader[11] << 8) |
-      ((uint32_t)fileHeader[12] << 16) |
-      ((uint32_t)fileHeader[13] << 24);
+      fileHeader[10] |
+      (fileHeader[11] << 8) |
+      (fileHeader[12] << 16) |
+      (fileHeader[13] << 24);
 
-  // --- DIB header minimal 40 octets ---
   uint8_t dibHeader[40];
   if (bmpFile.read(dibHeader, 40) != 40) {
-    Serial.println("[BMP] lecture DIB impossible");
+    Serial.println("[BMP] DIB erreur");
     bmpFile.close();
     return false;
   }
 
-  uint32_t dibSize =
-      (uint32_t)dibHeader[0] |
-      ((uint32_t)dibHeader[1] << 8) |
-      ((uint32_t)dibHeader[2] << 16) |
-      ((uint32_t)dibHeader[3] << 24);
-
   int32_t bmpWidth =
-      (int32_t)(
-        (uint32_t)dibHeader[4] |
-        ((uint32_t)dibHeader[5] << 8) |
-        ((uint32_t)dibHeader[6] << 16) |
-        ((uint32_t)dibHeader[7] << 24)
-      );
+      dibHeader[4] |
+      (dibHeader[5] << 8) |
+      (dibHeader[6] << 16) |
+      (dibHeader[7] << 24);
 
   int32_t bmpHeight =
-      (int32_t)(
-        (uint32_t)dibHeader[8] |
-        ((uint32_t)dibHeader[9] << 8) |
-        ((uint32_t)dibHeader[10] << 16) |
-        ((uint32_t)dibHeader[11] << 24)
-      );
-
-  uint16_t planes =
-      (uint16_t)dibHeader[12] |
-      ((uint16_t)dibHeader[13] << 8);
+      dibHeader[8] |
+      (dibHeader[9] << 8) |
+      (dibHeader[10] << 16) |
+      (dibHeader[11] << 24);
 
   uint16_t depth =
-      (uint16_t)dibHeader[14] |
-      ((uint16_t)dibHeader[15] << 8);
+      dibHeader[14] |
+      (dibHeader[15] << 8);
 
   uint32_t compression =
-      (uint32_t)dibHeader[16] |
-      ((uint32_t)dibHeader[17] << 8) |
-      ((uint32_t)dibHeader[18] << 16) |
-      ((uint32_t)dibHeader[19] << 24);
+      dibHeader[16] |
+      (dibHeader[17] << 8) |
+      (dibHeader[18] << 16) |
+      (dibHeader[19] << 24);
 
-  Serial.print("[BMP] dib=");
-  Serial.print(dibSize);
-  Serial.print(" w=");
+  Serial.print("[BMP] w=");
   Serial.print(bmpWidth);
   Serial.print(" h=");
   Serial.print(bmpHeight);
-  Serial.print(" planes=");
-  Serial.print(planes);
   Serial.print(" depth=");
   Serial.print(depth);
   Serial.print(" comp=");
   Serial.println(compression);
 
-  if (dibSize < 40) {
-    Serial.println("[BMP] DIB non supporte");
-    bmpFile.close();
-    return false;
-  }
-
-  if (planes != 1) {
-    Serial.println("[BMP] planes invalide");
-    bmpFile.close();
-    return false;
-  }
-
   if (depth != 24) {
-    Serial.println("[BMP] seulement 24 bits supporte");
+    Serial.println("[BMP] seulement 24 bits");
     bmpFile.close();
     return false;
   }
@@ -230,10 +198,8 @@ bool displayDrawBMP(const char* path, int x, int y) {
     flip = false;
   }
 
-  // Taille d'une ligne BMP alignée sur 4 octets
   uint32_t rowSize = (bmpWidth * 3 + 3) & ~3;
 
-  // Vérif écran
   if (x >= lcd.width() || y >= lcd.height()) {
     Serial.println("[BMP] position hors ecran");
     bmpFile.close();
@@ -252,10 +218,16 @@ bool displayDrawBMP(const char* path, int x, int y) {
     return false;
   }
 
-  // Buffer d'une ligne max 240 px -> 240 * 2 = 480 octets
-  static uint16_t lineBuffer[240];
+  uint8_t* rowBuffer = (uint8_t*)malloc(rowSize);
+  uint16_t* lineBuffer = (uint16_t*)malloc(drawW * sizeof(uint16_t));
 
-  lcd.startWrite();
+  if (!rowBuffer || !lineBuffer) {
+    Serial.println("[BMP] malloc fail");
+    if (rowBuffer) free(rowBuffer);
+    if (lineBuffer) free(lineBuffer);
+    bmpFile.close();
+    return false;
+  }
 
   for (int row = 0; row < drawH; row++) {
     uint32_t fileRow = flip ? (bmpHeight - 1 - row) : row;
@@ -263,30 +235,39 @@ bool displayDrawBMP(const char* path, int x, int y) {
 
     if (!bmpFile.seek(pos)) {
       Serial.println("[BMP] seek impossible");
-      lcd.endWrite();
+      free(rowBuffer);
+      free(lineBuffer);
+      bmpFile.close();
+      return false;
+    }
+
+    int readLen = bmpFile.read(rowBuffer, rowSize);
+    if (readLen != (int)rowSize) {
+      Serial.print("[BMP] lecture ligne incomplete: ");
+      Serial.println(readLen);
+      free(rowBuffer);
+      free(lineBuffer);
       bmpFile.close();
       return false;
     }
 
     for (int col = 0; col < drawW; col++) {
-      int b = bmpFile.read();
-      int g = bmpFile.read();
-      int r = bmpFile.read();
-
-      if (b < 0 || g < 0 || r < 0) {
-        Serial.println("[BMP] lecture pixel impossible");
-        lcd.endWrite();
-        bmpFile.close();
-        return false;
-      }
-
-      lineBuffer[col] = lcd.color565((uint8_t)r, (uint8_t)g, (uint8_t)b);
+      uint8_t b = rowBuffer[col * 3 + 0];
+      uint8_t g = rowBuffer[col * 3 + 1];
+      uint8_t r = rowBuffer[col * 3 + 2];
+      lineBuffer[col] = lcd.color565(r, g, b);
     }
 
     lcd.pushImage(x, y + row, drawW, 1, lineBuffer);
+
+    if ((row % 10) == 0) {
+      Serial.print("[BMP] ligne ");
+      Serial.println(row);
+    }
   }
 
-  lcd.endWrite();
+  free(rowBuffer);
+  free(lineBuffer);
   bmpFile.close();
 
   Serial.println("[BMP] affiche OK");
