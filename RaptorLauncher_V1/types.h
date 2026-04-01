@@ -26,4 +26,5 @@ struct GameInfo {
   String name;
   String author;
   String description;
+  String cover;
 };
