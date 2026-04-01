@@ -1,6 +1,6 @@
 #pragma once
 #include <vector>
-#include <Arduino.h>
+#include "types.h"
 
 bool storageInit();
-std::vector<String> storageListGames();
+std::vector<GameInfo> storageListGames();

@@ -12,7 +12,7 @@ static int gTouchY = -1;
 static int gSelected = -1;
 
 static bool inGameMenu = false;
-static std::vector<String> gameList;
+static std::vector<GameInfo> gameList;
 static int gameIndex = 0;
 
 // -------------------------
@@ -86,7 +86,7 @@ static void drawGameMenu() {
   } else {
     for (int i = 0; i < (int)gameList.size(); i++) {
       String line = (i == gameIndex ? "> " : "  ");
-      line += gameList[i];
+      displayDrawText(10, 50, gameList[gameIndex].name.c_str());
       displayDrawText(10, GAME_LIST_Y0 + i * GAME_LIST_STEP, line.c_str());
     }
   }

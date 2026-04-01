@@ -22,8 +22,8 @@ struct InputState {
 };
 
 struct GameInfo {
-  String folderName;
-  String title;
+  String folder;
+  String name;
   String author;
   String description;
 };

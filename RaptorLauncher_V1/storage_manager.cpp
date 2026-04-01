@@ -1,9 +1,9 @@
 #include <Arduino.h>
 #include <SPI.h>
 #include <SD.h>
+#include <ArduinoJson.h>
 #include "storage_manager.h"
 
-// Pins SD pour ta carte
 #define SD_CS 5
 #define SD_SCK 18
 #define SD_MISO 19
@@ -25,8 +25,8 @@ bool storageInit() {
   return true;
 }
 
-std::vector<String> storageListGames() {
-  std::vector<String> list;
+std::vector<GameInfo> storageListGames() {
+  std::vector<GameInfo> list;
 
   File root = SD.open("/games");
   if (!root) {
@@ -37,10 +37,40 @@ std::vector<String> storageListGames() {
   File file = root.openNextFile();
   while (file) {
     if (file.isDirectory()) {
-      list.push_back(String(file.name()));
-      Serial.print("[SD] jeu trouve: ");
-      Serial.println(file.name());
+
+      String folder = String(file.name());
+      String metaPath = "/games" + folder + "/meta.json";
+
+      Serial.print("[SD] scan: ");
+      Serial.println(metaPath);
+
+      GameInfo game;
+      game.folder = folder;
+      game.name = folder;
+      game.author = "";
+      game.description = "";
+
+      File meta = SD.open(metaPath);
+      if (meta) {
+        StaticJsonDocument<512> doc;
+        DeserializationError err = deserializeJson(doc, meta);
+
+        if (!err) {
+          game.name = doc["name"] | folder;
+          game.author = doc["author"] | "";
+          game.description = doc["description"] | "";
+        } else {
+          Serial.println("[JSON] erreur lecture");
+        }
+
+        meta.close();
+      } else {
+        Serial.println("[SD] meta.json absent");
+      }
+
+      list.push_back(game);
     }
+
     file = root.openNextFile();
   }
 
