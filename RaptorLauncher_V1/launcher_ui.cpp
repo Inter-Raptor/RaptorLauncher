@@ -1,25 +1,45 @@
 #include <Arduino.h>
 #include "launcher_ui.h"
 #include "display_manager.h"
+#include "touch_manager.h"
 
-static bool gFirstRender = true;
+static bool gDrawn = false;
+static int gTouchX = -1;
+static int gTouchY = -1;
+static bool gHasTouch = false;
 
 void launcherInit() {
   Serial.println("[LAUNCHER] init");
 }
 
 void launcherUpdate() {
-  // Plus tard: navigation menu
+  int x, y;
+  if (touchPressed(x, y)) {
+    gTouchX = x;
+    gTouchY = y;
+    gHasTouch = true;
+
+    Serial.print("[TOUCH] x=");
+    Serial.print(x);
+    Serial.print(" y=");
+    Serial.println(y);
+  }
 }
 
 void launcherRender() {
-  if (!gFirstRender) return;
-  gFirstRender = false;
+  if (!gDrawn) {
+    gDrawn = true;
+    displayClear();
+    displayDrawText(10, 10, "Raptor Launcher");
+    displayDrawText(10, 40, "Jeux");
+    displayDrawText(10, 70, "Parametres");
+    displayDrawText(10, 100, "Test tactile");
+    displayDrawText(10, 130, "Test audio");
+  }
 
-  displayClear();
-  displayDrawText(10, 10, "Raptor Launcher");
-  displayDrawText(10, 30, "1. Jeux");
-  displayDrawText(10, 50, "2. Parametres");
-  displayDrawText(10, 70, "3. Test tactile");
-  displayDrawText(10, 90, "4. Test audio");
+  if (gHasTouch) {
+    char buf[64];
+    snprintf(buf, sizeof(buf), "Touch: %d , %d   ", gTouchX, gTouchY);
+    displayDrawText(10, 200, buf);
+  }
 }
