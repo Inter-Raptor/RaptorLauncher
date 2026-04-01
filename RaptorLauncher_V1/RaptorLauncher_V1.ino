@@ -1,4 +1,4 @@
-#include "config.h"
+0000000000#include "config.h"
 #include "types.h"
 #include "display_manager.h"
 #include "touch_manager.h"
