@@ -13,20 +13,25 @@ static const int TOUCH_MOSI = 32;
 SPIClass touchSPI(HSPI);
 XPT2046_Touchscreen ts(TOUCH_CS, TOUCH_IRQ);
 
-// Valeurs à ajuster si besoin
+// Valeurs de calibration de départ
 static const int RAW_X_MIN = 200;
 static const int RAW_X_MAX = 3800;
 static const int RAW_Y_MIN = 200;
 static const int RAW_Y_MAX = 3800;
 
-// Taille écran en paysage pour 2432S028
+// Taille écran paysage
 static const int SCREEN_W = 320;
 static const int SCREEN_H = 240;
 
 static int mapAndClamp(int v, int inMin, int inMax, int outMin, int outMax) {
   long r = map(v, inMin, inMax, outMin, outMax);
-  if (r < outMin) r = outMin;
-  if (r > outMax) r = outMax;
+
+  long minOut = outMin < outMax ? outMin : outMax;
+  long maxOut = outMin > outMax ? outMin : outMax;
+
+  if (r < minOut) r = minOut;
+  if (r > maxOut) r = maxOut;
+
   return (int)r;
 }
 
@@ -47,9 +52,21 @@ bool touchPressed(int &x, int &y) {
 
   TS_Point p = ts.getPoint();
 
-  // Conversion brute -> écran
+  Serial.print("[TOUCH RAW] x=");
+  Serial.print(p.x);
+  Serial.print(" y=");
+  Serial.println(p.y);
+
+  // X inversé
   x = mapAndClamp(p.x, RAW_X_MIN, RAW_X_MAX, SCREEN_W - 1, 0);
+
+  // Y inversé
   y = mapAndClamp(p.y, RAW_Y_MIN, RAW_Y_MAX, SCREEN_H - 1, 0);
+
+  Serial.print("[TOUCH MAP] x=");
+  Serial.print(x);
+  Serial.print(" y=");
+  Serial.println(y);
 
   return true;
 }

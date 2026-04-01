@@ -3,10 +3,9 @@
 #include "display_manager.h"
 #include "touch_manager.h"
 
-static bool gDrawn = false;
+static bool gNeedsRedraw = true;
 static int gTouchX = -1;
 static int gTouchY = -1;
-static bool gHasTouch = false;
 static int gSelected = -1;
 
 static int menuHitTest(int x, int y) {
@@ -19,16 +18,14 @@ static int menuHitTest(int x, int y) {
 
 static void drawMenu() {
   displayClear();
-
   displayDrawText(10, 10, "Raptor Launcher");
-
   displayDrawText(10, 40,  gSelected == 0 ? "> Jeux" : "  Jeux");
   displayDrawText(10, 70,  gSelected == 1 ? "> Parametres" : "  Parametres");
   displayDrawText(10, 100, gSelected == 2 ? "> Test tactile" : "  Test tactile");
   displayDrawText(10, 130, gSelected == 3 ? "> Test audio" : "  Test audio");
 
   char buf[64];
-  snprintf(buf, sizeof(buf), "Touch: %d,%d   ", gTouchX, gTouchY);
+  snprintf(buf, sizeof(buf), "Touch: %d , %d   ", gTouchX, gTouchY);
   displayDrawText(10, 200, buf);
 }
 
@@ -41,15 +38,16 @@ void launcherUpdate() {
   if (touchPressed(x, y)) {
     gTouchX = x;
     gTouchY = y;
-    gHasTouch = true;
 
     int hit = menuHitTest(x, y);
     if (hit != gSelected) {
       gSelected = hit;
-      gDrawn = false;
+      gNeedsRedraw = true;
+    } else {
+      gNeedsRedraw = true;
     }
 
-    Serial.print("[TOUCH] x=");
+    Serial.print("[TOUCH UI] x=");
     Serial.print(x);
     Serial.print(" y=");
     Serial.print(y);
@@ -59,8 +57,8 @@ void launcherUpdate() {
 }
 
 void launcherRender() {
-  if (!gDrawn) {
-    gDrawn = true;
+  if (gNeedsRedraw) {
+    gNeedsRedraw = false;
     drawMenu();
   }
 }
