@@ -174,21 +174,41 @@ void launcherUpdate() {
 
         displayClear();
         displayDrawText(10, 10, "Jeu selectionne :");
-        displayDrawText(10, 50, gameList[gameIndex].name.c_str());
+        displayDrawText(10, 40, gameList[gameIndex].name.c_str());
 
         if (gameList[gameIndex].author.length() > 0) {
           String authorLine = "Par: " + gameList[gameIndex].author;
-          displayDrawText(10, 80, authorLine.c_str());
+          displayDrawText(10, 70, authorLine.c_str());
         }
 
         if (gameList[gameIndex].description.length() > 0) {
-          displayDrawText(10, 110, gameList[gameIndex].description.c_str());
+          displayDrawText(10, 100, gameList[gameIndex].description.c_str());
+        }
+
+        bool bmpOk = false;
+
+        if (gameList[gameIndex].cover.length() > 0) {
+          String path = "/games" + gameList[gameIndex].folder + "/" + gameList[gameIndex].cover;
+
+          Serial.print("[GAME] image path = ");
+          Serial.println(path);
+
+          bmpOk = displayDrawBMP(path.c_str(), 150, 20);
+
+          if (bmpOk) {
+            displayDrawText(10, 130, "Image OK");
+          } else {
+            displayDrawText(10, 130, "Image KO");
+          }
+        } else {
+          displayDrawText(10, 130, "Pas de cover");
         }
 
         Serial.print("[GAME] selection = ");
         Serial.println(gameList[gameIndex].name);
 
-        delay(1200);
+        // on laisse l'ecran plus longtemps pour voir
+        delay(3000);
         gNeedsRedraw = true;
       }
     }
