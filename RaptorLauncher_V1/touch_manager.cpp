@@ -48,8 +48,8 @@ bool touchPressed(int &x, int &y) {
   TS_Point p = ts.getPoint();
 
   // Conversion brute -> écran
-  x = mapAndClamp(p.x, RAW_X_MIN, RAW_X_MAX, 0, SCREEN_W - 1);
-  y = mapAndClamp(p.y, RAW_Y_MIN, RAW_Y_MAX, 0, SCREEN_H - 1);
+  x = mapAndClamp(p.x, RAW_X_MIN, RAW_X_MAX, SCREEN_W - 1, 0);
+  y = mapAndClamp(p.y, RAW_Y_MIN, RAW_Y_MAX, SCREEN_H - 1, 0);
 
   return true;
 }
