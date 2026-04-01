@@ -5,6 +5,7 @@
 #include "touch_manager.h"
 #include "audio_manager.h"
 #include "storage_manager.h"
+#include "types.h"
 
 static bool gNeedsRedraw = true;
 static int gTouchX = -1;
@@ -43,12 +44,10 @@ static int menuHitTest(int x, int y) {
 static int gameMenuHitTest(int x, int y) {
   (void)x;
 
-  // Zone retour
   if (y >= 0 && y <= 30) {
-    return -2;
+    return -2; // Retour
   }
 
-  // Zone liste des jeux
   for (int i = 0; i < (int)gameList.size(); i++) {
     int y0 = GAME_LIST_Y0 + i * GAME_LIST_STEP;
     int y1 = y0 + 22;
@@ -86,7 +85,7 @@ static void drawGameMenu() {
   } else {
     for (int i = 0; i < (int)gameList.size(); i++) {
       String line = (i == gameIndex ? "> " : "  ");
-      displayDrawText(10, 50, gameList[gameIndex].name.c_str());
+      line += gameList[i].name;
       displayDrawText(10, GAME_LIST_Y0 + i * GAME_LIST_STEP, line.c_str());
     }
   }
@@ -130,20 +129,17 @@ void launcherUpdate() {
     }
   }
   else if (wasTouching) {
-    // Relâchement = clic
     if (!inGameMenu) {
       Serial.print("[CLICK] selection = ");
       Serial.println(gSelected);
 
       if (gSelected == 0) {
-        // Jeux
         gameList = storageListGames();
         gameIndex = 0;
         inGameMenu = true;
         gNeedsRedraw = true;
       }
       else if (gSelected == 1) {
-        // Parametres
         displayClear();
         displayDrawText(10, 10, "Parametres");
         displayDrawText(10, 50, "Pas encore implemente");
@@ -151,7 +147,6 @@ void launcherUpdate() {
         gNeedsRedraw = true;
       }
       else if (gSelected == 2) {
-        // Test tactile
         displayClear();
         displayDrawText(10, 10, "Test tactile");
         displayDrawText(10, 50, "Touchez l'ecran");
@@ -159,7 +154,6 @@ void launcherUpdate() {
         gNeedsRedraw = true;
       }
       else if (gSelected == 3) {
-        // Test audio
         displayClear();
         displayDrawText(10, 10, "Test audio");
         displayDrawText(10, 50, "Message serie seulement");
@@ -171,7 +165,6 @@ void launcherUpdate() {
       int hit = gameMenuHitTest(gTouchX, gTouchY);
 
       if (hit == -2) {
-        // Retour
         inGameMenu = false;
         gSelected = -1;
         gNeedsRedraw = true;
@@ -181,11 +174,21 @@ void launcherUpdate() {
 
         displayClear();
         displayDrawText(10, 10, "Jeu selectionne :");
-        displayDrawText(10, 50, gameList[gameIndex].c_str());
-        displayDrawText(10, 90, "Lancement plus tard");
+        displayDrawText(10, 50, gameList[gameIndex].name.c_str());
+
+        if (gameList[gameIndex].author.length() > 0) {
+          String authorLine = "Par: " + gameList[gameIndex].author;
+          displayDrawText(10, 80, authorLine.c_str());
+        }
+
+        if (gameList[gameIndex].description.length() > 0) {
+          displayDrawText(10, 110, gameList[gameIndex].description.c_str());
+        }
+
         Serial.print("[GAME] selection = ");
-        Serial.println(gameList[gameIndex]);
-        delay(1000);
+        Serial.println(gameList[gameIndex].name);
+
+        delay(1200);
         gNeedsRedraw = true;
       }
     }
