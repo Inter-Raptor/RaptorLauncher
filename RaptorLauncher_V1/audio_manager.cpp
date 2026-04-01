@@ -6,5 +6,5 @@ void audioInit() {
 }
 
 void audioTestBeep() {
-  Serial.println("[AUDIO] beep test");
+  Serial.println("[AUDIO] beep test (pas encore de HP)");
 }
