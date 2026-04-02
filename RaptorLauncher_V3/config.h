@@ -1,6 +1,6 @@
 #pragma once
 
-#define APP_NAME "RaptorLauncher V2"
+#define APP_NAME "RaptorLauncher V3"
 #define APP_VERSION "0.1.0"
 
 // =========================
@@ -13,7 +13,7 @@
 // =========================
 // TA CARTE
 // =========================
-#define DISPLAY_PROFILE DISPLAY_PROFILE_2432S028
+#define DISPLAY_PROFILE DISPLAY_PROFILE_ILI9341_320x240
 
 // =========================
 // Dimensions logiques
