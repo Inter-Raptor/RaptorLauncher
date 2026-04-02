@@ -1,0 +1,4 @@
+file=space.raw
+width=100
+height=100
+format=RGB565_LE
