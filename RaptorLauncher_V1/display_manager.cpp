@@ -4,7 +4,7 @@
 #include "config.h"
 #include "display_manager.h"
 
-// ====== Configuration écran pour ESP32-2432S028 ======
+// ====== CONFIG ECRAN ESP32-2432S028 ======
 class LGFX_2432S028 : public lgfx::LGFX_Device {
   lgfx::Panel_ILI9341 _panel_instance;
   lgfx::Bus_SPI _bus_instance;
@@ -19,6 +19,7 @@ public:
       cfg.spi_mode = 0;
       cfg.freq_write = 40000000;
       cfg.freq_read  = 16000000;
+
       cfg.spi_3wire = false;
       cfg.use_lock = true;
       cfg.dma_channel = 1;
@@ -35,24 +36,26 @@ public:
     {
       auto cfg = _panel_instance.config();
 
-      cfg.pin_cs           = 15;
-      cfg.pin_rst          = -1;
-      cfg.pin_busy         = -1;
+      cfg.pin_cs   = 15;
+      cfg.pin_rst  = -1;
+      cfg.pin_busy = -1;
 
-      cfg.memory_width     = 240;
-      cfg.memory_height    = 320;
-      cfg.panel_width      = 240;
-      cfg.panel_height     = 320;
-      cfg.offset_x         = 0;
-      cfg.offset_y         = 0;
-      cfg.offset_rotation  = 0;
-      cfg.dummy_read_pixel = 8;
-      cfg.dummy_read_bits  = 1;
-      cfg.readable         = true;
-      cfg.invert           = false;
-      cfg.rgb_order        = false;
-      cfg.dlen_16bit       = false;
-      cfg.bus_shared       = false;
+      cfg.memory_width  = 240;
+      cfg.memory_height = 320;
+      cfg.panel_width   = 240;
+      cfg.panel_height  = 320;
+
+      cfg.offset_x = 0;
+      cfg.offset_y = 0;
+
+      cfg.readable = true;
+      cfg.invert   = false;
+
+      // ⚠️ IMPORTANT POUR COULEURS
+      cfg.rgb_order = false;
+
+      cfg.dlen_16bit = false;
+      cfg.bus_shared = false;
 
       _panel_instance.config(cfg);
     }
@@ -74,6 +77,7 @@ public:
 
 static LGFX_2432S028 lcd;
 
+// ================= INIT =================
 void displayInit() {
   Serial.println("[DISPLAY] init debut");
 
@@ -86,12 +90,11 @@ void displayInit() {
   lcd.setTextSize(2);
   lcd.setCursor(10, 10);
   lcd.print("Raptor Launcher");
-  lcd.setCursor(10, 35);
-  lcd.print("Ecran OK");
 
   Serial.println("[DISPLAY] init fin");
 }
 
+// ================= BASIC =================
 void displayClear() {
   lcd.fillScreen(TFT_BLACK);
 }
@@ -107,6 +110,26 @@ void displayFillScreen(uint16_t color) {
   lcd.fillScreen(color);
 }
 
+// ================= TEST COULEUR =================
+void displayColorBarsTest() {
+  displayClear();
+
+  lcd.fillRect(0,   0, 60, 120, TFT_RED);
+  lcd.fillRect(60,  0, 60, 120, TFT_GREEN);
+  lcd.fillRect(120, 0, 60, 120, TFT_BLUE);
+  lcd.fillRect(180, 0, 60, 120, TFT_YELLOW);
+
+  lcd.setCursor(10, 140);
+  lcd.print("R");
+  lcd.setCursor(70, 140);
+  lcd.print("G");
+  lcd.setCursor(130, 140);
+  lcd.print("B");
+  lcd.setCursor(190, 140);
+  lcd.print("Y");
+}
+
+// ================= BMP =================
 bool displayDrawBMP(const char* path, int x, int y) {
   Serial.print("[BMP] ouverture: ");
   Serial.println(path);
@@ -118,17 +141,7 @@ bool displayDrawBMP(const char* path, int x, int y) {
   }
 
   uint8_t fileHeader[14];
-  if (bmpFile.read(fileHeader, 14) != 14) {
-    Serial.println("[BMP] header erreur");
-    bmpFile.close();
-    return false;
-  }
-
-  if (fileHeader[0] != 'B' || fileHeader[1] != 'M') {
-    Serial.println("[BMP] signature invalide");
-    bmpFile.close();
-    return false;
-  }
+  bmpFile.read(fileHeader, 14);
 
   uint32_t dataOffset =
       fileHeader[10] |
@@ -137,11 +150,7 @@ bool displayDrawBMP(const char* path, int x, int y) {
       (fileHeader[13] << 24);
 
   uint8_t dibHeader[40];
-  if (bmpFile.read(dibHeader, 40) != 40) {
-    Serial.println("[BMP] DIB erreur");
-    bmpFile.close();
-    return false;
-  }
+  bmpFile.read(dibHeader, 40);
 
   int32_t bmpWidth =
       dibHeader[4] |
@@ -159,38 +168,23 @@ bool displayDrawBMP(const char* path, int x, int y) {
       dibHeader[14] |
       (dibHeader[15] << 8);
 
-  uint32_t compression =
-      dibHeader[16] |
-      (dibHeader[17] << 8) |
-      (dibHeader[18] << 16) |
-      (dibHeader[19] << 24);
-
   Serial.print("[BMP] w=");
   Serial.print(bmpWidth);
   Serial.print(" h=");
   Serial.print(bmpHeight);
   Serial.print(" depth=");
-  Serial.print(depth);
-  Serial.print(" comp=");
-  Serial.println(compression);
+  Serial.println(depth);
 
   if (depth != 24) {
-    Serial.println("[BMP] seulement 24 bits");
+    Serial.println("[BMP] mauvais format");
     bmpFile.close();
     return false;
   }
 
-  if (compression != 0) {
-    Serial.println("[BMP] compression non supportee");
-    bmpFile.close();
-    return false;
-  }
+  uint32_t rowSize = (bmpWidth * 3 + 3) & ~3;
 
-  if (bmpWidth <= 0 || bmpHeight == 0) {
-    Serial.println("[BMP] dimensions invalides");
-    bmpFile.close();
-    return false;
-  }
+  uint8_t* rowBuffer = (uint8_t*)malloc(rowSize);
+  static uint16_t lineBuffer[240];
 
   bool flip = true;
   if (bmpHeight < 0) {
@@ -198,76 +192,25 @@ bool displayDrawBMP(const char* path, int x, int y) {
     flip = false;
   }
 
-  uint32_t rowSize = (bmpWidth * 3 + 3) & ~3;
+  for (int row = 0; row < bmpHeight; row++) {
+    uint32_t pos = dataOffset + (flip ? (bmpHeight - 1 - row) : row) * rowSize;
+    bmpFile.seek(pos);
 
-  if (x >= lcd.width() || y >= lcd.height()) {
-    Serial.println("[BMP] position hors ecran");
-    bmpFile.close();
-    return false;
-  }
+    bmpFile.read(rowBuffer, rowSize);
 
-  int drawW = bmpWidth;
-  int drawH = bmpHeight;
-
-  if (x + drawW > lcd.width())  drawW = lcd.width() - x;
-  if (y + drawH > lcd.height()) drawH = lcd.height() - y;
-
-  if (drawW <= 0 || drawH <= 0) {
-    Serial.println("[BMP] rien a afficher");
-    bmpFile.close();
-    return false;
-  }
-
-  uint8_t* rowBuffer = (uint8_t*)malloc(rowSize);
-  uint16_t* lineBuffer = (uint16_t*)malloc(drawW * sizeof(uint16_t));
-
-  if (!rowBuffer || !lineBuffer) {
-    Serial.println("[BMP] malloc fail");
-    if (rowBuffer) free(rowBuffer);
-    if (lineBuffer) free(lineBuffer);
-    bmpFile.close();
-    return false;
-  }
-
-  for (int row = 0; row < drawH; row++) {
-    uint32_t fileRow = flip ? (bmpHeight - 1 - row) : row;
-    uint32_t pos = dataOffset + fileRow * rowSize;
-
-    if (!bmpFile.seek(pos)) {
-      Serial.println("[BMP] seek impossible");
-      free(rowBuffer);
-      free(lineBuffer);
-      bmpFile.close();
-      return false;
-    }
-
-    int readLen = bmpFile.read(rowBuffer, rowSize);
-    if (readLen != (int)rowSize) {
-      Serial.print("[BMP] lecture ligne incomplete: ");
-      Serial.println(readLen);
-      free(rowBuffer);
-      free(lineBuffer);
-      bmpFile.close();
-      return false;
-    }
-
-    for (int col = 0; col < drawW; col++) {
+    for (int col = 0; col < bmpWidth; col++) {
       uint8_t b = rowBuffer[col * 3 + 0];
       uint8_t g = rowBuffer[col * 3 + 1];
       uint8_t r = rowBuffer[col * 3 + 2];
+
+      // ⚠️ PAS D'INVERSION ICI
       lineBuffer[col] = lcd.color565(r, g, b);
     }
 
-    lcd.pushImage(x, y + row, drawW, 1, lineBuffer);
-
-    if ((row % 10) == 0) {
-      Serial.print("[BMP] ligne ");
-      Serial.println(row);
-    }
+    lcd.pushImage(x, y + row, bmpWidth, 1, lineBuffer);
   }
 
   free(rowBuffer);
-  free(lineBuffer);
   bmpFile.close();
 
   Serial.println("[BMP] affiche OK");
