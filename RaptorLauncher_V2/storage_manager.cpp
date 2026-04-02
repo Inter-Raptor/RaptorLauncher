@@ -53,9 +53,14 @@ std::vector<GameInfo> storageListGames() {
       game.name = folderName;
       game.author = "";
       game.description = "";
-      game.cover = "";
-      game.coverW = 0;
-      game.coverH = 0;
+
+      game.icon = "";
+      game.iconW = 0;
+      game.iconH = 0;
+
+      game.title = "";
+      game.titleW = 0;
+      game.titleH = 0;
 
       String metaPath = "/games" + folderName + "/meta.json";
 
@@ -83,18 +88,31 @@ std::vector<GameInfo> storageListGames() {
           game.name = doc["name"] | folderName;
           game.author = doc["author"] | "";
           game.description = doc["description"] | "";
-          game.cover = doc["cover"] | "";
-          game.coverW = doc["cover_w"] | 0;
-          game.coverH = doc["cover_h"] | 0;
+
+          game.icon = doc["icon"] | "";
+          game.iconW = doc["icon_w"] | 0;
+          game.iconH = doc["icon_h"] | 0;
+
+          game.title = doc["title"] | "";
+          game.titleW = doc["title_w"] | 0;
+          game.titleH = doc["title_h"] | 0;
 
           Serial.print("[JSON] name = ");
           Serial.println(game.name);
-          Serial.print("[JSON] cover = ");
-          Serial.println(game.cover);
-          Serial.print("[JSON] cover_w = ");
-          Serial.println(game.coverW);
-          Serial.print("[JSON] cover_h = ");
-          Serial.println(game.coverH);
+
+          Serial.print("[JSON] icon = ");
+          Serial.println(game.icon);
+          Serial.print("[JSON] icon_w = ");
+          Serial.println(game.iconW);
+          Serial.print("[JSON] icon_h = ");
+          Serial.println(game.iconH);
+
+          Serial.print("[JSON] title = ");
+          Serial.println(game.title);
+          Serial.print("[JSON] title_w = ");
+          Serial.println(game.titleW);
+          Serial.print("[JSON] title_h = ");
+          Serial.println(game.titleH);
         }
       } else {
         Serial.println("[SD] meta.json absent ou impossible a ouvrir");
