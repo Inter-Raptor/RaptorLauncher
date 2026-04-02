@@ -16,9 +16,6 @@ static bool inGameMenu = false;
 static std::vector<GameInfo> gameList;
 static int gameIndex = 0;
 
-// -------------------------
-// Réglages d'affichage
-// -------------------------
 static const int MAIN_TITLE_Y      = 10;
 static const int MAIN_MENU_Y0      = 50;
 static const int MAIN_MENU_STEP    = 30;
@@ -28,24 +25,22 @@ static const int GAME_TITLE_Y      = 40;
 static const int GAME_LIST_Y0      = 80;
 static const int GAME_LIST_STEP    = 28;
 
-// ---------- Menu principal ----------
 static int menuHitTest(int x, int y) {
   (void)x;
 
-  if (y >= 45 && y <= 65)   return 0; // Jeux
-  if (y >= 75 && y <= 95)   return 1; // Parametres
-  if (y >= 105 && y <= 125) return 2; // Test tactile
-  if (y >= 135 && y <= 155) return 3; // Test audio
+  if (y >= 45 && y <= 65)   return 0;
+  if (y >= 75 && y <= 95)   return 1;
+  if (y >= 105 && y <= 125) return 2;
+  if (y >= 135 && y <= 155) return 3;
 
   return -1;
 }
 
-// ---------- Menu jeux ----------
 static int gameMenuHitTest(int x, int y) {
   (void)x;
 
   if (y >= 0 && y <= 30) {
-    return -2; // Retour
+    return -2;
   }
 
   for (int i = 0; i < (int)gameList.size(); i++) {
@@ -130,9 +125,6 @@ void launcherUpdate() {
   }
   else if (wasTouching) {
     if (!inGameMenu) {
-      Serial.print("[CLICK] selection = ");
-      Serial.println(gSelected);
-
       if (gSelected == 0) {
         gameList = storageListGames();
         gameIndex = 0;
@@ -185,29 +177,38 @@ void launcherUpdate() {
           displayDrawText(10, 100, gameList[gameIndex].description.c_str());
         }
 
-        bool bmpOk = false;
+        bool imageOk = false;
 
-        if (gameList[gameIndex].cover.length() > 0) {
+        if (gameList[gameIndex].cover.length() > 0 &&
+            gameList[gameIndex].coverW > 0 &&
+            gameList[gameIndex].coverH > 0) {
+
           String path = "/games" + gameList[gameIndex].folder + "/" + gameList[gameIndex].cover;
 
           Serial.print("[GAME] image path = ");
           Serial.println(path);
 
-          bmpOk = displayDrawBMP(path.c_str(), 150, 20);
+          if (gameList[gameIndex].cover.endsWith(".raw")) {
+            imageOk = displayDrawRAW(
+              path.c_str(),
+              150,
+              20,
+              gameList[gameIndex].coverW,
+              gameList[gameIndex].coverH
+            );
+          } else if (gameList[gameIndex].cover.endsWith(".bmp")) {
+            imageOk = displayDrawBMP(path.c_str(), 150, 20);
+          }
 
-          if (bmpOk) {
+          if (imageOk) {
             displayDrawText(10, 130, "Image OK");
           } else {
             displayDrawText(10, 130, "Image KO");
           }
         } else {
-          displayDrawText(10, 130, "Pas de cover");
+          displayDrawText(10, 130, "Pas de cover ou taille absente");
         }
 
-        Serial.print("[GAME] selection = ");
-        Serial.println(gameList[gameIndex].name);
-
-        // on laisse l'ecran plus longtemps pour voir
         delay(3000);
         gNeedsRedraw = true;
       }

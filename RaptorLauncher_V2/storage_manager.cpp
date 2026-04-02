@@ -45,8 +45,6 @@ std::vector<GameInfo> storageListGames() {
       GameInfo game;
 
       String folderName = String(file.name());
-
-      // file.name() peut renvoyer "Dino" ou "/Dino"
       if (!folderName.startsWith("/")) {
         folderName = "/" + folderName;
       }
@@ -56,6 +54,8 @@ std::vector<GameInfo> storageListGames() {
       game.author = "";
       game.description = "";
       game.cover = "";
+      game.coverW = 0;
+      game.coverH = 0;
 
       String metaPath = "/games" + folderName + "/meta.json";
 
@@ -73,9 +73,6 @@ std::vector<GameInfo> storageListGames() {
         }
         meta.close();
 
-        Serial.println("[SD] contenu meta.json:");
-        Serial.println(jsonText);
-
         JsonDocument doc;
         DeserializationError err = deserializeJson(doc, jsonText);
 
@@ -87,18 +84,17 @@ std::vector<GameInfo> storageListGames() {
           game.author = doc["author"] | "";
           game.description = doc["description"] | "";
           game.cover = doc["cover"] | "";
+          game.coverW = doc["cover_w"] | 0;
+          game.coverH = doc["cover_h"] | 0;
 
           Serial.print("[JSON] name = ");
           Serial.println(game.name);
-
-          Serial.print("[JSON] author = ");
-          Serial.println(game.author);
-
-          Serial.print("[JSON] description = ");
-          Serial.println(game.description);
-
           Serial.print("[JSON] cover = ");
           Serial.println(game.cover);
+          Serial.print("[JSON] cover_w = ");
+          Serial.println(game.coverW);
+          Serial.print("[JSON] cover_h = ");
+          Serial.println(game.coverH);
         }
       } else {
         Serial.println("[SD] meta.json absent ou impossible a ouvrir");
