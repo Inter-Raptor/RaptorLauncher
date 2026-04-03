@@ -14,81 +14,59 @@ static int gSelected = -1;
 
 static bool inGameMenu = false;
 static std::vector<GameInfo> gameList;
-static int gameIndex = -1;
+static int gameIndex = 0;
 
-// -------------------------
-// Menu principal
-// -------------------------
 static const int MAIN_TITLE_Y   = 10;
 static const int MAIN_MENU_Y0   = 50;
 static const int MAIN_MENU_STEP = 30;
 
-// -------------------------
-// Grille jeux 2x2
-// -------------------------
+// Galerie 2x2 temporaire
 static const int GRID_COLS = 2;
 static const int GRID_ROWS = 2;
-static const int GRID_COUNT = GRID_COLS * GRID_ROWS;
+static const int GRID_CELL_W = 160;
+static const int GRID_CELL_H = 95;
 
-static const int GRID_START_X = 30;
-static const int GRID_START_Y = 45;
+static const int ICON_X_OFFSET = 30;
+static const int ICON_Y_OFFSET = 8;
+static const int LABEL_Y_OFFSET = 76;
 
-static const int CELL_W = 130;
-static const int CELL_H = 85;
-
-static const int ICON_DRAW_W = 60;
-static const int ICON_DRAW_H = 60;
-
-static const int BACK_BTN_X = 10;
-static const int BACK_BTN_Y = 10;
-static const int BACK_BTN_W = 80;
-static const int BACK_BTN_H = 24;
-
-// -------------------------
-// Ecran détail jeu
-// -------------------------
-static bool inGameDetail = false;
-
-// =====================================================
-// HIT TEST
-// =====================================================
 static int menuHitTest(int x, int y) {
   (void)x;
 
-  if (y >= 45 && y <= 65)   return 0; // Jeux
-  if (y >= 75 && y <= 95)   return 1; // Parametres
-  if (y >= 105 && y <= 125) return 2; // Test tactile
-  if (y >= 135 && y <= 155) return 3; // Test audio
+  if (y >= 45 && y <= 65)   return 0;
+  if (y >= 75 && y <= 95)   return 1;
+  if (y >= 105 && y <= 125) return 2;
+  if (y >= 135 && y <= 155) return 3;
 
   return -1;
-}
-
-static bool backButtonHitTest(int x, int y) {
-  return (x >= BACK_BTN_X && x < BACK_BTN_X + BACK_BTN_W &&
-          y >= BACK_BTN_Y && y < BACK_BTN_Y + BACK_BTN_H);
 }
 
 static int gameGridHitTest(int x, int y) {
-  for (int row = 0; row < GRID_ROWS; row++) {
-    for (int col = 0; col < GRID_COLS; col++) {
-      int idx = row * GRID_COLS + col;
-      if (idx >= (int)gameList.size()) return -1;
-
-      int cellX = GRID_START_X + col * CELL_W;
-      int cellY = GRID_START_Y + row * CELL_H;
-
-      if (x >= cellX && x < cellX + CELL_W &&
-          y >= cellY && y < cellY + CELL_H) {
-        return idx;
-      }
-    }
+  // zone bouton retour
+  if (x >= 0 && x <= 90 && y >= 0 && y <= 30) {
+    return -2;
   }
-  return -1;
+
+  // grille 2x2 sous le bandeau haut
+  if (y < 35) return -1;
+
+  int gridY = y - 35;
+  int col = x / GRID_CELL_W;
+  int row = gridY / GRID_CELL_H;
+
+  if (col < 0 || col >= GRID_COLS || row < 0 || row >= GRID_ROWS) {
+    return -1;
+  }
+
+  int index = row * GRID_COLS + col;
+
+  if (index >= (int)gameList.size()) {
+    return -1;
+  }
+
+  return index;
 }
 
-// =====================================================
-// DRAW
-// =====================================================
 static void drawMainMenu() {
   displayClear();
 
@@ -104,106 +82,62 @@ static void drawMainMenu() {
   displayDrawText(10, 210, buf);
 }
 
-static void drawGameGrid() {
-  displayClear();
-
-  displayDrawText(BACK_BTN_X, BACK_BTN_Y, "< Retour");
-  displayDrawText(110, 10, "Jeux");
-
-  if (gameList.empty()) {
-    displayDrawText(10, 60, "Aucun jeu trouve");
-    return;
-  }
-
-  for (int row = 0; row < GRID_ROWS; row++) {
-    for (int col = 0; col < GRID_COLS; col++) {
-      int idx = row * GRID_COLS + col;
-      if (idx >= (int)gameList.size()) return;
-
-      int cellX = GRID_START_X + col * CELL_W;
-      int cellY = GRID_START_Y + row * CELL_H;
-
-      int iconX = cellX + 10;
-      int iconY = cellY + 2;
-
-      int textY = cellY + 66;
-
-      if (gameList[idx].icon.length() > 0 &&
-          gameList[idx].iconW > 0 &&
-          gameList[idx].iconH > 0) {
-
-        String path = "/games" + gameList[idx].folder + "/" + gameList[idx].icon;
-
-        if (gameList[idx].icon.endsWith(".raw")) {
-          displayDrawRAW(path.c_str(), iconX, iconY, gameList[idx].iconW, gameList[idx].iconH);
-        } else if (gameList[idx].icon.endsWith(".bmp")) {
-          displayDrawBMP(path.c_str(), iconX, iconY);
-        }
-      }
-
-      String label = gameList[idx].name;
-      if ((int)label.length() > 14) {
-        label = label.substring(0, 14);
-      }
-
-      displayDrawText(cellX, textY, label.c_str());
-
-      if (idx == gSelected) {
-        displayDrawText(cellX + 90, cellY + 20, "<");
-      }
-    }
-  }
-}
-
-static void drawGameDetail() {
+static void drawGameMenu() {
   displayClear();
 
   displayDrawText(10, 10, "< Retour");
-  displayDrawText(10, 40, gameList[gameIndex].name.c_str());
+  displayDrawText(120, 10, "Jeux");
 
-  if (gameList[gameIndex].author.length() > 0) {
-    String authorLine = "Par: " + gameList[gameIndex].author;
-    displayDrawText(10, 70, authorLine.c_str());
-  }
+  for (int i = 0; i < 4 && i < (int)gameList.size(); i++) {
+    int col = i % GRID_COLS;
+    int row = i / GRID_COLS;
 
-  if (gameList[gameIndex].description.length() > 0) {
-    displayDrawText(10, 100, gameList[gameIndex].description.c_str());
-  }
+    int cellX = col * GRID_CELL_W;
+    int cellY = 35 + row * GRID_CELL_H;
 
-  bool imageOk = false;
+    int iconX = cellX + ICON_X_OFFSET;
+    int iconY = cellY + ICON_Y_OFFSET;
 
-  if (gameList[gameIndex].icon.length() > 0 &&
-      gameList[gameIndex].iconW > 0 &&
-      gameList[gameIndex].iconH > 0) {
+    int labelY = cellY + LABEL_Y_OFFSET;
 
-    String path = "/games" + gameList[gameIndex].folder + "/" + gameList[gameIndex].icon;
-
-    if (gameList[gameIndex].icon.endsWith(".raw")) {
-      imageOk = displayDrawRAW(
-        path.c_str(),
-        200,
-        20,
-        gameList[gameIndex].iconW,
-        gameList[gameIndex].iconH
-      );
-    } else if (gameList[gameIndex].icon.endsWith(".bmp")) {
-      imageOk = displayDrawBMP(path.c_str(), 200, 20);
+    // petit cadre simple avec le nom marque si selectionne
+    if (i == gameIndex) {
+      displayDrawText(cellX + 5, cellY + 2, ">");
     }
+
+    bool imageOk = false;
+
+    if (gameList[i].icon.length() > 0 &&
+        gameList[i].iconW > 0 &&
+        gameList[i].iconH > 0) {
+
+      String path = "/games" + gameList[i].folder + "/" + gameList[i].icon;
+
+      if (gameList[i].icon.endsWith(".raw")) {
+        imageOk = displayDrawRAW(
+          path.c_str(),
+          iconX,
+          iconY,
+          gameList[i].iconW,
+          gameList[i].iconH
+        );
+      } else if (gameList[i].icon.endsWith(".bmp")) {
+        imageOk = displayDrawBMP(path.c_str(), iconX, iconY);
+      }
+    }
+
+    if (!imageOk) {
+      displayDrawText(iconX, iconY + 35, "Image KO");
+    }
+
+    displayDrawText(cellX + 10, labelY, gameList[i].name.c_str());
   }
 
-  displayDrawText(10, 180, imageOk ? "Image OK" : "Image KO");
-
-  if (gameList[gameIndex].title.length() > 0) {
-    Serial.print("[GAME] title path = /games");
-    Serial.print(gameList[gameIndex].folder);
-    Serial.print("/");
-    Serial.println(gameList[gameIndex].title);
-  }
+  char buf[64];
+  snprintf(buf, sizeof(buf), "Touch: %d , %d   ", gTouchX, gTouchY);
+  displayDrawText(10, 220, buf);
 }
 
-// =====================================================
-// API
-// =====================================================
 void launcherInit() {
   Serial.println("[LAUNCHER] init");
   gNeedsRedraw = true;
@@ -225,11 +159,13 @@ void launcherUpdate() {
         gSelected = hit;
         gNeedsRedraw = true;
       }
-    } else if (!inGameDetail) {
+    } else {
       int hit = gameGridHitTest(x, y);
-      if (hit != gSelected) {
-        gSelected = hit;
-        gNeedsRedraw = true;
+      if (hit >= 0 && hit < (int)gameList.size()) {
+        if (hit != gameIndex) {
+          gameIndex = hit;
+          gNeedsRedraw = true;
+        }
       }
     }
   }
@@ -237,10 +173,8 @@ void launcherUpdate() {
     if (!inGameMenu) {
       if (gSelected == 0) {
         gameList = storageListGames();
-        gSelected = -1;
-        gameIndex = -1;
+        gameIndex = 0;
         inGameMenu = true;
-        inGameDetail = false;
         gNeedsRedraw = true;
       }
       else if (gSelected == 1) {
@@ -265,22 +199,70 @@ void launcherUpdate() {
         delay(800);
         gNeedsRedraw = true;
       }
-    } else if (!inGameDetail) {
-      if (backButtonHitTest(gTouchX, gTouchY)) {
+    } else {
+      int hit = gameGridHitTest(gTouchX, gTouchY);
+
+      if (hit == -2) {
         inGameMenu = false;
         gSelected = -1;
         gNeedsRedraw = true;
-      } else {
-        int hit = gameGridHitTest(gTouchX, gTouchY);
-        if (hit >= 0 && hit < (int)gameList.size()) {
-          gameIndex = hit;
-          inGameDetail = true;
-          gNeedsRedraw = true;
-        }
       }
-    } else {
-      if (backButtonHitTest(gTouchX, gTouchY)) {
-        inGameDetail = false;
+      else if (hit >= 0 && hit < (int)gameList.size()) {
+        gameIndex = hit;
+
+        displayClear();
+        displayDrawText(10, 10, "Jeu selectionne :");
+        displayDrawText(10, 40, gameList[gameIndex].name.c_str());
+
+        if (gameList[gameIndex].author.length() > 0) {
+          String authorLine = "Par: " + gameList[gameIndex].author;
+          displayDrawText(10, 70, authorLine.c_str());
+        }
+
+        if (gameList[gameIndex].description.length() > 0) {
+          displayDrawText(10, 100, gameList[gameIndex].description.c_str());
+        }
+
+        bool imageOk = false;
+
+        if (gameList[gameIndex].icon.length() > 0 &&
+            gameList[gameIndex].iconW > 0 &&
+            gameList[gameIndex].iconH > 0) {
+
+          String path = "/games" + gameList[gameIndex].folder + "/" + gameList[gameIndex].icon;
+
+          Serial.print("[GAME] icon path = ");
+          Serial.println(path);
+
+          if (gameList[gameIndex].icon.endsWith(".raw")) {
+            imageOk = displayDrawRAW(
+              path.c_str(),
+              180,
+              20,
+              gameList[gameIndex].iconW,
+              gameList[gameIndex].iconH
+            );
+          } else if (gameList[gameIndex].icon.endsWith(".bmp")) {
+            imageOk = displayDrawBMP(path.c_str(), 180, 20);
+          }
+
+          if (imageOk) {
+            displayDrawText(10, 130, "Image OK");
+          } else {
+            displayDrawText(10, 130, "Image KO");
+          }
+        } else {
+          displayDrawText(10, 130, "Pas d'icone ou taille absente");
+        }
+
+        if (gameList[gameIndex].title.length() > 0) {
+          Serial.print("[GAME] title path = /games");
+          Serial.print(gameList[gameIndex].folder);
+          Serial.print("/");
+          Serial.println(gameList[gameIndex].title);
+        }
+
+        delay(3000);
         gNeedsRedraw = true;
       }
     }
@@ -296,9 +278,7 @@ void launcherRender() {
 
   if (!inGameMenu) {
     drawMainMenu();
-  } else if (!inGameDetail) {
-    drawGameGrid();
   } else {
-    drawGameDetail();
+    drawGameMenu();
   }
 }

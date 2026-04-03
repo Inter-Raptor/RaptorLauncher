@@ -9,7 +9,7 @@
 #define SD_MISO 19
 #define SD_MOSI 23
 
-static SPIClass sdSPI(VSPI);
+static SPIClass sdSPI(HSPI);
 
 bool storageInit() {
   Serial.println("[SD] init debut");
@@ -45,9 +45,18 @@ std::vector<GameInfo> storageListGames() {
       GameInfo game;
 
       String folderName = String(file.name());
-      if (!folderName.startsWith("/")) {
-        folderName = "/" + folderName;
-      }
+folderName.replace("\\", "/");
+
+// si file.name() renvoie deja /games/MonJeu ou games/MonJeu, on retire /games
+if (folderName.startsWith("/games/")) {
+  folderName = folderName.substring(6);
+} else if (folderName.startsWith("games/")) {
+  folderName = folderName.substring(5);
+}
+
+if (!folderName.startsWith("/")) {
+  folderName = "/" + folderName;
+}
 
       game.folder = folderName;
       game.name = folderName;

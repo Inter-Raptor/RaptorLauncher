@@ -8,7 +8,7 @@
 // CONFIG ECRAN ESP32-2432S028
 // ======================================================
 class LGFX_2432S028 : public lgfx::LGFX_Device {
-  lgfx::Panel_ILI9341 _panel_instance;
+  lgfx::Panel_ST7789 _panel_instance;
   lgfx::Bus_SPI _bus_instance;
   lgfx::Light_PWM _light_instance;
 
@@ -62,7 +62,7 @@ public:
 
     {
       auto cfg = _light_instance.config();
-      cfg.pin_bl = 21;
+      cfg.pin_bl = 27;
       cfg.invert = false;
       cfg.freq   = 12000;
       cfg.pwm_channel = 7;
@@ -109,7 +109,7 @@ void displayInit() {
   Serial.println("[DISPLAY] init debut");
 
   lcd.init();
-  lcd.setRotation(1);
+  lcd.setRotation(3);
   lcd.setBrightness(255);
   lcd.fillScreen(COLOR_BG);
 
@@ -227,7 +227,7 @@ bool displayDrawRAW(const char* path, int x, int y, int width, int height) {
         rawFile.close();
         return false;
       }
-      lineBuffer[col] = (uint16_t)lo | ((uint16_t)hi << 8);
+      lineBuffer[col] = ((uint16_t)lo << 8) | (uint16_t)hi;
     }
 
     // si image plus large que zone affichable, on saute le reste de la ligne
