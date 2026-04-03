@@ -51,7 +51,7 @@ public:
       cfg.offset_y = 0;
 
       cfg.readable = true;
-      cfg.invert   = false;
+      cfg.invert   = true;
       cfg.rgb_order = false;
 
       cfg.dlen_16bit = false;
