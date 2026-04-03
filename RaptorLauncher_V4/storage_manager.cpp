@@ -9,7 +9,7 @@
 #define SD_MISO 19
 #define SD_MOSI 23
 
-static SPIClass sdSPI(VSPI);
+static SPIClass sdSPI(HSPI);
 
 bool storageInit() {
   Serial.println("[SD] init debut");
