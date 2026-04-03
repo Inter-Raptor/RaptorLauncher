@@ -141,12 +141,34 @@ void displayDrawText(int x, int y, const char* text) {
   lcd.print(text);
 }
 
+void displayDrawSmallText(int x, int y, const char* text) {
+  lcd.setTextColor(COLOR_TEXT, COLOR_BG);
+  lcd.setTextSize(1);
+  lcd.setCursor(x, y);
+  lcd.print(text);
+}
+
+void displayDrawSmallTextColor(int x, int y, const char* text, uint16_t fg, uint16_t bg) {
+  lcd.setTextColor(fg, bg);
+  lcd.setTextSize(1);
+  lcd.setCursor(x, y);
+  lcd.print(text);
+}
+
 void displayDrawCenteredText(int y, const char* text) {
   lcd.setTextSize(2);
   int w = lcd.textWidth(text);
   int x = (lcd.width() - w) / 2;
   if (x < 0) x = 0;
   displayDrawText(x, y, text);
+}
+
+void displayFillRect(int x, int y, int w, int h, uint16_t color) {
+  lcd.fillRect(x, y, w, h, color);
+}
+
+void displayDrawRect(int x, int y, int w, int h, uint16_t color) {
+  lcd.drawRect(x, y, w, h, color);
 }
 
 int displayWidth() {
