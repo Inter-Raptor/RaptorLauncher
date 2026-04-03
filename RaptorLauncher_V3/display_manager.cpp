@@ -218,25 +218,29 @@ bool displayDrawRAW(const char* path, int x, int y, int width, int height) {
     return false;
   }
 
+  lcd.setSwapBytes(true);
+
   for (int row = 0; row < drawHeight; row++) {
     for (int col = 0; col < drawWidth; col++) {
-      uint8_t lo, hi;
-      if (rawFile.read(&lo, 1) != 1 || rawFile.read(&hi, 1) != 1) {
+      uint8_t hi, lo;
+      if (rawFile.read(&hi, 1) != 1 || rawFile.read(&lo, 1) != 1) {
         Serial.println("[RAW] lecture pixel impossible");
+        lcd.setSwapBytes(false);
         free(lineBuffer);
         rawFile.close();
         return false;
       }
-      lineBuffer[col] = ((uint16_t)lo << 8) | (uint16_t)hi;
+      lineBuffer[col] = ((uint16_t)hi << 8) | (uint16_t)lo;
     }
 
-    // si image plus large que zone affichable, on saute le reste de la ligne
     if (width > drawWidth) {
       rawFile.seek(rawFile.position() + (width - drawWidth) * 2);
     }
 
     lcd.pushImage(x, y + row, drawWidth, 1, lineBuffer);
   }
+
+  lcd.setSwapBytes(false);
 
   free(lineBuffer);
   rawFile.close();
