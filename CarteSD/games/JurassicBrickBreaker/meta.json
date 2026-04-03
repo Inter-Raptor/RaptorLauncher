@@ -1,0 +1,12 @@
+{
+  "name": "Jurassic Brick Breaker",
+  "author": "Vivien",
+  "description": "Un casse-briques version jurassique.",
+  "cover": "icon.raw",
+  "cover_w": 100,
+  "cover_h": 100,
+  "title": "title.raw",
+  "title_w": 320,
+  "title_h": 240
+}
+}

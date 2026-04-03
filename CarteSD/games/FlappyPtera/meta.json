@@ -1,0 +1,11 @@
+{
+  "name": "Flappy Ptera",
+  "author": "Vivien",
+  "description": "Un jeu type Flappy Bird avec un pteranodon.",
+  "cover": "icon.raw",
+  "cover_w": 100,
+  "cover_h": 100,
+  "title": "title.raw",
+  "title_w": 320,
+  "title_h": 240
+}
