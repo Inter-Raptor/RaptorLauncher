@@ -7,6 +7,7 @@
   "cover_h": 100,
   "title": "title.raw",
   "title_w": 320,
-  "title_h": 240
-}
+  "title_h": 240,
+  "bin": "game.bin",
+  "save": "sauv.json"
 }
