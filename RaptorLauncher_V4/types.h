@@ -15,6 +15,12 @@ enum GameButton {
   BTN_COUNT
 };
 
+enum GameControlType {
+  GAME_TOUCH,
+  GAME_PHYSICAL,
+  GAME_MIXED
+};
+
 struct InputState {
   bool held[BTN_COUNT];
   bool pressed[BTN_COUNT];
@@ -23,9 +29,11 @@ struct InputState {
 
 struct GameInfo {
   String folder;
+
   String name;
   String author;
   String description;
+  String type;
 
   String icon;
   int iconW;
@@ -34,4 +42,7 @@ struct GameInfo {
   String title;
   int titleW;
   int titleH;
+
+  String bin;
+  String save;
 };
