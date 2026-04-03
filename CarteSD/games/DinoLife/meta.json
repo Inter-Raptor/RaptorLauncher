@@ -2,6 +2,7 @@
   "name": "Dino Life",
   "author": "Vivien",
   "description": "Un tamagotchi jurassique.",
+  "type": "mixed",
   "icon": "icon.raw",
   "icon_w": 50,
   "icon_h": 50,
