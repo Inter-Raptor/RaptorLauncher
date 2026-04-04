@@ -23,6 +23,8 @@ void settingsSetDefaults() {
   gSettings.touch_x_max = 3800;
   gSettings.touch_y_min = 200;
   gSettings.touch_y_max = 3800;
+  gSettings.touch_offset_x = 0;
+  gSettings.touch_offset_y = 0;
 }
 
 SystemSettings& settingsGet() {
@@ -39,6 +41,8 @@ bool settingsSave() {
   doc["touch_x_max"] = gSettings.touch_x_max;
   doc["touch_y_min"] = gSettings.touch_y_min;
   doc["touch_y_max"] = gSettings.touch_y_max;
+  doc["touch_offset_x"] = gSettings.touch_offset_x;
+  doc["touch_offset_y"] = gSettings.touch_offset_y;
 
   if (SD.exists(SETTINGS_PATH)) {
     SD.remove(SETTINGS_PATH);
@@ -98,6 +102,8 @@ bool settingsInit() {
   gSettings.touch_x_max = doc["touch_x_max"] | 3800;
   gSettings.touch_y_min = doc["touch_y_min"] | 200;
   gSettings.touch_y_max = doc["touch_y_max"] | 3800;
+  gSettings.touch_offset_x = clampValue(doc["touch_offset_x"] | 0, -80, 80);
+  gSettings.touch_offset_y = clampValue(doc["touch_offset_y"] | 0, -80, 80);
 
   Serial.print("[SETTINGS] volume = ");
   Serial.println(gSettings.volume);
@@ -116,6 +122,10 @@ bool settingsInit() {
   Serial.println(gSettings.touch_y_min);
   Serial.print("[SETTINGS] touch_y_max = ");
   Serial.println(gSettings.touch_y_max);
+  Serial.print("[SETTINGS] touch_offset_x = ");
+  Serial.println(gSettings.touch_offset_x);
+  Serial.print("[SETTINGS] touch_offset_y = ");
+  Serial.println(gSettings.touch_offset_y);
 
   return true;
 }
