@@ -41,6 +41,5 @@ void loop() {
   inputUpdate();
   launcherUpdate();
   launcherRender();
-  wifiManagerLoop();
   delay(16);
 }
