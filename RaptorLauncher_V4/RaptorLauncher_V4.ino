@@ -28,7 +28,7 @@ void setup() {
   audioSetVolume(settingsGet().volume);
 
   wifiManagerInit();
-
+  
   inputInit();
   launcherInit();
 
@@ -41,5 +41,6 @@ void loop() {
   inputUpdate();
   launcherUpdate();
   launcherRender();
+  wifiManagerLoop();
   delay(16);
 }
