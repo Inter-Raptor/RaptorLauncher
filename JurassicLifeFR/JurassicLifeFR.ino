@@ -1674,19 +1674,19 @@ static inline uint8_t animIdForState(AgeStage stg, TriState st) {
     }
   } else if (stg == AGE_ADULTE) {
     switch (st) {
-      case ST_SIT:   return (uint8_t)triA::ANIM_ADULTE_ASSIE;
-      case ST_BLINK: return (uint8_t)triA::ANIM_ADULTE_CLIGNE;
-      case ST_EAT:   return (uint8_t)triA::ANIM_ADULTE_MANGE;
-      case ST_SLEEP: return (uint8_t)triA::ANIM_ADULTE_DODO;
-      default:       return (uint8_t)triA::ANIM_ADULTE_MARCHE;
+      case ST_SIT:   return (uint8_t)triJ::ANIM_JUNIOR_ASSIE;
+      case ST_BLINK: return (uint8_t)triJ::ANIM_JUNIOR_CLIGNE;
+      case ST_EAT:   return (uint8_t)triJ::ANIM_JUNIOR_MANGE;
+      case ST_SLEEP: return (uint8_t)triJ::ANIM_JUNIOR_DODO;
+      default:       return (uint8_t)triJ::ANIM_JUNIOR_MARCHE;
     }
   } else {
     switch (st) {
-      case ST_SIT:   return (uint8_t)triS::ANIM_SENIOR_ASSIE;
-      case ST_BLINK: return (uint8_t)triS::ANIM_SENIOR_CLIGNE;
-      case ST_EAT:   return (uint8_t)triS::ANIM_SENIOR_MANGE;
-      case ST_SLEEP: return (uint8_t)triS::ANIM_SENIOR_DODO;
-      default:       return (uint8_t)triS::ANIM_SENIOR_MARCHE;
+      case ST_SIT:   return (uint8_t)triJ::ANIM_JUNIOR_ASSIE;
+      case ST_BLINK: return (uint8_t)triJ::ANIM_JUNIOR_CLIGNE;
+      case ST_EAT:   return (uint8_t)triJ::ANIM_JUNIOR_MANGE;
+      case ST_SLEEP: return (uint8_t)triJ::ANIM_JUNIOR_DODO;
+      default:       return (uint8_t)triJ::ANIM_JUNIOR_MARCHE;
     }
   }
 }
@@ -4362,9 +4362,7 @@ if (ENC_BTN >= 0) raw = (digitalRead(ENC_BTN) == LOW);
     bool forceFace = false;
     bool faceRight = false;
     if (task.active && task.kind == TASK_HUG && task.ph == PH_DO) {
-      if (pet.stage == AGE_JUNIOR) animId = (uint8_t)triJ::ANIM_JUNIOR_AMOUR;
-      else if (pet.stage == AGE_ADULTE) animId = (uint8_t)triA::ANIM_ADULTE_AMOUR;
-      else animId = (uint8_t)triS::ANIM_SENIOR_AMOUR;
+      animId = (uint8_t)triJ::ANIM_JUNIOR_AMOUR;
     }
 
     if (task.active && task.ph == PH_DO) {
