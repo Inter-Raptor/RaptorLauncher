@@ -82,11 +82,10 @@ enum AudioPriority : uint8_t { AUDIO_PRIO_LOW, AUDIO_PRIO_MED, AUDIO_PRIO_HIGH }
 enum Language : uint8_t { LANG_FR, LANG_EN, LANG_DE, LANG_IT, LANG_ES };
 struct AudioStep;
 
-// LED externe optionnelle (laisser -1 si non câblée)
-static const int LED_PIN_R = -1;
-static const int LED_PIN_G = -1;
-static const int LED_PIN_B = -1;
-static const uint8_t LED_BRIGHTNESS_MAX = 180;
+// LED RGB de la carte launcher (commune anode): R=IO4, G=IO16, B=IO17
+static const int LED_PIN_R = 4;
+static const int LED_PIN_G = 16;
+static const int LED_PIN_B = 17;
 
 // ================== APP MODE (gestion vs mini-jeux) ==================
 enum AppMode : uint8_t { MODE_PET, MODE_MG_WASH, MODE_MG_PLAY };
@@ -1069,6 +1068,7 @@ static const int AUDIO_PWM_BITS = 10;
 static const uint16_t AUDIO_DUTY_NORMAL = 320;
 static const uint16_t AUDIO_DUTY_QUIET  = 150;
 static uint8_t launcherVolumePercent = 80; // relu depuis /settings.json
+static uint8_t launcherLedBrightnessPercent = 40; // relu depuis /settings.json
 
 struct AudioStep {
   uint16_t freq = 0;
@@ -1344,31 +1344,35 @@ static inline bool criticalBlinkOn(uint32_t now) {
   return ((now / 500UL) % 2U) == 0U;
 }
 
-static inline bool ledAvailable() {
-  return (LED_PIN_R >= 0 && LED_PIN_G >= 0 && LED_PIN_B >= 0);
+static inline uint8_t scaleLedWithBrightness(uint8_t c) {
+  uint16_t scaled = ((uint16_t)c * (uint16_t)launcherLedBrightnessPercent) / 100U;
+  return (uint8_t)scaled;
 }
 
+// commune anode: 0 = ON, 255 = OFF
 static void setRgbLed(uint8_t r, uint8_t g, uint8_t b) {
-  if (!ledAvailable()) return;
-  analogWrite(LED_PIN_R, r);
-  analogWrite(LED_PIN_G, g);
-  analogWrite(LED_PIN_B, b);
+  uint8_t rr = 255U - scaleLedWithBrightness(r);
+  uint8_t gg = 255U - scaleLedWithBrightness(g);
+  uint8_t bb = 255U - scaleLedWithBrightness(b);
+  analogWrite(LED_PIN_R, rr);
+  analogWrite(LED_PIN_G, gg);
+  analogWrite(LED_PIN_B, bb);
 }
 
 static void updateMoodLed(uint32_t now) {
-  if (!ledAvailable() || phase != PHASE_ALIVE || !pet.vivant) {
+  if (launcherLedBrightnessPercent == 0 || phase != PHASE_ALIVE || !pet.vivant) {
     setRgbLed(0, 0, 0);
     return;
   }
   if (healthCriticalCount() > 0) {
     bool on = ((now / 250UL) % 2U) == 0U;
-    uint8_t r = on ? LED_BRIGHTNESS_MAX : 0;
+    uint8_t r = on ? 255 : 0;
     setRgbLed(r, 0, 0);
     return;
   }
   if (state == ST_SLEEP) {
     float wave = 0.5f + 0.5f * sinf((float)now * 0.004f);
-    uint8_t b = (uint8_t)(wave * (float)(LED_BRIGHTNESS_MAX / 2));
+    uint8_t b = (uint8_t)(wave * 180.0f);
     setRgbLed(0, 0, b);
     return;
   }
@@ -1415,6 +1419,10 @@ static void syncLauncherSettings(uint32_t now) {
   if (vol < 0) vol = 0;
   if (vol > 100) vol = 100;
   launcherVolumePercent = (uint8_t)vol;
+  int ledBright = doc["led_brightness"] | (doc["brightness"] | (int)launcherLedBrightnessPercent);
+  if (ledBright < 0) ledBright = 0;
+  if (ledBright > 100) ledBright = 100;
+  launcherLedBrightnessPercent = (uint8_t)ledBright;
 
   const char* lang = doc["language"] | nullptr;
   if (!lang || !lang[0]) lang = doc["lang"] | nullptr;
@@ -4048,12 +4056,10 @@ SH = tft.height();
   if (BTN_LEFT >= 0) pinMode(BTN_LEFT, INPUT_PULLUP);
   if (BTN_RIGHT >= 0) pinMode(BTN_RIGHT, INPUT_PULLUP);
   if (BTN_OK >= 0) pinMode(BTN_OK, INPUT_PULLUP);
-  if (ledAvailable()) {
-    pinMode(LED_PIN_R, OUTPUT);
-    pinMode(LED_PIN_G, OUTPUT);
-    pinMode(LED_PIN_B, OUTPUT);
-    setRgbLed(0, 0, 0);
-  }
+  pinMode(LED_PIN_R, OUTPUT);
+  pinMode(LED_PIN_G, OUTPUT);
+  pinMode(LED_PIN_B, OUTPUT);
+  setRgbLed(0, 0, 0);
 
 #if DISPLAY_PROFILE != DISPLAY_PROFILE_2432S022
 #if ENABLE_TOUCH_CALIBRATION
