@@ -5,6 +5,7 @@
 #include "touch_manager.h"
 #include "audio_manager.h"
 #include "storage_manager.h"
+#include "settings_manager.h"
 #include "types.h"
 
 static bool gNeedsRedraw = true;
@@ -32,7 +33,7 @@ static const uint16_t COLOR_PLAY_BOX   = 0x07E0; // vert
 static const uint16_t COLOR_PLAY_TEXT  = 0xFFFF; // blanc
 
 // --------------------------------------------------
-// Mise en page
+// Mise en page home
 // --------------------------------------------------
 static const int ICON_W = 50;
 static const int ICON_H = 50;
@@ -59,8 +60,6 @@ static const int LABEL_OFFSET_Y_LINE2 = 60;
 
 // Bouton info visible sur l’icône
 static const int INFO_BOX_SIZE = 10;
-
-// Zone tactile du ? plus grande que le carré visible
 static const int INFO_HITBOX_SIZE = 20;
 
 // Footer home
@@ -89,6 +88,25 @@ static const int INFO_BACK_W = 90;
 static const int INFO_BACK_H = 34;
 
 // --------------------------------------------------
+// Mise en page settings
+// --------------------------------------------------
+static const int SET_ROW1_Y = 40;
+static const int SET_ROW2_Y = 86;
+static const int SET_ROW3_Y = 132;
+
+static const int SET_MINUS_X = 200;
+static const int SET_VALUE_X = 242;
+static const int SET_PLUS_X  = 286;
+static const int SET_BTN_Y_OFFSET = -4;
+static const int SET_BTN_W = 24;
+static const int SET_BTN_H = 20;
+
+static const int SET_TEST_X = 8;
+static const int SET_TEST_Y = 160;
+static const int SET_TEST_W = 120;
+static const int SET_TEST_H = 24;
+
+// --------------------------------------------------
 // Outils
 // --------------------------------------------------
 static int totalPages() {
@@ -102,6 +120,21 @@ static int pageStartIndex() {
 
 static bool pointInRect(int x, int y, int rx, int ry, int rw, int rh) {
   return (x >= rx && x < rx + rw && y >= ry && y < ry + rh);
+}
+
+static int clampValue(int v, int minV, int maxV) {
+  if (v < minV) return minV;
+  if (v > maxV) return maxV;
+  return v;
+}
+
+static void applyBrightnessNow() {
+  int pwm = map(settingsGet().brightness, 0, 100, 10, 255);
+  displaySetBrightness((uint8_t)pwm);
+}
+
+static void saveSettingsNow() {
+  settingsSave();
 }
 
 static void getSlotRect(int slot, int &x, int &y, int &w, int &h) {
@@ -174,6 +207,11 @@ static void drawPlayButton(int x, int y, int w, int h, const char* text) {
   displayFillRect(x, y, w, h, COLOR_PLAY_BOX);
   displayDrawRect(x, y, w, h, COLOR_INFO_TEXT);
   displayDrawSmallTextColor(x + 28, y + 12, text, COLOR_PLAY_TEXT, COLOR_PLAY_BOX);
+}
+
+static void drawMiniButton(int x, int y, const char* text) {
+  displayDrawRect(x, y, SET_BTN_W, SET_BTN_H, COLOR_INFO_TEXT);
+  displayDrawSmallText(x + 8, y + 6, text);
 }
 
 static void splitLabelTwoLines(const String& input, String& line1, String& line2) {
@@ -345,11 +383,24 @@ static void drawSettingsScreen() {
   displayClear();
 
   displayDrawText(8, 8, "Parametres");
-  displayDrawText(8, 40, "Volume : plus tard");
-  displayDrawText(8, 64, "Luminosite : plus tard");
-  displayDrawText(8, 88, "Test tactile : plus tard");
-  displayDrawText(8, 112, "Test audio : plus tard");
-  displayDrawText(8, 136, "Credits : plus tard");
+
+  char buf[32];
+
+  displayDrawText(8, SET_ROW1_Y, "Volume");
+  drawMiniButton(SET_MINUS_X, SET_ROW1_Y + SET_BTN_Y_OFFSET, "-");
+  snprintf(buf, sizeof(buf), "%d", settingsGet().volume);
+  displayDrawSmallText(SET_VALUE_X, SET_ROW1_Y + 4, buf);
+  drawMiniButton(SET_PLUS_X, SET_ROW1_Y + SET_BTN_Y_OFFSET, "+");
+
+  displayDrawText(8, SET_ROW2_Y, "Luminosite");
+  drawMiniButton(SET_MINUS_X, SET_ROW2_Y + SET_BTN_Y_OFFSET, "-");
+  snprintf(buf, sizeof(buf), "%d", settingsGet().brightness);
+  displayDrawSmallText(SET_VALUE_X, SET_ROW2_Y + 4, buf);
+  drawMiniButton(SET_PLUS_X, SET_ROW2_Y + SET_BTN_Y_OFFSET, "+");
+
+  displayDrawText(8, SET_ROW3_Y, "Test audio");
+  displayDrawRect(SET_TEST_X, SET_TEST_Y, SET_TEST_W, SET_TEST_H, COLOR_INFO_TEXT);
+  displayDrawSmallText(SET_TEST_X + 30, SET_TEST_Y + 8, "Tester");
 
   drawFooterButton(INFO_BACK_X, INFO_BACK_Y, "Retour");
 }
@@ -487,7 +538,35 @@ void launcherUpdate() {
       }
     }
     else if (currentScreen == SCREEN_SETTINGS) {
-      if (pointInRect(gTouchX, gTouchY, INFO_BACK_X, INFO_BACK_Y, INFO_BACK_W, INFO_BACK_H)) {
+      if (pointInRect(gTouchX, gTouchY, SET_MINUS_X, SET_ROW1_Y + SET_BTN_Y_OFFSET, SET_BTN_W, SET_BTN_H)) {
+        settingsGet().volume = clampValue(settingsGet().volume - 5, 0, 100);
+        audioSetVolume(settingsGet().volume);
+        saveSettingsNow();
+        gNeedsRedraw = true;
+      }
+      else if (pointInRect(gTouchX, gTouchY, SET_PLUS_X, SET_ROW1_Y + SET_BTN_Y_OFFSET, SET_BTN_W, SET_BTN_H)) {
+        settingsGet().volume = clampValue(settingsGet().volume + 5, 0, 100);
+        audioSetVolume(settingsGet().volume);
+        saveSettingsNow();
+        gNeedsRedraw = true;
+      }
+      else if (pointInRect(gTouchX, gTouchY, SET_MINUS_X, SET_ROW2_Y + SET_BTN_Y_OFFSET, SET_BTN_W, SET_BTN_H)) {
+        settingsGet().brightness = clampValue(settingsGet().brightness - 5, 0, 100);
+        applyBrightnessNow();
+        saveSettingsNow();
+        gNeedsRedraw = true;
+      }
+      else if (pointInRect(gTouchX, gTouchY, SET_PLUS_X, SET_ROW2_Y + SET_BTN_Y_OFFSET, SET_BTN_W, SET_BTN_H)) {
+        settingsGet().brightness = clampValue(settingsGet().brightness + 5, 0, 100);
+        applyBrightnessNow();
+        saveSettingsNow();
+        gNeedsRedraw = true;
+      }
+      else if (pointInRect(gTouchX, gTouchY, SET_TEST_X, SET_TEST_Y, SET_TEST_W, SET_TEST_H)) {
+        audioTestBeep();
+        gNeedsRedraw = true;
+      }
+      else if (pointInRect(gTouchX, gTouchY, INFO_BACK_X, INFO_BACK_Y, INFO_BACK_W, INFO_BACK_H)) {
         currentScreen = SCREEN_HOME;
         gNeedsRedraw = true;
       }
