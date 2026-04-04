@@ -30,6 +30,7 @@ enum LauncherScreen {
   SCREEN_GAME_INFO,
   SCREEN_TOUCH_TEST,
   SCREEN_TOUCH_CALIB,
+  SCREEN_TOUCH_CALIB_SAVE,
   SCREEN_CONFIRM_RESET
 };
 
@@ -54,6 +55,12 @@ static int calStep = 0;
 static int calTouchX[CAL_POINT_COUNT];
 static int calTouchY[CAL_POINT_COUNT];
 static bool calWasTouching = false;
+static int pendingTouchXMin = 200;
+static int pendingTouchXMax = 3800;
+static int pendingTouchYMin = 200;
+static int pendingTouchYMax = 3800;
+static int pendingTouchOffsetX = 0;
+static int pendingTouchOffsetY = 0;
 
 // --------------------------------------------------
 // Couleurs
@@ -140,6 +147,11 @@ static const int RESET_BTN_Y = 142;
 static const int RESET_BTN_W = 110;
 static const int RESET_BTN_H = 24;
 static const int RESET_CONFIRM_X = 172;
+static const int CAL_SAVE_CANCEL_X = 38;
+static const int CAL_SAVE_CONFIRM_X = 172;
+static const int CAL_SAVE_BTN_Y = 176;
+static const int CAL_SAVE_BTN_W = 110;
+static const int CAL_SAVE_BTN_H = 24;
 
 // --------------------------------------------------
 // Outils
@@ -575,6 +587,30 @@ static void drawResetConfirmScreen() {
   displayDrawSmallTextColor(184, RESET_BTN_Y + 8, "Confirmer", COLOR_PLAY_TEXT, COLOR_PLAY_BOX);
 }
 
+static void drawCalibSaveScreen() {
+  displayClear();
+  displayDrawSmallText(42, 20, "Calibration terminee");
+  displayDrawSmallText(18, 40, "Sauvegarder ces reglages ?");
+
+  char buf[96];
+  snprintf(buf, sizeof(buf), "X:%d..%d", pendingTouchXMin, pendingTouchXMax);
+  displayDrawSmallText(18, 66, buf);
+  snprintf(buf, sizeof(buf), "Y:%d..%d", pendingTouchYMin, pendingTouchYMax);
+  displayDrawSmallText(18, 80, buf);
+  snprintf(buf, sizeof(buf), "Offset X:%d Y:%d", pendingTouchOffsetX, pendingTouchOffsetY);
+  displayDrawSmallText(18, 94, buf);
+
+  displayDrawSmallText(18, 122, "Annuler = garder");
+  displayDrawSmallText(18, 136, "l'ancien calibrage");
+
+  displayDrawRect(CAL_SAVE_CANCEL_X, CAL_SAVE_BTN_Y, CAL_SAVE_BTN_W, CAL_SAVE_BTN_H, COLOR_INFO_TEXT);
+  displayDrawSmallText(56, CAL_SAVE_BTN_Y + 8, "Annuler");
+
+  displayFillRect(CAL_SAVE_CONFIRM_X, CAL_SAVE_BTN_Y, CAL_SAVE_BTN_W, CAL_SAVE_BTN_H, COLOR_PLAY_BOX);
+  displayDrawRect(CAL_SAVE_CONFIRM_X, CAL_SAVE_BTN_Y, CAL_SAVE_BTN_W, CAL_SAVE_BTN_H, COLOR_INFO_TEXT);
+  displayDrawSmallTextColor(198, CAL_SAVE_BTN_Y + 8, "Sauver", COLOR_PLAY_TEXT, COLOR_PLAY_BOX);
+}
+
 // --------------------------------------------------
 // Hit tests
 // --------------------------------------------------
@@ -679,38 +715,25 @@ void launcherUpdate() {
           return;
         }
 
-        // On prend directement les bornes mesurées sur les coins.
-        // Cela évite d'écraser la calibration avec un clamp 0..4095
-        // et garantit que les décalages volontaires sont visibles.
-        settingsGet().touch_x_min = xMin;
-        settingsGet().touch_x_max = xMax;
-        settingsGet().touch_y_min = yMin;
-        settingsGet().touch_y_max = yMax;
+        pendingTouchXMin = clampValue(xMin, 0, 4095);
+        pendingTouchXMax = clampValue(xMax, 0, 4095);
+        pendingTouchYMin = clampValue(yMin, 0, 4095);
+        pendingTouchYMax = clampValue(yMax, 0, 4095);
 
-        settingsGet().touch_x_min = clampValue(settingsGet().touch_x_min, 0, 4095);
-        settingsGet().touch_x_max = clampValue(settingsGet().touch_x_max, 0, 4095);
-        settingsGet().touch_y_min = clampValue(settingsGet().touch_y_min, 0, 4095);
-        settingsGet().touch_y_max = clampValue(settingsGet().touch_y_max, 0, 4095);
+        int centerMappedX = map(calTouchX[4], pendingTouchXMin, pendingTouchXMax, 0, 319);
+        int centerMappedY = map(calTouchY[4], pendingTouchYMin, pendingTouchYMax, 239, 0);
+        pendingTouchOffsetX = clampValue(160 - centerMappedX, -80, 80);
+        pendingTouchOffsetY = clampValue(120 - centerMappedY, -80, 80);
 
-        int centerMappedX = map(calTouchX[4], settingsGet().touch_x_min, settingsGet().touch_x_max, 0, 319);
-        int centerMappedY = map(calTouchY[4], settingsGet().touch_y_min, settingsGet().touch_y_max, 239, 0);
-        settingsGet().touch_offset_x = clampValue(160 - centerMappedX, -80, 80);
-        settingsGet().touch_offset_y = clampValue(120 - centerMappedY, -80, 80);
+        Serial.printf("[CAL] pending xMin=%d xMax=%d yMin=%d yMax=%d offX=%d offY=%d\n",
+                      pendingTouchXMin,
+                      pendingTouchXMax,
+                      pendingTouchYMin,
+                      pendingTouchYMax,
+                      pendingTouchOffsetX,
+                      pendingTouchOffsetY);
 
-        applyTouchCalibrationFromSettings();
-        saveSettingsNow();
-
-        Serial.printf("[CAL] saved xMin=%d xMax=%d yMin=%d yMax=%d offX=%d offY=%d\n",
-                      settingsGet().touch_x_min,
-                      settingsGet().touch_x_max,
-                      settingsGet().touch_y_min,
-                      settingsGet().touch_y_max,
-                      settingsGet().touch_offset_x,
-                      settingsGet().touch_offset_y);
-
-        Serial.println("[CAL] DONE");
-
-        currentScreen = SCREEN_SETTINGS;
+        currentScreen = SCREEN_TOUCH_CALIB_SAVE;
         calStep = 0;
       }
 
@@ -859,6 +882,26 @@ void launcherUpdate() {
     else if (currentScreen == SCREEN_TOUCH_CALIB) {
       // aucun bouton retour pendant la calibration
     }
+    else if (currentScreen == SCREEN_TOUCH_CALIB_SAVE) {
+      if (pointInRect(gLastTouchX, gLastTouchY, CAL_SAVE_CANCEL_X, CAL_SAVE_BTN_Y, CAL_SAVE_BTN_W, CAL_SAVE_BTN_H)) {
+        currentScreen = SCREEN_SETTINGS;
+        gNeedsRedraw = true;
+      } else if (pointInRect(gLastTouchX, gLastTouchY, CAL_SAVE_CONFIRM_X, CAL_SAVE_BTN_Y, CAL_SAVE_BTN_W, CAL_SAVE_BTN_H)) {
+        settingsGet().touch_x_min = pendingTouchXMin;
+        settingsGet().touch_x_max = pendingTouchXMax;
+        settingsGet().touch_y_min = pendingTouchYMin;
+        settingsGet().touch_y_max = pendingTouchYMax;
+        settingsGet().touch_offset_x = pendingTouchOffsetX;
+        settingsGet().touch_offset_y = pendingTouchOffsetY;
+
+        applyTouchCalibrationFromSettings();
+        saveSettingsNow();
+        Serial.println("[CAL] DONE + SAVED");
+
+        currentScreen = SCREEN_SETTINGS;
+        gNeedsRedraw = true;
+      }
+    }
     else if (currentScreen == SCREEN_CONFIRM_RESET) {
       if (pointInRect(gLastTouchX, gLastTouchY, RESET_CANCEL_X, RESET_BTN_Y, RESET_BTN_W, RESET_BTN_H)) {
         currentScreen = SCREEN_SETTINGS;
@@ -892,6 +935,8 @@ void launcherRender() {
     drawTouchTestScreen();
   } else if (currentScreen == SCREEN_TOUCH_CALIB) {
     drawTouchCalibScreen();
+  } else if (currentScreen == SCREEN_TOUCH_CALIB_SAVE) {
+    drawCalibSaveScreen();
   } else {
     drawResetConfirmScreen();
   }
