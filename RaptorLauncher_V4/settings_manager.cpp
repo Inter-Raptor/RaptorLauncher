@@ -4,6 +4,7 @@
 #include "settings_manager.h"
 
 static const char* SETTINGS_PATH = "/settings.json";
+static const char* SETTINGS_TMP_PATH = "/settings.tmp";
 static SystemSettings gSettings;
 
 static int clampValue(int v, int minV, int maxV) {
@@ -44,13 +45,13 @@ bool settingsSave() {
   doc["touch_offset_x"] = gSettings.touch_offset_x;
   doc["touch_offset_y"] = gSettings.touch_offset_y;
 
-  if (SD.exists(SETTINGS_PATH)) {
-    SD.remove(SETTINGS_PATH);
+  if (SD.exists(SETTINGS_TMP_PATH)) {
+    SD.remove(SETTINGS_TMP_PATH);
   }
 
-  File f = SD.open(SETTINGS_PATH, FILE_WRITE);
+  File f = SD.open(SETTINGS_TMP_PATH, FILE_WRITE);
   if (!f) {
-    Serial.println("[SETTINGS] impossible d'ouvrir settings.json en ecriture");
+    Serial.println("[SETTINGS] impossible d'ouvrir settings.tmp en ecriture");
     return false;
   }
 
@@ -61,6 +62,17 @@ bool settingsSave() {
   }
 
   f.close();
+  
+  if (SD.exists(SETTINGS_PATH) && !SD.remove(SETTINGS_PATH)) {
+    Serial.println("[SETTINGS] impossible de supprimer ancien settings.json");
+    return false;
+  }
+
+  if (!SD.rename(SETTINGS_TMP_PATH, SETTINGS_PATH)) {
+    Serial.println("[SETTINGS] impossible de renommer settings.tmp -> settings.json");
+    return false;
+  }
+
   Serial.println("[SETTINGS] sauvegarde OK");
   return true;
 }
