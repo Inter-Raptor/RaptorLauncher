@@ -3997,29 +3997,6 @@ static void resetToEgg(uint32_t now) {
   audioNextAlertAt = 0;
 }
 
-static void showHomeIntro(uint32_t now) {
-  tft.fillScreen(TFT_BLACK);
-  tft.setTextColor(TFT_WHITE, TFT_BLACK);
-  tft.setTextSize(2);
-  tft.setCursor(18, SH / 2 - 22);
-  tft.print("DinoLife");
-  tft.setTextSize(1);
-  tft.setCursor(18, SH / 2 + 6);
-  tft.print("Chargement...");
-
-#if ENABLE_AUDIO
-  if (audioMode != AUDIO_OFF) {
-    playRTTTLOnce(RTTTL_HOME_INTRO, AUDIO_PRIO_MED);
-  }
-#endif
-
-  uint32_t endAt = now + 3000;
-  while ((int32_t)(millis() - endAt) < 0) {
-    audioUpdate(millis());
-    delay(10);
-  }
-}
-
 // ================== SETUP/LOOP ==================
 void setup() {
   Serial.begin(115200);
@@ -4202,8 +4179,6 @@ SH = tft.height();
     resetToEgg(now);
     if (sdReady) saveNow(now, "boot_new");
   }
-
-  showHomeIntro(now);
 
   lastPetTick = now;
 
