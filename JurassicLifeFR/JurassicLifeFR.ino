@@ -79,7 +79,7 @@ enum GamePhase : uint8_t { PHASE_EGG, PHASE_HATCHING, PHASE_ALIVE, PHASE_RESTREA
 
 enum AudioMode : uint8_t { AUDIO_OFF, AUDIO_LIMITED, AUDIO_TOTAL };
 enum AudioPriority : uint8_t { AUDIO_PRIO_LOW, AUDIO_PRIO_MED, AUDIO_PRIO_HIGH };
-enum Language : uint8_t { LANG_FR, LANG_EN };
+enum Language : uint8_t { LANG_FR, LANG_EN, LANG_DE, LANG_IT, LANG_ES };
 struct AudioStep;
 
 // LED externe optionnelle (laisser -1 si non câblée)
@@ -1419,7 +1419,13 @@ static void syncLauncherSettings(uint32_t now) {
   const char* lang = doc["language"] | nullptr;
   if (!lang || !lang[0]) lang = doc["lang"] | nullptr;
   if (!lang || !lang[0]) lang = doc["locale"] | "fr";
-  uiLanguage = (lang[0] == 'e' || lang[0] == 'E') ? LANG_EN : LANG_FR;
+  char c0 = (char)tolower((unsigned char)lang[0]);
+  char c1 = (char)tolower((unsigned char)lang[1]);
+  if (c0 == 'e' && c1 == 'n') uiLanguage = LANG_EN;
+  else if (c0 == 'd' && c1 == 'e') uiLanguage = LANG_DE;
+  else if (c0 == 'i' && c1 == 't') uiLanguage = LANG_IT;
+  else if (c0 == 'e' && c1 == 's') uiLanguage = LANG_ES;
+  else uiLanguage = LANG_FR;
 }
 
 static const uint16_t COL_FAIM    = 0xFD20;
@@ -1444,27 +1450,33 @@ static inline uint16_t btnColorForAction(UiAction a) {
     default:        return TFT_WHITE;
   }
 }
-static inline const char* tr(const char* fr, const char* en) {
-  return (uiLanguage == LANG_EN) ? en : fr;
+static inline const char* tr(const char* fr, const char* en, const char* de, const char* it, const char* es) {
+  switch (uiLanguage) {
+    case LANG_EN: return en;
+    case LANG_DE: return de;
+    case LANG_IT: return it;
+    case LANG_ES: return es;
+    default:      return fr;
+  }
 }
 static inline const char* btnLabel(UiAction a) {
   switch (a) {
-    case UI_REPOS:  return tr("Repos", "Rest");
-    case UI_MANGER: return tr("Manger", "Eat");
-    case UI_BOIRE:  return tr("Boire", "Drink");
-    case UI_LAVER:  return tr("Laver", "Wash");
-    case UI_JOUER:  return tr("Jouer", "Play");
-    case UI_CACA:   return tr("Caca", "Poop");
-    case UI_CALIN:  return tr("Calin", "Hug");
-    case UI_AUDIO:  return tr("Son", "Sound");
+    case UI_REPOS:  return tr("Repos", "Rest", "Ruhe", "Riposo", "Descanso");
+    case UI_MANGER: return tr("Manger", "Eat", "Essen", "Mangia", "Comer");
+    case UI_BOIRE:  return tr("Boire", "Drink", "Trinken", "Bevi", "Beber");
+    case UI_LAVER:  return tr("Laver", "Wash", "Waschen", "Lava", "Lavar");
+    case UI_JOUER:  return tr("Jouer", "Play", "Spielen", "Gioca", "Jugar");
+    case UI_CACA:   return tr("Caca", "Poop", "Kaka", "Cacca", "Caca");
+    case UI_CALIN:  return tr("Calin", "Hug", "Umarmung", "Abbraccio", "Abrazo");
+    case UI_AUDIO:  return tr("Son", "Sound", "Ton", "Suono", "Sonido");
     default:        return "?";
   }
 }
 static inline const char* stageLabel(AgeStage s) {
   switch (s) {
-    case AGE_JUNIOR: return tr("Junior", "Junior");
-    case AGE_ADULTE: return tr("Adulte", "Adult");
-    case AGE_SENIOR: return tr("Senior", "Senior");
+    case AGE_JUNIOR: return tr("Junior", "Junior", "Jung", "Giovane", "Joven");
+    case AGE_ADULTE: return tr("Adulte", "Adult", "Erwachsen", "Adulto", "Adulto");
+    case AGE_SENIOR: return tr("Senior", "Senior", "Senior", "Senior", "Senior");
     default:         return "?";
   }
 }
@@ -2368,16 +2380,16 @@ if (phase == PHASE_ALIVE) {
     int y2 = 50;
 
     int x = pad;
-    drawBarRound(uiTop, x, y1, w, h, pet.faim,    tr("Faim", "Hunger"),    COL_FAIM);    x += w + pad;
-    drawBarRound(uiTop, x, y1, w, h, pet.soif,    tr("Soif", "Thirst"),    COL_SOIF);    x += w + pad;
-    drawBarRound(uiTop, x, y1, w, h, pet.hygiene, tr("Hygiene", "Hygiene"), COL_HYGIENE); x += w + pad;
-    drawBarRound(uiTop, x, y1, w, h, pet.humeur,  tr("Bonheur", "Mood"),  COL_HUMEUR);
+    drawBarRound(uiTop, x, y1, w, h, pet.faim,    tr("Faim", "Hunger", "Hunger", "Fame", "Hambre"),    COL_FAIM);    x += w + pad;
+    drawBarRound(uiTop, x, y1, w, h, pet.soif,    tr("Soif", "Thirst", "Durst", "Sete", "Sed"),    COL_SOIF);    x += w + pad;
+    drawBarRound(uiTop, x, y1, w, h, pet.hygiene, tr("Hygiene", "Hygiene", "Hygiene", "Igiene", "Higiene"), COL_HYGIENE); x += w + pad;
+    drawBarRound(uiTop, x, y1, w, h, pet.humeur,  tr("Bonheur", "Mood", "Stimmung", "Umore", "Ánimo"),  COL_HUMEUR);
 
     x = pad;
-    drawBarRound(uiTop, x, y2, w, h, pet.energie, tr("Energie", "Energy"), COL_ENERGIE); x += w + pad;
-    drawBarRound(uiTop, x, y2, w, h, (100.0f - pet.fatigue), tr("Fatigue", "Fatigue"), COL_FATIGUE); x += w + pad;
-    drawBarRound(uiTop, x, y2, w, h, pet.amour,   tr("Amour", "Love"),   COL_AMOUR2);  x += w + pad;
-    drawBarRound(uiTop, x, y2, w, h, pet.caca,    tr("Caca", "Poop"),    COL_CACA);
+    drawBarRound(uiTop, x, y2, w, h, pet.energie, tr("Energie", "Energy", "Energie", "Energia", "Energía"), COL_ENERGIE); x += w + pad;
+    drawBarRound(uiTop, x, y2, w, h, (100.0f - pet.fatigue), tr("Fatigue", "Fatigue", "Müdigkeit", "Fatica", "Fatiga"), COL_FATIGUE); x += w + pad;
+    drawBarRound(uiTop, x, y2, w, h, pet.amour,   tr("Amour", "Love", "Liebe", "Amore", "Amor"),   COL_AMOUR2);  x += w + pad;
+    drawBarRound(uiTop, x, y2, w, h, pet.caca,    tr("Caca", "Poop", "Kaka", "Cacca", "Caca"),    COL_CACA);
   }
 
   // Zone sous les barres (à la place de l'activity bar quand on est libre)
