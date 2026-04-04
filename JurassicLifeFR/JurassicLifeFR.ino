@@ -204,15 +204,6 @@ extern bool sdReady;
 namespace triA = triJ;
 namespace triS = triJ;
 
-#define dino egg
-#include "annim_oeuf.h"
-#undef dino
-
-#define dino poop
-#include "annim_caca.h"
-#undef dino
-
-#include "tombe.h"
 
 // Décor
 #include "montagne.h"
@@ -2650,13 +2641,13 @@ static void drawFixedObjectsBand(float camX, int bandY) {
   }
 
   if (poopVisible) {
-    int w = (int)poop::W;
-    int h = (int)poop::H;
+    int w = 14;
+    int h = 10;
     int x = (int)roundf(poopWorldX - camX);
     int yOnGround = GROUND_Y - h + 18;
     int yLocal = yOnGround - bandY;
     if (!(yLocal >= band.height() || yLocal + h <= 0) && !(x > SW || x + w < 0)) {
-      drawImageKeyedOnBand(poop::dino_caca_003, w, h, x, yLocal);
+      band.fillRoundRect(x, yLocal, w, h, 3, 0x6180);
     }
   }
 }
@@ -2690,25 +2681,33 @@ static inline void renderOneBand(int y0, int bh, int dinoX, int dinoY, const uin
       drawImageKeyedOnBand(frame, DW, DH, dinoX, dinoY - y0, flipX, shade);
     }
   } else if (phase == PHASE_EGG || phase == PHASE_HATCHING) {
-    const uint16_t* eggFrame = egg::dino_oeuf_001;
-    if (phase == PHASE_HATCHING) {
-      if (hatchIdx == 0) eggFrame = egg::dino_oeuf_001;
-      else if (hatchIdx == 1) eggFrame = egg::dino_oeuf_002;
-      else if (hatchIdx == 2) eggFrame = egg::dino_oeuf_003;
-      else eggFrame = egg::dino_oeuf_004;
-    }
-    int w = (int)egg::W, h = (int)egg::H;
+    int w = 34, h = 42;
     float t = (float)millis() * 0.008f;
     int bob = (int)roundf(sinf(t) * 2.0f);
     int ex = dinoX;
     int ey = (GROUND_Y - 40) + bob;
-    if (ey < y0 + bh && ey + h > y0) drawImageKeyedOnBand(eggFrame, w, h, ex, ey - y0);
+    if (ey < y0 + bh && ey + h > y0) {
+      int ly = ey - y0;
+      band.fillEllipse(ex + w / 2, ly + h / 2, w / 2, h / 2, 0xFFFF);
+      band.drawEllipse(ex + w / 2, ly + h / 2, w / 2, h / 2, 0x7BCF);
+      if (phase == PHASE_HATCHING) {
+        band.drawLine(ex + 10, ly + 16, ex + 17, ly + 22, 0x94B2);
+        band.drawLine(ex + 17, ly + 22, ex + 14, ly + 30, 0x94B2);
+        band.drawLine(ex + 20, ly + 15, ex + 26, ly + 24, 0x94B2);
+      }
+    }
   } else if (phase == PHASE_TOMB || phase == PHASE_RESTREADY) {
-    int w = (int)tombe_W;
-    int h = (int)tombe_H;
+    int w = 62;
+    int h = 86;
     int tx = (SW - w) / 2;
     int ty = (GROUND_Y - h + 10);
-    if (ty < y0 + bh && ty + h > y0) drawImageKeyedOnBand(tombe, w, h, tx, ty - y0);
+    if (ty < y0 + bh && ty + h > y0) {
+      int ly = ty - y0;
+      band.fillRoundRect(tx, ly, w, h, 8, 0x8C71);
+      band.drawRoundRect(tx, ly, w, h, 8, 0x632C);
+      band.drawFastVLine(tx + w / 2, ly + 18, 32, 0xFFFF);
+      band.drawFastHLine(tx + 20, ly + 30, 22, 0xFFFF);
+    }
   }
 
   overlayUIIntoBand(y0, bh);
@@ -2718,7 +2717,7 @@ static inline void renderOneBand(int y0, int bh, int dinoX, int dinoY, const uin
 static void renderFrameOptimized(int dinoX, int dinoY, const uint16_t* frame, bool flipX, uint8_t shade) {
   bool camMoved = (fabsf(camX - lastCamX) > 0.001f);
   int DH = (phase == PHASE_ALIVE) ? triH(pet.stage)
-           : (phase == PHASE_TOMB || phase == PHASE_RESTREADY) ? (int)tombe_H
+           : (phase == PHASE_TOMB || phase == PHASE_RESTREADY) ? 86
            : 60;
 
   if (camMoved) {
