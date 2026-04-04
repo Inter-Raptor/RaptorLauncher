@@ -703,6 +703,7 @@ static void drawMcpTestScreen() {
 
   if (!mcp23017IsPresent()) {
     displayDrawSmallText(8, 28, "Carte MCP23017 absente");
+    displayDrawSmallText(8, 42, "Verifier RESET tire au +3.3V");
     drawFooterButton(INFO_BACK_X, INFO_BACK_Y, tr(TK_BACK));
     return;
   }
