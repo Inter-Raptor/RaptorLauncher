@@ -321,6 +321,7 @@ static void handleSaveJson() {
 
   String path = normalizePath(server.arg("f"));
   String dir = getDirArg();
+  String content = server.arg("content");
 
   if (SD.exists(path)) {
     SD.remove(path);
