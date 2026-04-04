@@ -24,6 +24,7 @@ static int gTouchLiveY = 0;
 
 static bool gWifiBusy = false;
 static String gWifiStatusText = "";
+static String gSaveStatusText = "";
 static int gLedSelectedColor = 0;
 
 enum LauncherScreen {
@@ -207,6 +208,54 @@ static int clampValue(int v, int minV, int maxV) {
   return v;
 }
 
+enum TextKey {
+  TK_SETTINGS, TK_VOLUME, TK_BRIGHTNESS, TK_AUDIO_TEST, TK_TOUCH_TEST, TK_TOUCH_CALIB, TK_LANGUAGE,
+  TK_WIFI, TK_SSID, TK_LED, TK_OPEN, TK_TAP, TK_RESET_SETTINGS, TK_BACK, TK_SAVE, TK_CANCEL,
+  TK_LED_PICK_TITLE, TK_LED_PICK_HINT, TK_LED_BRIGHTNESS, TK_LED_OFF_HINT, TK_WIFI_ON, TK_WIFI_OFF,
+  TK_CALIB_DONE, TK_SAVE_CALIB_Q, TK_KEEP_OLD, TK_OK_SAVED, TK_SAVE_ERROR,
+  TK_PARAMETERS_BTN, TK_NEXT_PAGE, TK_PAGE1, TK_PLAY, TK_CALIB_TITLE, TK_TOUCH_5CROSS
+};
+
+static const char* tr(TextKey key) {
+  int lang = clampValue(settingsGet().language, 0, 4);
+  static const char* T[][5] = {
+    {"Settings","Parametres","Ajustes","Einstellungen","Impostazioni"},
+    {"Volume","Volume","Volumen","Lautstarke","Volume"},
+    {"Brightness","Luminosite","Brillo","Helligkeit","Luminosita"},
+    {"Audio test","Test audio","Prueba audio","Audio-Test","Test audio"},
+    {"Touch test","Test tactile","Prueba tactil","Touch-Test","Test touch"},
+    {"Touch calibration","Calibration tactile","Calibracion tactil","Touch-Kalibrierung","Calibrazione touch"},
+    {"Language","Langue","Idioma","Sprache","Lingua"},
+    {"WiFi","WiFi","WiFi","WiFi","WiFi"},
+    {"SSID","SSID","SSID","SSID","SSID"},
+    {"LED","LED","LED","LED","LED"},
+    {"Open","Ouvrir","Abrir","Offnen","Apri"},
+    {"Tap","Taper","Tocar","Tippen","Tocca"},
+    {"Reset settings","Reset reglages","Reset ajustes","Einstellungen reset","Reset impostazioni"},
+    {"Back","Retour","Atras","Zuruck","Indietro"},
+    {"Save","Sauver","Guardar","Speichern","Salva"},
+    {"Cancel","Annuler","Cancelar","Abbrechen","Annulla"},
+    {"LED","LED","LED","LED","LED"},
+    {"Choose test color","Choisissez une couleur test","Elige color de prueba","Testfarbe wahlen","Scegli colore test"},
+    {"LED brightness","Luminosite LED","Brillo LED","LED-Helligkeit","Luminosita LED"},
+    {"LED turns off when leaving","LED eteinte en quittant","LED se apaga al salir","LED aus beim Verlassen","LED si spegne uscendo"},
+    {"ON","ON","ON","AN","ON"},
+    {"OFF","OFF","OFF","AUS","OFF"},
+    {"Calibration done","Calibration terminee","Calibracion terminada","Kalibrierung fertig","Calibrazione finita"},
+    {"Save these settings?","Sauvegarder ces reglages ?","Guardar estos ajustes?","Diese Einstellungen speichern?","Salvare queste impostazioni?"},
+    {"Cancel = keep old","Annuler = garder ancien","Cancelar = mantener anterior","Abbrechen = alt behalten","Annulla = mantieni vecchio"},
+    {"Save OK","Sauvegarde OK","Guardado OK","Speichern OK","Salvataggio OK"},
+    {"Save KO","Sauvegarde KO","Guardado KO","Speichern FEHLER","Salvataggio KO"},
+    {"Settings","Parametres","Ajustes","Einstellungen","Impostazioni"},
+    {"Next page","Page suivante","Pagina sig.","Naechste Seite","Pagina successiva"},
+    {"Page 1","Page 1","Pagina 1","Seite 1","Pagina 1"},
+    {"Play","Jouer","Jugar","Spielen","Gioca"},
+    {"Calibration","Calibration","Calibracion","Kalibrierung","Calibrazione"},
+    {"Touch the 5 crosses","Touchez les 5 croix","Toque las 5 cruces","Beruehre die 5 Kreuze","Tocca le 5 croci"}
+  };
+  return T[key][lang];
+}
+
 static void applyBrightnessNow() {
   int pwm = map(settingsGet().brightness, 0, 100, 10, 255);
   displaySetBrightness((uint8_t)pwm);
@@ -221,8 +270,10 @@ static void applyTouchCalibrationFromSettings() {
   touch_offset_y = settingsGet().touch_offset_y;
 }
 
-static void saveSettingsNow() {
-  settingsSave();
+static bool saveSettingsNow() {
+  bool ok = settingsSave();
+  gSaveStatusText = ok ? tr(TK_OK_SAVED) : tr(TK_SAVE_ERROR);
+  return ok;
 }
 
 static void drawCross(int cx, int cy) {
@@ -448,13 +499,13 @@ static void drawHomeScreen() {
     }
   }
 
-  drawFooterButton(BTN_LEFT_X, BTN_LEFT_Y, "Parametres");
+  drawFooterButton(BTN_LEFT_X, BTN_LEFT_Y, tr(TK_PARAMETERS_BTN));
 
   if (pageCount > 1) {
     if (currentPage < pageCount - 1) {
-      drawFooterButton(BTN_RIGHT_X, BTN_RIGHT_Y, "Page suivante");
+      drawFooterButton(BTN_RIGHT_X, BTN_RIGHT_Y, tr(TK_NEXT_PAGE));
     } else {
-      drawFooterButton(BTN_RIGHT_X, BTN_RIGHT_Y, "Page 1");
+      drawFooterButton(BTN_RIGHT_X, BTN_RIGHT_Y, tr(TK_PAGE1));
     }
   }
 }
@@ -464,11 +515,11 @@ static void drawSettingsScreen() {
 
   char buf[80];
 
-  displayDrawSmallText(8, 4, "Parametres");
+  displayDrawSmallText(8, 4, tr(TK_SETTINGS));
 
   // Volume
   displayDrawRect(4, SET_ROW1_Y - 2, 312, 16, COLOR_INFO_TEXT);
-  drawSettingsRowLabel(SET_ROW1_Y, "Volume");
+  drawSettingsRowLabel(SET_ROW1_Y, tr(TK_VOLUME));
   drawMiniButton(SET_MINUS_X, SET_ROW1_Y + SET_BTN_Y_OFFSET, "-");
   snprintf(buf, sizeof(buf), "%d", settingsGet().volume);
   displayDrawSmallText(SET_VALUE_X, SET_ROW1_Y + SET_TEXT_Y_OFFSET, buf);
@@ -476,7 +527,7 @@ static void drawSettingsScreen() {
 
   // Luminosite
   displayDrawRect(4, SET_ROW2_Y - 2, 312, 16, COLOR_INFO_TEXT);
-  drawSettingsRowLabel(SET_ROW2_Y, "Luminosite");
+  drawSettingsRowLabel(SET_ROW2_Y, tr(TK_BRIGHTNESS));
   drawMiniButton(SET_MINUS_X, SET_ROW2_Y + SET_BTN_Y_OFFSET, "-");
   snprintf(buf, sizeof(buf), "%d", settingsGet().brightness);
   displayDrawSmallText(SET_VALUE_X, SET_ROW2_Y + SET_TEXT_Y_OFFSET, buf);
@@ -484,32 +535,39 @@ static void drawSettingsScreen() {
 
   // Test audio
   displayDrawRect(4, SET_ROW3_Y - 2, 312, 16, COLOR_INFO_TEXT);
-  drawSettingsRowLabel(SET_ROW3_Y, "Test audio", "Taper");
+  drawSettingsRowLabel(SET_ROW3_Y, tr(TK_AUDIO_TEST), tr(TK_TAP));
 
   // Test tactile
   displayDrawRect(4, SET_ROW4_Y - 2, 312, 16, COLOR_INFO_TEXT);
-  drawSettingsRowLabel(SET_ROW4_Y, "Test tactile", "Ouvrir");
+  drawSettingsRowLabel(SET_ROW4_Y, tr(TK_TOUCH_TEST), tr(TK_OPEN));
 
   // Calibration tactile
   displayDrawRect(4, SET_ROW5_Y - 2, 312, 16, COLOR_INFO_TEXT);
-  drawSettingsRowLabel(SET_ROW5_Y, "Calibration tactile", "Ouvrir");
+  drawSettingsRowLabel(SET_ROW5_Y, tr(TK_TOUCH_CALIB), tr(TK_OPEN));
 
   // Reset tactile
   displayDrawRect(4, SET_ROW6_Y - 2, 312, 16, COLOR_INFO_TEXT);
-  drawSettingsRowLabel(SET_ROW6_Y, "Reset tactile", "Reset");
+  drawSettingsRowLabel(SET_ROW6_Y, tr(TK_LANGUAGE), nullptr);
+  static const char* LANG_NAMES[5] = {"EN", "FR", "ES", "DE", "IT"};
+  displayDrawSmallText(220, SET_ROW6_Y + SET_TEXT_Y_OFFSET, LANG_NAMES[clampValue(settingsGet().language, 0, 4)]);
 
   // WiFi
   displayDrawRect(4, SET_ROW7_Y - 2, 312, 16, COLOR_INFO_TEXT);
-  drawSettingsRowLabel(SET_ROW7_Y, "WiFi");
+  drawSettingsRowLabel(SET_ROW7_Y, tr(TK_WIFI));
   if (gWifiBusy) {
     displayDrawSmallText(190, SET_ROW7_Y + SET_TEXT_Y_OFFSET, "Connexion...");
   } else {
-    displayDrawSmallText(220, SET_ROW7_Y + SET_TEXT_Y_OFFSET, wifiManagerIsActive() ? "ON" : "OFF");
+    if (wifiManagerIsActive()) {
+      String wifiLine = String(tr(TK_WIFI_ON)) + " " + wifiManagerGetIP();
+      displayDrawSmallTextColor(170, SET_ROW7_Y + SET_TEXT_Y_OFFSET, wifiLine.c_str(), 0x07E0, 0x0000);
+    } else {
+      displayDrawSmallText(220, SET_ROW7_Y + SET_TEXT_Y_OFFSET, tr(TK_WIFI_OFF));
+    }
   }
 
   // SSID
   displayDrawRect(4, SET_ROW8_Y - 2, 312, 16, COLOR_INFO_TEXT);
-  drawSettingsRowLabel(SET_ROW8_Y, "SSID", nullptr);
+  drawSettingsRowLabel(SET_ROW8_Y, tr(TK_SSID), nullptr);
   if (settingsGet().wifi_ssid.length() > 0) {
     displayDrawSmallText(80, SET_ROW8_Y + SET_TEXT_Y_OFFSET, settingsGet().wifi_ssid.c_str());
   } else {
@@ -518,20 +576,20 @@ static void drawSettingsScreen() {
 
   // LED
   displayDrawRect(4, SET_ROW9_Y - 2, 312, 16, COLOR_INFO_TEXT);
-  drawSettingsRowLabel(SET_ROW9_Y, "LED", "Ouvrir");
-
-  // Reset reglages
-  displayDrawRect(4, SET_ROW10_Y - 2, 312, 16, COLOR_INFO_TEXT);
-  drawSettingsRowLabel(SET_ROW10_Y, "Reset reglages", "Reset");
+  drawSettingsRowLabel(SET_ROW9_Y, tr(TK_LED), tr(TK_OPEN));
 
   // Statut WiFi
-  if (gWifiStatusText.length() > 0) {
+  if (gSaveStatusText.length() > 0) {
+    displayDrawSmallText(8, 204, gSaveStatusText.c_str());
+  } else if (gWifiStatusText.length() > 0) {
     displayDrawSmallText(8, 204, gWifiStatusText.c_str());
   }
 
-  // Bouton retour
+  // Boutons bas
+  displayDrawRect(INFO_PLAY_X, INFO_PLAY_Y, INFO_PLAY_W, INFO_PLAY_H, COLOR_INFO_TEXT);
+  drawFooterButton(INFO_PLAY_X, INFO_PLAY_Y, tr(TK_RESET_SETTINGS));
   displayDrawRect(INFO_BACK_X, INFO_BACK_Y, INFO_BACK_W, INFO_BACK_H, COLOR_INFO_TEXT);
-  drawFooterButton(INFO_BACK_X, INFO_BACK_Y, "Retour");
+  drawFooterButton(INFO_BACK_X, INFO_BACK_Y, tr(TK_BACK));
 }
 
 static void drawGameInfoScreen() {
@@ -560,15 +618,15 @@ static void drawGameInfoScreen() {
   displayDrawSmallText(8, 98, "Description:");
   displayDrawSmallText(8, 110, game.description.c_str());
 
-  drawPlayButton(INFO_PLAY_X, INFO_PLAY_Y, INFO_PLAY_W, INFO_PLAY_H, "Play");
-  drawFooterButton(INFO_BACK_X, INFO_BACK_Y, "Retour");
+  drawPlayButton(INFO_PLAY_X, INFO_PLAY_Y, INFO_PLAY_W, INFO_PLAY_H, tr(TK_PLAY));
+  drawFooterButton(INFO_BACK_X, INFO_BACK_Y, tr(TK_BACK));
 }
 
 static void drawTouchTestScreen() {
   displayClear();
   displayDrawSmallText(8, 8, "Test tactile");
   displayDrawSmallText(8, 22, "Touchez / balayez");
-  drawFooterButton(INFO_BACK_X, INFO_BACK_Y, "Retour");
+  drawFooterButton(INFO_BACK_X, INFO_BACK_Y, tr(TK_BACK));
 
   char buf[64];
   snprintf(buf, sizeof(buf), "MAP X:%d", gTouchLiveX);
@@ -584,8 +642,8 @@ static void drawTouchTestScreen() {
 static void drawTouchCalibScreen() {
   displayClear();
 
-  displayDrawSmallText(60, 8, "Calibration");
-  displayDrawSmallText(34, 22, "Touchez les 5 croix");
+  displayDrawSmallText(60, 8, tr(TK_CALIB_TITLE));
+  displayDrawSmallText(34, 22, tr(TK_TOUCH_5CROSS));
 
   char buf[32];
   snprintf(buf, sizeof(buf), "Point %d/5", calStep + 1);
@@ -602,8 +660,8 @@ static uint16_t ledColorTo565(const LedColor& c) {
 
 static void drawLedPickerScreen() {
   displayClear();
-  displayDrawSmallText(8, 8, "LED");
-  displayDrawSmallText(42, 8, "Choisissez une couleur test");
+  displayDrawSmallText(8, 8, tr(TK_LED_PICK_TITLE));
+  displayDrawSmallText(42, 8, tr(TK_LED_PICK_HINT));
 
   for (int i = 0; i < 10; i++) {
     int row = i / LED_GRID_COLS;
@@ -619,16 +677,16 @@ static void drawLedPickerScreen() {
     }
   }
 
-  displayDrawSmallText(8, LED_BRIGHT_Y - 14, "Luminosite LED");
+  displayDrawSmallText(8, LED_BRIGHT_Y - 14, tr(TK_LED_BRIGHTNESS));
   drawMiniButton(LED_BRIGHT_MINUS_X, LED_BRIGHT_Y, "-");
   char buf[16];
   snprintf(buf, sizeof(buf), "%d", settingsGet().led_brightness);
   displayDrawSmallText(LED_BRIGHT_VALUE_X, LED_BRIGHT_Y + 6, buf);
   drawMiniButton(LED_BRIGHT_PLUS_X, LED_BRIGHT_Y, "+");
 
-  displayDrawSmallText(8, 150, "La LED s'eteint en quittant.");
+  displayDrawSmallText(8, 150, tr(TK_LED_OFF_HINT));
   displayDrawRect(INFO_BACK_X, INFO_BACK_Y, INFO_BACK_W, INFO_BACK_H, COLOR_INFO_TEXT);
-  drawFooterButton(INFO_BACK_X, INFO_BACK_Y, "Retour");
+  drawFooterButton(INFO_BACK_X, INFO_BACK_Y, tr(TK_BACK));
 }
 
 static void drawResetConfirmScreen() {
@@ -642,17 +700,17 @@ static void drawResetConfirmScreen() {
   displayDrawSmallText(34, 124, "irreversible.");
 
   displayDrawRect(RESET_CANCEL_X, RESET_BTN_Y, RESET_BTN_W, RESET_BTN_H, COLOR_INFO_TEXT);
-  displayDrawSmallText(56, RESET_BTN_Y + 8, "Annuler");
+  displayDrawSmallText(56, RESET_BTN_Y + 8, tr(TK_CANCEL));
 
   displayFillRect(RESET_CONFIRM_X, RESET_BTN_Y, RESET_BTN_W, RESET_BTN_H, COLOR_PLAY_BOX);
   displayDrawRect(RESET_CONFIRM_X, RESET_BTN_Y, RESET_BTN_W, RESET_BTN_H, COLOR_INFO_TEXT);
-  displayDrawSmallTextColor(184, RESET_BTN_Y + 8, "Confirmer", COLOR_PLAY_TEXT, COLOR_PLAY_BOX);
+  displayDrawSmallTextColor(184, RESET_BTN_Y + 8, tr(TK_SAVE), COLOR_PLAY_TEXT, COLOR_PLAY_BOX);
 }
 
 static void drawCalibSaveScreen() {
   displayClear();
-  displayDrawSmallText(42, 20, "Calibration terminee");
-  displayDrawSmallText(18, 40, "Sauvegarder ces reglages ?");
+  displayDrawSmallText(42, 20, tr(TK_CALIB_DONE));
+  displayDrawSmallText(18, 40, tr(TK_SAVE_CALIB_Q));
 
   char buf[96];
   snprintf(buf, sizeof(buf), "X:%d..%d", pendingTouchXMin, pendingTouchXMax);
@@ -662,15 +720,14 @@ static void drawCalibSaveScreen() {
   snprintf(buf, sizeof(buf), "Offset X:%d Y:%d", pendingTouchOffsetX, pendingTouchOffsetY);
   displayDrawSmallText(18, 94, buf);
 
-  displayDrawSmallText(18, 122, "Annuler = garder");
-  displayDrawSmallText(18, 136, "l'ancien calibrage");
+  displayDrawSmallText(18, 122, tr(TK_KEEP_OLD));
 
   displayDrawRect(CAL_SAVE_CANCEL_X, CAL_SAVE_BTN_Y, CAL_SAVE_BTN_W, CAL_SAVE_BTN_H, COLOR_INFO_TEXT);
-  displayDrawSmallText(56, CAL_SAVE_BTN_Y + 8, "Annuler");
+  displayDrawSmallText(56, CAL_SAVE_BTN_Y + 8, tr(TK_CANCEL));
 
   displayFillRect(CAL_SAVE_CONFIRM_X, CAL_SAVE_BTN_Y, CAL_SAVE_BTN_W, CAL_SAVE_BTN_H, COLOR_PLAY_BOX);
   displayDrawRect(CAL_SAVE_CONFIRM_X, CAL_SAVE_BTN_Y, CAL_SAVE_BTN_W, CAL_SAVE_BTN_H, COLOR_INFO_TEXT);
-  displayDrawSmallTextColor(198, CAL_SAVE_BTN_Y + 8, "Sauver", COLOR_PLAY_TEXT, COLOR_PLAY_BOX);
+  displayDrawSmallTextColor(198, CAL_SAVE_BTN_Y + 8, tr(TK_SAVE), COLOR_PLAY_TEXT, COLOR_PLAY_BOX);
 }
 
 // --------------------------------------------------
@@ -892,13 +949,7 @@ void launcherUpdate() {
         gNeedsRedraw = true;
       }
       else if (pointInRect(gLastTouchX, gLastTouchY, 8, SET_ROW6_Y, 312, 14)) {
-        settingsGet().touch_x_min = 200;
-        settingsGet().touch_x_max = 3800;
-        settingsGet().touch_y_min = 200;
-        settingsGet().touch_y_max = 3800;
-        settingsGet().touch_offset_x = 0;
-        settingsGet().touch_offset_y = 0;
-        applyTouchCalibrationFromSettings();
+        settingsGet().language = (settingsGet().language + 1) % 5;
         saveSettingsNow();
         gNeedsRedraw = true;
       }
@@ -937,7 +988,7 @@ void launcherUpdate() {
         ledManagerSetColor(LED_COLORS[gLedSelectedColor].r, LED_COLORS[gLedSelectedColor].g, LED_COLORS[gLedSelectedColor].b);
         gNeedsRedraw = true;
       }
-      else if (pointInRect(gLastTouchX, gLastTouchY, 8, SET_ROW10_Y, 312, 14)) {
+      else if (pointInRect(gLastTouchX, gLastTouchY, INFO_PLAY_X, INFO_PLAY_Y, INFO_PLAY_W, INFO_PLAY_H)) {
         currentScreen = SCREEN_CONFIRM_RESET;
         gNeedsRedraw = true;
       }

@@ -2,7 +2,7 @@
 #include "led_manager.h"
 
 // ESP32-2432S032R: LED RGB discrete commune anode
-// Schéma: R=IO17, G=IO4, B=IO16
+// Schéma validé: R=IO4, G=IO16, B=IO17
 static const int LED_PIN_R = 4;
 static const int LED_PIN_G = 16;
 static const int LED_PIN_B = 17;
