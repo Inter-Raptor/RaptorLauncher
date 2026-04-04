@@ -9,8 +9,6 @@
 #include "wifi_manager.h"
 #include "led_manager.h"
 #include "mcp23017_manager.h"
-#include "game_boot_manager.h"
-#include "config.h"
 #include "types.h"
 
 static bool gNeedsRedraw = true;
@@ -445,16 +443,7 @@ static void showGameTitleScreen(const GameInfo& game) {
 
 static void launchGameFromIndex(int index) {
   if (index < 0 || index >= (int)gameList.size()) return;
-  const GameInfo& game = gameList[index];
-  showGameTitleScreen(game);
-
-  String binPath = String(SD_MOUNT_POINT) + "/" + game.folder + "/" + game.bin;
-  bool ok = gameBootLaunchFromPath(binPath);
-  if (!ok) {
-    gSaveStatusText = "Launch KO";
-    currentScreen = SCREEN_HOME;
-    gNeedsRedraw = true;
-  }
+  showGameTitleScreen(gameList[index]);
 }
 
 // --------------------------------------------------
