@@ -398,33 +398,49 @@ static void drawSettingsScreen() {
 
   displayDrawSmallText(8, 4, "Parametres");
 
+  // Volume
+  displayDrawRect(4, SET_ROW1_Y - 2, 312, 16, COLOR_INFO_TEXT);
   displayDrawSmallText(8, SET_ROW1_Y, "Volume");
   drawMiniButton(SET_MINUS_X, SET_ROW1_Y + SET_BTN_Y_OFFSET, "-");
   snprintf(buf, sizeof(buf), "%d", settingsGet().volume);
   displayDrawSmallText(SET_VALUE_X, SET_ROW1_Y + 2, buf);
   drawMiniButton(SET_PLUS_X, SET_ROW1_Y + SET_BTN_Y_OFFSET, "+");
 
+  // Luminosite
+  displayDrawRect(4, SET_ROW2_Y - 2, 312, 16, COLOR_INFO_TEXT);
   displayDrawSmallText(8, SET_ROW2_Y, "Luminosite");
   drawMiniButton(SET_MINUS_X, SET_ROW2_Y + SET_BTN_Y_OFFSET, "-");
   snprintf(buf, sizeof(buf), "%d", settingsGet().brightness);
   displayDrawSmallText(SET_VALUE_X, SET_ROW2_Y + 2, buf);
   drawMiniButton(SET_PLUS_X, SET_ROW2_Y + SET_BTN_Y_OFFSET, "+");
 
+  // Test audio
+  displayDrawRect(4, SET_ROW3_Y - 2, 312, 16, COLOR_INFO_TEXT);
   displayDrawSmallText(8, SET_ROW3_Y, "Test audio");
   displayDrawSmallText(220, SET_ROW3_Y, "Taper");
 
+  // Test tactile
+  displayDrawRect(4, SET_ROW4_Y - 2, 312, 16, COLOR_INFO_TEXT);
   displayDrawSmallText(8, SET_ROW4_Y, "Test tactile");
   displayDrawSmallText(220, SET_ROW4_Y, "Ouvrir");
 
+  // Calibration tactile
+  displayDrawRect(4, SET_ROW5_Y - 2, 312, 16, COLOR_INFO_TEXT);
   displayDrawSmallText(8, SET_ROW5_Y, "Calibration tactile");
   displayDrawSmallText(220, SET_ROW5_Y, "Ouvrir");
 
+  // Reset tactile
+  displayDrawRect(4, SET_ROW6_Y - 2, 312, 16, COLOR_INFO_TEXT);
   displayDrawSmallText(8, SET_ROW6_Y, "Reset tactile");
   displayDrawSmallText(220, SET_ROW6_Y, "Reset");
 
+  // WiFi
+  displayDrawRect(4, SET_ROW7_Y - 2, 312, 16, COLOR_INFO_TEXT);
   displayDrawSmallText(8, SET_ROW7_Y, "WiFi");
   displayDrawSmallText(220, SET_ROW7_Y, wifiManagerIsActive() ? "ON" : "OFF");
 
+  // SSID
+  displayDrawRect(4, SET_ROW8_Y - 2, 312, 16, COLOR_INFO_TEXT);
   displayDrawSmallText(8, SET_ROW8_Y, "SSID");
   if (settingsGet().wifi_ssid.length() > 0) {
     displayDrawSmallText(80, SET_ROW8_Y, settingsGet().wifi_ssid.c_str());
@@ -432,6 +448,8 @@ static void drawSettingsScreen() {
     displayDrawSmallText(80, SET_ROW8_Y, "non configure");
   }
 
+  // IP
+  displayDrawRect(4, SET_ROW9_Y - 2, 312, 16, COLOR_INFO_TEXT);
   displayDrawSmallText(8, SET_ROW9_Y, "IP");
   if (wifiManagerIsActive()) {
     displayDrawSmallText(80, SET_ROW9_Y, wifiManagerGetIP().c_str());
@@ -439,9 +457,13 @@ static void drawSettingsScreen() {
     displayDrawSmallText(80, SET_ROW9_Y, "-");
   }
 
+  // Reset reglages
+  displayDrawRect(4, SET_ROW10_Y - 2, 312, 16, COLOR_INFO_TEXT);
   displayDrawSmallText(8, SET_ROW10_Y, "Reset reglages");
   displayDrawSmallText(220, SET_ROW10_Y, "Reset");
 
+  // Bouton retour
+  displayDrawRect(INFO_BACK_X, INFO_BACK_Y, INFO_BACK_W, INFO_BACK_H, COLOR_INFO_TEXT);
   drawFooterButton(INFO_BACK_X, INFO_BACK_Y, "Retour");
 }
 
