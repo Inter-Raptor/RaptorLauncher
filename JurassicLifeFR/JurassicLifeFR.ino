@@ -1123,6 +1123,7 @@ static bool audioActive = false;
 static AudioStep audioDynSeq[128];
 static const char* audioLoopRtttl = nullptr;
 static AudioPriority audioLoopPriority = AUDIO_PRIO_LOW;
+static TriState state = ST_SIT;
 
 static void audioSetTone(uint16_t freq, uint16_t duty) {
   if (freq == 0 || duty == 0) {
@@ -1608,7 +1609,6 @@ static inline bool flipForMovingRight(bool right) {
 }
 
 // ================== STATE / ANIM ==================
-static TriState state = ST_SIT;
 
 static uint8_t animIdx = 0;
 static uint32_t nextAnimTick = 0;
