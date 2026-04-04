@@ -512,11 +512,14 @@ void clearRectSafe(int x, int y, int w, int h) {
 }
 
 void drawRGB565Transparent(int x, int y, const uint16_t* data, int w, int h, uint16_t key, bool flipX = false) {
+  (void)key;
+  // Convention sprites: le pixel (0,0) definit toujours la couleur transparente.
+  const uint16_t transparentKey = pgm_read_word(&data[0]);
   for (int yy = 0; yy < h; yy++) {
     for (int xx = 0; xx < w; xx++) {
       int sx = flipX ? (w - 1 - xx) : xx;
       uint16_t c = pgm_read_word(&data[yy * w + sx]);
-      if (c == key) continue;
+      if (c == transparentKey) continue;
       lcd.drawPixel(x + xx, y + yy, c);
     }
   }
