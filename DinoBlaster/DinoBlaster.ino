@@ -621,8 +621,8 @@ void clearGunShotEffect() {
 void spawnDino(int idx) {
   DinoTarget& dino = dinos[idx];
   dino.spriteIndex = randRange(0, 5);
-  dino.flipX = false; // Tous les sprites regardent a gauche
-  dino.vx = -DINO_SPEED_PX;
+  dino.flipX = (randRange(0, 1) == 1); // true => regarde a droite (sprite retourne)
+  dino.vx = dino.flipX ? DINO_SPEED_PX : -DINO_SPEED_PX;
 
   const DinoSpriteInfo& sp = DINO_SPRITES[dino.spriteIndex];
 
@@ -635,7 +635,7 @@ void spawnDino(int idx) {
       dino.y = y;
       dino.alive = true;
       dino.respawnAt = 0;
-      Serial.printf("[DINO] spawn sprite=%d flip=%d x=%d y=%d\n", dino.spriteIndex, dino.flipX ? 1 : 0, dino.x, dino.y);
+      Serial.printf("[DINO] spawn sprite=%d flip=%d vx=%d x=%d y=%d\n", dino.spriteIndex, dino.flipX ? 1 : 0, dino.vx, dino.x, dino.y);
       return;
     }
   }
@@ -968,7 +968,7 @@ void updatePlay() {
       eraseDino(i);
       dino.x += dino.vx;
       const DinoSpriteInfo& sp = DINO_SPRITES[dino.spriteIndex];
-      if (dino.x + sp.w < 0) {
+      if (dino.x + sp.w < 0 || dino.x >= SCREEN_W) {
         dino.alive = false;
         dino.respawnAt = millis() + randRange(500, 1200);
       }
