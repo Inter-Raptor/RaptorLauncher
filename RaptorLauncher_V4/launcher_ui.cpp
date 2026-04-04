@@ -21,6 +21,9 @@ static bool gTouchLiveActive = false;
 static int gTouchLiveX = 0;
 static int gTouchLiveY = 0;
 
+static bool gWifiBusy = false;
+static String gWifiStatusText = "";
+
 enum LauncherScreen {
   SCREEN_HOME,
   SCREEN_SETTINGS,
@@ -55,7 +58,7 @@ static bool calWasTouching = false;
 // Couleurs
 // --------------------------------------------------
 static const uint16_t COLOR_INFO_BOX   = 0x7D7C;
-static const uint16_t COLOR_INFO_TEXT  = 0x0000;
+static const uint16_t COLOR_INFO_TEXT  = 0xFFFF;
 static const uint16_t COLOR_PLAY_BOX   = 0x07E0;
 static const uint16_t COLOR_PLAY_TEXT  = 0xFFFF;
 
@@ -437,7 +440,11 @@ static void drawSettingsScreen() {
   // WiFi
   displayDrawRect(4, SET_ROW7_Y - 2, 312, 16, COLOR_INFO_TEXT);
   displayDrawSmallText(8, SET_ROW7_Y, "WiFi");
-  displayDrawSmallText(220, SET_ROW7_Y, wifiManagerIsActive() ? "ON" : "OFF");
+  if (gWifiBusy) {
+    displayDrawSmallText(190, SET_ROW7_Y, "Connexion...");
+  } else {
+    displayDrawSmallText(220, SET_ROW7_Y, wifiManagerIsActive() ? "ON" : "OFF");
+  }
 
   // SSID
   displayDrawRect(4, SET_ROW8_Y - 2, 312, 16, COLOR_INFO_TEXT);
@@ -461,6 +468,11 @@ static void drawSettingsScreen() {
   displayDrawRect(4, SET_ROW10_Y - 2, 312, 16, COLOR_INFO_TEXT);
   displayDrawSmallText(8, SET_ROW10_Y, "Reset reglages");
   displayDrawSmallText(220, SET_ROW10_Y, "Reset");
+
+  // Statut WiFi
+  if (gWifiStatusText.length() > 0) {
+    displayDrawSmallText(8, 204, gWifiStatusText.c_str());
+  }
 
   // Bouton retour
   displayDrawRect(INFO_BACK_X, INFO_BACK_Y, INFO_BACK_W, INFO_BACK_H, COLOR_INFO_TEXT);
@@ -583,6 +595,8 @@ void launcherInit() {
   gTouchLiveActive = false;
   calStep = 0;
   calWasTouching = false;
+  gWifiBusy = false;
+  gWifiStatusText = "";
   gNeedsRedraw = true;
 }
 
@@ -617,7 +631,6 @@ void launcherUpdate() {
       delay(250);
 
       if (calStep >= CAL_POINT_COUNT) {
-        // calibration simplifiée : on ajuste les bornes en fonction de l’erreur sur les 4 coins
         int dxMin = calTouchX[0] - 20;
         int dxMax = calTouchX[1] - 300;
         int dyMin = calTouchY[0] - 20;
@@ -727,11 +740,31 @@ void launcherUpdate() {
       else if (pointInRect(gLastTouchX, gLastTouchY, 8, SET_ROW7_Y, 312, 14)) {
         if (settingsGet().wifi_ssid.length() == 0) {
           Serial.println("[WIFI] SSID non configure dans settings.json");
+          gWifiStatusText = "SSID non configure";
+          gNeedsRedraw = true;
         } else {
-          if (wifiManagerIsActive()) wifiManagerStop();
-          else wifiManagerStart(settingsGet().wifi_ssid, settingsGet().wifi_pass);
+          if (wifiManagerIsActive()) {
+            wifiManagerStop();
+            gWifiBusy = false;
+            gWifiStatusText = "WiFi coupe";
+            gNeedsRedraw = true;
+          } else {
+            gWifiBusy = true;
+            gWifiStatusText = "Connexion WiFi...";
+            gNeedsRedraw = true;
+            launcherRender();
+
+            bool ok = wifiManagerStart(settingsGet().wifi_ssid, settingsGet().wifi_pass);
+
+            gWifiBusy = false;
+            if (ok) {
+              gWifiStatusText = "Connecte";
+            } else {
+              gWifiStatusText = "Echec connexion";
+            }
+            gNeedsRedraw = true;
+          }
         }
-        gNeedsRedraw = true;
       }
       else if (pointInRect(gLastTouchX, gLastTouchY, 8, SET_ROW10_Y, 312, 14)) {
         settingsSetDefaults();
@@ -745,6 +778,8 @@ void launcherUpdate() {
         if (wifiManagerIsActive()) {
           wifiManagerStop();
         }
+        gWifiBusy = false;
+        gWifiStatusText = "";
         currentScreen = SCREEN_HOME;
         gNeedsRedraw = true;
       }
@@ -765,8 +800,8 @@ void launcherUpdate() {
       }
     }
     else if (currentScreen == SCREEN_TOUCH_CALIB) {
-  // aucun bouton retour pendant la calibration
-}
+      // aucun bouton retour pendant la calibration
+    }
   }
 
   wasTouching = touching;
