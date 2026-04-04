@@ -243,7 +243,7 @@ unsigned long muzzleUntil = 0;
 bool needFullRedraw = true;
 bool hudDirty = true;
 
-bool muzzleWasOn = false;
+bool shotVisualActive = false;
 
 int randRange(int a, int b) {
   return a + (esp_random() % (b - a + 1));
@@ -725,6 +725,7 @@ bool pointInBonus(int x, int y) {
 
 void gunShot() {
   muzzleUntil = millis() + MUZZLE_MS;
+  shotVisualActive = true;
   fireSound();
   ledFlashRed(LED_FLASH_MS);
   eraseGunZone();
@@ -761,7 +762,7 @@ void startGame() {
   bonus.active = false;
   scheduleBonusSpawn();
   muzzleUntil = 0;
-  muzzleWasOn = false;
+  shotVisualActive = false;
   state = GS_PLAY;
   hudDirty = true;
   needFullRedraw = true;
@@ -972,10 +973,10 @@ void updatePlay() {
   }
 
   bool muzzleOn = millis() < muzzleUntil;
-  if (muzzleWasOn && !muzzleOn) {
+  if (!muzzleOn && shotVisualActive) {
     clearGunShotEffect();
+    shotVisualActive = false;
   }
-  muzzleWasOn = muzzleOn;
 
   if (ts.pressed) {
     gunShot();
