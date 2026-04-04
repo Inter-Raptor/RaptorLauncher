@@ -3,9 +3,9 @@
 
 // ESP32-2432S032R: LED RGB discrete commune anode
 // Schéma: R=IO17, G=IO4, B=IO16
-static const int LED_PIN_R = 17;
-static const int LED_PIN_G = 4;
-static const int LED_PIN_B = 16;
+static const int LED_PIN_R = 4;
+static const int LED_PIN_G = 16;
+static const int LED_PIN_B = 17;
 static const int LED_PWM_FREQ = 5000;
 static const int LED_PWM_RES = 8; // 0..255
 
