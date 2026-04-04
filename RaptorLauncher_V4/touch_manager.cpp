@@ -41,8 +41,6 @@ void touchUpdate() {
     gTouchX = map(p.x, touch_x_min, touch_x_max, 0, 319);
     gTouchY = map(p.y, touch_y_min, touch_y_max, 239, 0);
 
-    // correction offset fixe
-    gTouchX -= 13;
 
     if (gTouchX < 0) gTouchX = 0;
     if (gTouchX > 319) gTouchX = 319;

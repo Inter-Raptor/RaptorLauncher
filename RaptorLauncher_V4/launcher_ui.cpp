@@ -677,18 +677,13 @@ void launcherUpdate() {
           return;
         }
 
-        // Convertit les points cibles (20..300 / 20..220) vers les bornes ecran
-        // pour un mapping complet 0..319 et 239..0.
-        long spanRawX = (long)xMax - (long)xMin;
-        long spanRawY = (long)yMax - (long)yMin;
-
-        settingsGet().touch_x_min = (int)((long)xMin - (spanRawX * 20L) / 280L);
-        settingsGet().touch_x_max = (int)((long)xMin + (spanRawX * 299L) / 280L);
-
-        long rawAtY0 = (long)yMin - (spanRawY * 20L) / 200L;
-        long rawAtY239 = (long)yMin + (spanRawY * 219L) / 200L;
-        settingsGet().touch_y_min = (int)rawAtY239;
-        settingsGet().touch_y_max = (int)rawAtY0;
+        // On prend directement les bornes mesurées sur les coins.
+        // Cela évite d'écraser la calibration avec un clamp 0..4095
+        // et garantit que les décalages volontaires sont visibles.
+        settingsGet().touch_x_min = xMin;
+        settingsGet().touch_x_max = xMax;
+        settingsGet().touch_y_min = yMin;
+        settingsGet().touch_y_max = yMax;
 
         settingsGet().touch_x_min = clampValue(settingsGet().touch_x_min, 0, 4095);
         settingsGet().touch_x_max = clampValue(settingsGet().touch_x_max, 0, 4095);
@@ -697,6 +692,12 @@ void launcherUpdate() {
 
         applyTouchCalibrationFromSettings();
         saveSettingsNow();
+
+        Serial.printf("[CAL] saved xMin=%d xMax=%d yMin=%d yMax=%d\n",
+                      settingsGet().touch_x_min,
+                      settingsGet().touch_x_max,
+                      settingsGet().touch_y_min,
+                      settingsGet().touch_y_max);
 
         Serial.println("[CAL] DONE");
 
