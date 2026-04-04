@@ -173,6 +173,8 @@ static void applyTouchCalibrationFromSettings() {
   touch_x_max = settingsGet().touch_x_max;
   touch_y_min = settingsGet().touch_y_min;
   touch_y_max = settingsGet().touch_y_max;
+  touch_offset_x = settingsGet().touch_offset_x;
+  touch_offset_y = settingsGet().touch_offset_y;
 }
 
 static void saveSettingsNow() {
@@ -690,14 +692,21 @@ void launcherUpdate() {
         settingsGet().touch_y_min = clampValue(settingsGet().touch_y_min, 0, 4095);
         settingsGet().touch_y_max = clampValue(settingsGet().touch_y_max, 0, 4095);
 
+        int centerMappedX = map(calTouchX[4], settingsGet().touch_x_min, settingsGet().touch_x_max, 0, 319);
+        int centerMappedY = map(calTouchY[4], settingsGet().touch_y_min, settingsGet().touch_y_max, 239, 0);
+        settingsGet().touch_offset_x = clampValue(160 - centerMappedX, -80, 80);
+        settingsGet().touch_offset_y = clampValue(120 - centerMappedY, -80, 80);
+
         applyTouchCalibrationFromSettings();
         saveSettingsNow();
 
-        Serial.printf("[CAL] saved xMin=%d xMax=%d yMin=%d yMax=%d\n",
+        Serial.printf("[CAL] saved xMin=%d xMax=%d yMin=%d yMax=%d offX=%d offY=%d\n",
                       settingsGet().touch_x_min,
                       settingsGet().touch_x_max,
                       settingsGet().touch_y_min,
-                      settingsGet().touch_y_max);
+                      settingsGet().touch_y_max,
+                      settingsGet().touch_offset_x,
+                      settingsGet().touch_offset_y);
 
         Serial.println("[CAL] DONE");
 
@@ -783,6 +792,8 @@ void launcherUpdate() {
         settingsGet().touch_x_max = 3800;
         settingsGet().touch_y_min = 200;
         settingsGet().touch_y_max = 3800;
+        settingsGet().touch_offset_x = 0;
+        settingsGet().touch_offset_y = 0;
         applyTouchCalibrationFromSettings();
         saveSettingsNow();
         gNeedsRedraw = true;
