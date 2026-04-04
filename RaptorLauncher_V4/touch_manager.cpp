@@ -9,6 +9,8 @@ XPT2046_Touchscreen touch(TOUCH_CS, TOUCH_IRQ);
 
 int gTouchX = 0;
 int gTouchY = 0;
+int gTouchRawX = 0;
+int gTouchRawY = 0;
 bool gTouchPressed = false;
 
 // calibration
@@ -33,17 +35,19 @@ void touchInit() {
 void touchUpdate() {
   if (touch.touched()) {
     TS_Point p = touch.getPoint();
+    gTouchRawX = p.x;
+    gTouchRawY = p.y;
 
     gTouchX = map(p.x, touch_x_min, touch_x_max, 0, 319);
-gTouchY = map(p.y, touch_y_min, touch_y_max, 239, 0);
+    gTouchY = map(p.y, touch_y_min, touch_y_max, 239, 0);
 
-// correction offset fixe
-gTouchX -= 13;
+    // correction offset fixe
+    gTouchX -= 13;
 
-if (gTouchX < 0) gTouchX = 0;
-if (gTouchX > 319) gTouchX = 340;
-if (gTouchY < 0) gTouchY = 0;
-if (gTouchY > 239) gTouchY = 239;
+    if (gTouchX < 0) gTouchX = 0;
+    if (gTouchX > 319) gTouchX = 319;
+    if (gTouchY < 0) gTouchY = 0;
+    if (gTouchY > 239) gTouchY = 239;
 
     gTouchPressed = true;
   } else {
