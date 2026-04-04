@@ -200,13 +200,9 @@ extern bool sdReady;
 #include "annim_junior.h"
 #undef triceratops
 
-#define triceratops triA
-#include "annim_adul.h"
-#undef triceratops
-
-#define triceratops triS
-#include "annim_senior.h"
-#undef triceratops
+// Mode compact: réutilise le set JUNIOR pour ADULTE/SENIOR
+namespace triA = triJ;
+namespace triS = triJ;
 
 #define dino egg
 #include "annim_oeuf.h"
