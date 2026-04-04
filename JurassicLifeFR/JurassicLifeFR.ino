@@ -1068,7 +1068,7 @@ static const int AUDIO_PWM_CHANNEL = 6;
 static const int AUDIO_PWM_BITS = 10;
 static const uint16_t AUDIO_DUTY_NORMAL = 320;
 static const uint16_t AUDIO_DUTY_QUIET  = 150;
-static const uint8_t audioVolumePercent = 100; // volume géré par le launcher
+static uint8_t launcherVolumePercent = 80; // relu depuis /settings.json
 
 struct AudioStep {
   uint16_t freq = 0;
@@ -1102,8 +1102,8 @@ static void audioWriteDuty(uint16_t duty) {
 }
 
 static uint16_t audioDutyScaled(uint16_t duty) {
-  if (audioVolumePercent >= 100) return duty;
-  uint32_t scaled = (uint32_t)duty * (uint32_t)audioVolumePercent;
+  if (launcherVolumePercent >= 100) return duty;
+  uint32_t scaled = (uint32_t)duty * (uint32_t)launcherVolumePercent;
   return (uint16_t)(scaled / 100U);
 }
 
@@ -1394,6 +1394,33 @@ static char petName[20] = "???";
 // ================== UI ==================
 static uint8_t uiSel = 0;
 static Language uiLanguage = LANG_FR;
+static const char* LAUNCHER_SETTINGS_FILE = "/settings.json";
+static uint32_t nextLauncherSyncAt = 0;
+
+static void syncLauncherSettings(uint32_t now) {
+  if (!sdReady) return;
+  if (nextLauncherSyncAt != 0 && (int32_t)(now - nextLauncherSyncAt) < 0) return;
+  nextLauncherSyncAt = now + 5000UL;
+
+  if (!SD.exists(LAUNCHER_SETTINGS_FILE)) return;
+  File f = SD.open(LAUNCHER_SETTINGS_FILE, FILE_READ);
+  if (!f) return;
+
+  StaticJsonDocument<512> doc;
+  DeserializationError err = deserializeJson(doc, f);
+  f.close();
+  if (err) return;
+
+  int vol = doc["volume"] | (int)launcherVolumePercent;
+  if (vol < 0) vol = 0;
+  if (vol > 100) vol = 100;
+  launcherVolumePercent = (uint8_t)vol;
+
+  const char* lang = doc["language"] | nullptr;
+  if (!lang || !lang[0]) lang = doc["lang"] | nullptr;
+  if (!lang || !lang[0]) lang = doc["locale"] | "fr";
+  uiLanguage = (lang[0] == 'e' || lang[0] == 'E') ? LANG_EN : LANG_FR;
+}
 
 static const uint16_t COL_FAIM    = 0xFD20;
 static const uint16_t COL_SOIF    = 0x03FF;
@@ -2116,8 +2143,6 @@ static bool loadLatestSave(uint32_t now) {
 #else
   audioMode = AUDIO_OFF;
 #endif
-  const char* lang = doc["lang"] | "fr";
-  uiLanguage = (lang[0] == 'e' || lang[0] == 'E') ? LANG_EN : LANG_FR;
 
   if (!pet.vivant || pet.sante <= 0.0f) {
     pet.vivant = false;
@@ -2147,7 +2172,6 @@ static bool writeSlotFile(const char* tmpPath, const char* finalPath, const char
 #if ENABLE_AUDIO
   doc["audioMode"] = (int)audioMode;
 #endif
-  doc["lang"] = (uiLanguage == LANG_EN) ? "en" : "fr";
 
   JsonObject ps = doc.createNestedObject("pet");
   ps["faim"]    = fToI100(pet.faim);
@@ -3983,6 +4007,7 @@ void setup() {
 
   // init SD (HSPI)
   sdInit();
+  syncLauncherSettings(millis());
 
   audioPwmSetup();
   audioSetTone(0, 0);
@@ -4318,6 +4343,7 @@ if (ENC_BTN >= 0) raw = (digitalRead(ENC_BTN) == LOW);
   if (!task.active && phase == PHASE_ALIVE) idleUpdate(now);
 
   audioTickMusic(now);
+  syncLauncherSettings(now);
 
   // barre activité: si juste message, elle disparaît
   if (!task.active && activityVisible && (int32_t)(now - activityEnd) >= 0) {
