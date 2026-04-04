@@ -10,6 +10,7 @@
 #include "led_manager.h"
 #include "mcp23017_manager.h"
 #include "game_boot_manager.h"
+#include "config.h"
 #include "types.h"
 
 static bool gNeedsRedraw = true;
