@@ -10,20 +10,16 @@
 #include "types.h"
 
 static bool gNeedsRedraw = true;
-static int gTouchX = -1;
-static int gTouchY = -1;
+static int gLastTouchX = -1;
+static int gLastTouchY = -1;
 
 static std::vector<GameInfo> gameList;
 static int currentPage = 0;
 static int currentInfoGameIndex = -1;
 
-// données live pour test tactile / calibration
 static bool gTouchLiveActive = false;
 static int gTouchLiveX = 0;
 static int gTouchLiveY = 0;
-static int gTouchRawX = 0;
-static int gTouchRawY = 0;
-static int gTouchRawZ = 0;
 
 enum LauncherScreen {
   SCREEN_HOME,
@@ -34,6 +30,26 @@ enum LauncherScreen {
 };
 
 static LauncherScreen currentScreen = SCREEN_HOME;
+
+// calibration par croix simplifiée avec coordonnées mappées
+struct CalTarget {
+  int sx;
+  int sy;
+};
+
+static const int CAL_POINT_COUNT = 5;
+static CalTarget calTargets[CAL_POINT_COUNT] = {
+  {20, 20},
+  {300, 20},
+  {300, 220},
+  {20, 220},
+  {160, 120}
+};
+
+static int calStep = 0;
+static int calTouchX[CAL_POINT_COUNT];
+static int calTouchY[CAL_POINT_COUNT];
+static bool calWasTouching = false;
 
 // --------------------------------------------------
 // Couleurs
@@ -90,17 +106,17 @@ static const int INFO_BACK_W = 90;
 static const int INFO_BACK_H = 34;
 
 // --------------------------------------------------
-// Settings fixed layout (sans scroll)
+// Settings fixed layout
 // --------------------------------------------------
-static const int SET_ROW1_Y = 22;
-static const int SET_ROW2_Y = 40;
-static const int SET_ROW3_Y = 58;
-static const int SET_ROW4_Y = 76;
-static const int SET_ROW5_Y = 94;
-static const int SET_ROW6_Y = 112;
-static const int SET_ROW7_Y = 130;
-static const int SET_ROW8_Y = 148;
-static const int SET_ROW9_Y = 166;
+static const int SET_ROW1_Y  = 22;
+static const int SET_ROW2_Y  = 40;
+static const int SET_ROW3_Y  = 58;
+static const int SET_ROW4_Y  = 76;
+static const int SET_ROW5_Y  = 94;
+static const int SET_ROW6_Y  = 112;
+static const int SET_ROW7_Y  = 130;
+static const int SET_ROW8_Y  = 148;
+static const int SET_ROW9_Y  = 166;
 static const int SET_ROW10_Y = 184;
 
 static const int SET_MINUS_X = 200;
@@ -138,16 +154,19 @@ static void applyBrightnessNow() {
 }
 
 static void applyTouchCalibrationFromSettings() {
-  touchSetCalibration(
-    settingsGet().touch_x_min,
-    settingsGet().touch_x_max,
-    settingsGet().touch_y_min,
-    settingsGet().touch_y_max
-  );
+  touch_x_min = settingsGet().touch_x_min;
+  touch_x_max = settingsGet().touch_x_max;
+  touch_y_min = settingsGet().touch_y_min;
+  touch_y_max = settingsGet().touch_y_max;
 }
 
 static void saveSettingsNow() {
   settingsSave();
+}
+
+static void drawCross(int cx, int cy) {
+  displayFillRect(cx - 10, cy, 21, 1, 0xFFFF);
+  displayFillRect(cx, cy - 10, 1, 21, 0xFFFF);
 }
 
 static void getSlotRect(int slot, int &x, int &y, int &w, int &h) {
@@ -307,7 +326,7 @@ static void launchGameFromIndex(int index) {
 }
 
 // --------------------------------------------------
-// Draw screens
+// Draw
 // --------------------------------------------------
 static void drawHomeScreen() {
   displayClear();
@@ -375,9 +394,9 @@ static void drawHomeScreen() {
 static void drawSettingsScreen() {
   displayClear();
 
-  displayDrawSmallText(8, 4, "Parametres");
-
   char buf[80];
+
+  displayDrawSmallText(8, 4, "Parametres");
 
   displayDrawSmallText(8, SET_ROW1_Y, "Volume");
   drawMiniButton(SET_MINUS_X, SET_ROW1_Y + SET_BTN_Y_OFFSET, "-");
@@ -459,53 +478,22 @@ static void drawGameInfoScreen() {
 static void drawTouchTestScreen() {
   displayClear();
   displayDrawSmallText(8, 8, "Test tactile");
-  displayDrawSmallText(8, 20, "Touchez / balayez");
+  displayDrawSmallText(8, 22, "Touchez / balayez");
   drawFooterButton(INFO_BACK_X, INFO_BACK_Y, "Retour");
 
   char buf[64];
-  snprintf(buf, sizeof(buf), "RAW X:%d", gTouchRawX);
-  displayDrawSmallText(8, 46, buf);
-  snprintf(buf, sizeof(buf), "RAW Y:%d", gTouchRawY);
-  displayDrawSmallText(8, 58, buf);
-  snprintf(buf, sizeof(buf), "RAW Z:%d", gTouchRawZ);
-  displayDrawSmallText(8, 70, buf);
   snprintf(buf, sizeof(buf), "MAP X:%d", gTouchLiveX);
-  displayDrawSmallText(8, 90, buf);
+  displayDrawSmallText(8, 50, buf);
   snprintf(buf, sizeof(buf), "MAP Y:%d", gTouchLiveY);
-  displayDrawSmallText(8, 102, buf);
+  displayDrawSmallText(8, 62, buf);
 
   if (gTouchLiveActive) {
     displayFillRect(gTouchLiveX, gTouchLiveY, 5, 5, 0xFFFF);
   }
 }
 
-static void drawTouchCalibScreen() {
-  displayClear();
-  displayDrawSmallText(8, 8, "Calibration tactile");
-  displayDrawSmallText(8, 20, "Balayez tout l'ecran");
-  drawFooterButton(8, 202, "Reset");
-  drawFooterButton(INFO_BACK_X, INFO_BACK_Y, "Retour");
-
-  char buf[64];
-  snprintf(buf, sizeof(buf), "xmin:%d", settingsGet().touch_x_min);
-  displayDrawSmallText(8, 46, buf);
-  snprintf(buf, sizeof(buf), "xmax:%d", settingsGet().touch_x_max);
-  displayDrawSmallText(8, 58, buf);
-  snprintf(buf, sizeof(buf), "ymin:%d", settingsGet().touch_y_min);
-  displayDrawSmallText(8, 70, buf);
-  snprintf(buf, sizeof(buf), "ymax:%d", settingsGet().touch_y_max);
-  displayDrawSmallText(8, 82, buf);
-
-  snprintf(buf, sizeof(buf), "rawX:%d", gTouchRawX);
-  displayDrawSmallText(8, 104, buf);
-  snprintf(buf, sizeof(buf), "rawY:%d", gTouchRawY);
-  displayDrawSmallText(8, 116, buf);
-  snprintf(buf, sizeof(buf), "rawZ:%d", gTouchRawZ);
-  displayDrawSmallText(8, 128, buf);
-
-  if (gTouchLiveActive) {
-    displayFillRect(gTouchLiveX, gTouchLiveY, 5, 5, 0xFFFF);
-  }
+else if (currentScreen == SCREEN_TOUCH_CALIB) {
+  // aucun bouton retour pendant la calibration
 }
 
 // --------------------------------------------------
@@ -560,65 +548,93 @@ void launcherInit() {
   currentScreen = SCREEN_HOME;
   currentInfoGameIndex = -1;
   gTouchLiveActive = false;
+  calStep = 0;
+  calWasTouching = false;
   gNeedsRedraw = true;
 }
 
 void launcherUpdate() {
   static bool wasTouching = false;
 
-  int x, y;
-  bool touching = touchPressed(x, y);
-
-  int rawX, rawY, rawZ;
-  bool rawTouching = touchReadRaw(rawX, rawY, rawZ);
+  bool touching = gTouchPressed;
 
   gTouchLiveActive = false;
 
-  if (rawTouching) {
-    gTouchRawX = rawX;
-    gTouchRawY = rawY;
-    gTouchRawZ = rawZ;
-  }
-
   if (touching) {
-    gTouchX = x;
-    gTouchY = y;
-    gTouchLiveX = x;
-    gTouchLiveY = y;
+    gLastTouchX = gTouchX;
+    gLastTouchY = gTouchY;
+    gTouchLiveX = gTouchX;
+    gTouchLiveY = gTouchY;
     gTouchLiveActive = true;
 
     if (currentScreen == SCREEN_TOUCH_TEST) {
       gNeedsRedraw = true;
     }
+  }
 
-    if (currentScreen == SCREEN_TOUCH_CALIB && rawTouching) {
-      if (rawX < settingsGet().touch_x_min) settingsGet().touch_x_min = rawX;
-      if (rawX > settingsGet().touch_x_max) settingsGet().touch_x_max = rawX;
-      if (rawY < settingsGet().touch_y_min) settingsGet().touch_y_min = rawY;
-      if (rawY > settingsGet().touch_y_max) settingsGet().touch_y_max = rawY;
+  // calibration par croix avec coordonnées mappées
+  if (currentScreen == SCREEN_TOUCH_CALIB) {
+    if (touching && !calWasTouching) {
+      calTouchX[calStep] = gTouchX;
+      calTouchY[calStep] = gTouchY;
 
-      applyTouchCalibrationFromSettings();
+      Serial.printf("[CAL] point %d -> X=%d Y=%d\n", calStep, gTouchX, gTouchY);
+
+      calStep++;
+      delay(250);
+
+      if (calStep >= CAL_POINT_COUNT) {
+        // calibration simplifiée : on ajuste les bornes en fonction de l’erreur sur les 4 coins
+        int dxMin = calTouchX[0] - 20;
+        int dxMax = calTouchX[1] - 300;
+        int dyMin = calTouchY[0] - 20;
+        int dyMax = calTouchY[2] - 220;
+
+        settingsGet().touch_x_min += dxMin * 8;
+        settingsGet().touch_x_max += dxMax * 8;
+        settingsGet().touch_y_min += dyMin * 8;
+        settingsGet().touch_y_max += dyMax * 8;
+
+        settingsGet().touch_x_min = clampValue(settingsGet().touch_x_min, 0, 4095);
+        settingsGet().touch_x_max = clampValue(settingsGet().touch_x_max, 0, 4095);
+        settingsGet().touch_y_min = clampValue(settingsGet().touch_y_min, 0, 4095);
+        settingsGet().touch_y_max = clampValue(settingsGet().touch_y_max, 0, 4095);
+
+        applyTouchCalibrationFromSettings();
+        saveSettingsNow();
+
+        Serial.println("[CAL] DONE");
+
+        currentScreen = SCREEN_SETTINGS;
+        calStep = 0;
+      }
+
       gNeedsRedraw = true;
     }
+
+    calWasTouching = touching;
+  } else {
+    calWasTouching = false;
   }
-  else if (wasTouching) {
+
+  if (!touching && wasTouching) {
     if (currentScreen == SCREEN_HOME) {
-      int hitInfo = hitTestHomeInfo(gTouchX, gTouchY);
+      int hitInfo = hitTestHomeInfo(gLastTouchX, gLastTouchY);
       if (hitInfo >= 0 && hitInfo < (int)gameList.size()) {
         currentInfoGameIndex = hitInfo;
         currentScreen = SCREEN_GAME_INFO;
         gNeedsRedraw = true;
       }
       else {
-        int hitGame = hitTestHomeGameImage(gTouchX, gTouchY);
+        int hitGame = hitTestHomeGameImage(gLastTouchX, gLastTouchY);
         if (hitGame >= 0 && hitGame < (int)gameList.size()) {
           launchGameFromIndex(hitGame);
         }
-        else if (pointInRect(gTouchX, gTouchY, BTN_LEFT_X, BTN_LEFT_Y, BTN_LEFT_W, BTN_LEFT_H)) {
+        else if (pointInRect(gLastTouchX, gLastTouchY, BTN_LEFT_X, BTN_LEFT_Y, BTN_LEFT_W, BTN_LEFT_H)) {
           currentScreen = SCREEN_SETTINGS;
           gNeedsRedraw = true;
         }
-        else if (pointInRect(gTouchX, gTouchY, BTN_RIGHT_X, BTN_RIGHT_Y, BTN_RIGHT_W, BTN_RIGHT_H)) {
+        else if (pointInRect(gLastTouchX, gLastTouchY, BTN_RIGHT_X, BTN_RIGHT_Y, BTN_RIGHT_W, BTN_RIGHT_H)) {
           int pageCount = totalPages();
           if (pageCount > 1) {
             currentPage++;
@@ -629,43 +645,44 @@ void launcherUpdate() {
       }
     }
     else if (currentScreen == SCREEN_SETTINGS) {
-      if (pointInRect(gTouchX, gTouchY, SET_MINUS_X, SET_ROW1_Y + SET_BTN_Y_OFFSET, SET_BTN_W, SET_BTN_H)) {
+      if (pointInRect(gLastTouchX, gLastTouchY, SET_MINUS_X, SET_ROW1_Y + SET_BTN_Y_OFFSET, SET_BTN_W, SET_BTN_H)) {
         settingsGet().volume = clampValue(settingsGet().volume - 5, 0, 100);
         audioSetVolume(settingsGet().volume);
         saveSettingsNow();
         gNeedsRedraw = true;
       }
-      else if (pointInRect(gTouchX, gTouchY, SET_PLUS_X, SET_ROW1_Y + SET_BTN_Y_OFFSET, SET_BTN_W, SET_BTN_H)) {
+      else if (pointInRect(gLastTouchX, gLastTouchY, SET_PLUS_X, SET_ROW1_Y + SET_BTN_Y_OFFSET, SET_BTN_W, SET_BTN_H)) {
         settingsGet().volume = clampValue(settingsGet().volume + 5, 0, 100);
         audioSetVolume(settingsGet().volume);
         saveSettingsNow();
         gNeedsRedraw = true;
       }
-      else if (pointInRect(gTouchX, gTouchY, SET_MINUS_X, SET_ROW2_Y + SET_BTN_Y_OFFSET, SET_BTN_W, SET_BTN_H)) {
+      else if (pointInRect(gLastTouchX, gLastTouchY, SET_MINUS_X, SET_ROW2_Y + SET_BTN_Y_OFFSET, SET_BTN_W, SET_BTN_H)) {
         settingsGet().brightness = clampValue(settingsGet().brightness - 5, 0, 100);
         applyBrightnessNow();
         saveSettingsNow();
         gNeedsRedraw = true;
       }
-      else if (pointInRect(gTouchX, gTouchY, SET_PLUS_X, SET_ROW2_Y + SET_BTN_Y_OFFSET, SET_BTN_W, SET_BTN_H)) {
+      else if (pointInRect(gLastTouchX, gLastTouchY, SET_PLUS_X, SET_ROW2_Y + SET_BTN_Y_OFFSET, SET_BTN_W, SET_BTN_H)) {
         settingsGet().brightness = clampValue(settingsGet().brightness + 5, 0, 100);
         applyBrightnessNow();
         saveSettingsNow();
         gNeedsRedraw = true;
       }
-      else if (pointInRect(gTouchX, gTouchY, 8, SET_ROW3_Y, 312, 14)) {
+      else if (pointInRect(gLastTouchX, gLastTouchY, 8, SET_ROW3_Y, 312, 14)) {
         audioTestBeep();
         gNeedsRedraw = true;
       }
-      else if (pointInRect(gTouchX, gTouchY, 8, SET_ROW4_Y, 312, 14)) {
+      else if (pointInRect(gLastTouchX, gLastTouchY, 8, SET_ROW4_Y, 312, 14)) {
         currentScreen = SCREEN_TOUCH_TEST;
         gNeedsRedraw = true;
       }
-      else if (pointInRect(gTouchX, gTouchY, 8, SET_ROW5_Y, 312, 14)) {
+      else if (pointInRect(gLastTouchX, gLastTouchY, 8, SET_ROW5_Y, 312, 14)) {
+        calStep = 0;
         currentScreen = SCREEN_TOUCH_CALIB;
         gNeedsRedraw = true;
       }
-      else if (pointInRect(gTouchX, gTouchY, 8, SET_ROW6_Y, 312, 14)) {
+      else if (pointInRect(gLastTouchX, gLastTouchY, 8, SET_ROW6_Y, 312, 14)) {
         settingsGet().touch_x_min = 200;
         settingsGet().touch_x_max = 3800;
         settingsGet().touch_y_min = 200;
@@ -674,7 +691,7 @@ void launcherUpdate() {
         saveSettingsNow();
         gNeedsRedraw = true;
       }
-      else if (pointInRect(gTouchX, gTouchY, 8, SET_ROW7_Y, 312, 14)) {
+      else if (pointInRect(gLastTouchX, gLastTouchY, 8, SET_ROW7_Y, 312, 14)) {
         if (settingsGet().wifi_ssid.length() == 0) {
           Serial.println("[WIFI] SSID non configure dans settings.json");
         } else {
@@ -683,7 +700,7 @@ void launcherUpdate() {
         }
         gNeedsRedraw = true;
       }
-      else if (pointInRect(gTouchX, gTouchY, 8, SET_ROW10_Y, 312, 14)) {
+      else if (pointInRect(gLastTouchX, gLastTouchY, 8, SET_ROW10_Y, 312, 14)) {
         settingsSetDefaults();
         applyBrightnessNow();
         audioSetVolume(settingsGet().volume);
@@ -691,7 +708,7 @@ void launcherUpdate() {
         saveSettingsNow();
         gNeedsRedraw = true;
       }
-      else if (pointInRect(gTouchX, gTouchY, INFO_BACK_X, INFO_BACK_Y, INFO_BACK_W, INFO_BACK_H)) {
+      else if (pointInRect(gLastTouchX, gLastTouchY, INFO_BACK_X, INFO_BACK_Y, INFO_BACK_W, INFO_BACK_H)) {
         if (wifiManagerIsActive()) {
           wifiManagerStop();
         }
@@ -700,33 +717,24 @@ void launcherUpdate() {
       }
     }
     else if (currentScreen == SCREEN_GAME_INFO) {
-      if (pointInRect(gTouchX, gTouchY, INFO_PLAY_X, INFO_PLAY_Y, INFO_PLAY_W, INFO_PLAY_H)) {
+      if (pointInRect(gLastTouchX, gLastTouchY, INFO_PLAY_X, INFO_PLAY_Y, INFO_PLAY_W, INFO_PLAY_H)) {
         launchGameFromIndex(currentInfoGameIndex);
       }
-      else if (pointInRect(gTouchX, gTouchY, INFO_BACK_X, INFO_BACK_Y, INFO_BACK_W, INFO_BACK_H)) {
+      else if (pointInRect(gLastTouchX, gLastTouchY, INFO_BACK_X, INFO_BACK_Y, INFO_BACK_W, INFO_BACK_H)) {
         currentScreen = SCREEN_HOME;
         gNeedsRedraw = true;
       }
     }
     else if (currentScreen == SCREEN_TOUCH_TEST) {
-      if (pointInRect(gTouchX, gTouchY, INFO_BACK_X, INFO_BACK_Y, INFO_BACK_W, INFO_BACK_H)) {
+      if (pointInRect(gLastTouchX, gLastTouchY, INFO_BACK_X, INFO_BACK_Y, INFO_BACK_W, INFO_BACK_H)) {
         currentScreen = SCREEN_SETTINGS;
         gNeedsRedraw = true;
       }
     }
     else if (currentScreen == SCREEN_TOUCH_CALIB) {
-      if (pointInRect(gTouchX, gTouchY, 8, 202, 110, 34)) {
-        settingsGet().touch_x_min = 200;
-        settingsGet().touch_x_max = 3800;
-        settingsGet().touch_y_min = 200;
-        settingsGet().touch_y_max = 3800;
-        applyTouchCalibrationFromSettings();
-        saveSettingsNow();
-        gNeedsRedraw = true;
-      }
-      else if (pointInRect(gTouchX, gTouchY, INFO_BACK_X, INFO_BACK_Y, INFO_BACK_W, INFO_BACK_H)) {
-        saveSettingsNow();
+      if (pointInRect(gLastTouchX, gLastTouchY, INFO_BACK_X, INFO_BACK_Y, INFO_BACK_W, INFO_BACK_H)) {
         currentScreen = SCREEN_SETTINGS;
+        calStep = 0;
         gNeedsRedraw = true;
       }
     }

@@ -37,6 +37,7 @@ void setup() {
 
 void loop() {
   wifiManagerUpdate();
+  touchUpdate();   // <<< IMPORTANT : mise a jour tactile
   inputUpdate();
   launcherUpdate();
   launcherRender();
