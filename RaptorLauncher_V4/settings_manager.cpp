@@ -27,6 +27,7 @@ void settingsSetDefaults() {
   gSettings.touch_offset_x = 0;
   gSettings.touch_offset_y = 0;
   gSettings.led_brightness = 40;
+  gSettings.language = 0;
 }
 
 SystemSettings& settingsGet() {
@@ -46,6 +47,7 @@ bool settingsSave() {
   doc["touch_offset_x"] = gSettings.touch_offset_x;
   doc["touch_offset_y"] = gSettings.touch_offset_y;
   doc["led_brightness"] = gSettings.led_brightness;
+  doc["language"] = gSettings.language;
 
   if (SD.exists(SETTINGS_TMP_PATH)) {
     SD.remove(SETTINGS_TMP_PATH);
@@ -119,6 +121,7 @@ bool settingsInit() {
   gSettings.touch_offset_x = clampValue(doc["touch_offset_x"] | 0, -80, 80);
   gSettings.touch_offset_y = clampValue(doc["touch_offset_y"] | 0, -80, 80);
   gSettings.led_brightness = clampValue(doc["led_brightness"] | 40, 0, 100);
+  gSettings.language = clampValue(doc["language"] | 0, 0, 4);
 
   Serial.print("[SETTINGS] volume = ");
   Serial.println(gSettings.volume);
@@ -143,6 +146,8 @@ bool settingsInit() {
   Serial.println(gSettings.touch_offset_y);
   Serial.print("[SETTINGS] led_brightness = ");
   Serial.println(gSettings.led_brightness);
+  Serial.print("[SETTINGS] language = ");
+  Serial.println(gSettings.language);
 
   return true;
 }
