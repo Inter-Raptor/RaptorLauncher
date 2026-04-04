@@ -2,15 +2,10 @@
 #include <SPI.h>
 #include <XPT2046_Touchscreen.h>
 #include "touch_manager.h"
+#include "settings_manager.h"
 
 // ======================================================
 // ESP32-2432S032 - Tactile resistif XPT2046
-// D'apres le schema fourni :
-// TP_CLK = IO14
-// TP_CS  = IO33
-// TP_DIN = IO13
-// TP_OUT = IO12
-// TP_IRQ = IO36
 // ======================================================
 
 static const int TOUCH_CS   = 33;
@@ -22,14 +17,11 @@ static const int TOUCH_MOSI = 13;
 static const int SCREEN_W = 320;
 static const int SCREEN_H = 240;
 
-// Calibration de depart
-// A ajuster ensuite si le tactile repond mais est inverse/decale
-static const int RAW_X_MIN = 200;
-static const int RAW_X_MAX = 3800;
-static const int RAW_Y_MIN = 200;
-static const int RAW_Y_MAX = 3800;
+static int gRawXMin = 200;
+static int gRawXMax = 3800;
+static int gRawYMin = 200;
+static int gRawYMax = 3800;
 
-// Bus SPI du tactile
 static SPIClass touchSPI(VSPI);
 static XPT2046_Touchscreen ts(TOUCH_CS, TOUCH_IRQ);
 
@@ -45,13 +37,33 @@ static int mapAndClamp(int v, int inMin, int inMax, int outMin, int outMax) {
   return (int)r;
 }
 
+void touchSetCalibration(int xmin, int xmax, int ymin, int ymax) {
+  gRawXMin = xmin;
+  gRawXMax = xmax;
+  gRawYMin = ymin;
+  gRawYMax = ymax;
+}
+
+void touchGetCalibration(int &xmin, int &xmax, int &ymin, int &ymax) {
+  xmin = gRawXMin;
+  xmax = gRawXMax;
+  ymin = gRawYMin;
+  ymax = gRawYMax;
+}
+
+void touchResetCalibration() {
+  gRawXMin = 200;
+  gRawXMax = 3800;
+  gRawYMin = 200;
+  gRawYMax = 3800;
+}
+
 void touchInit() {
   Serial.println("[TOUCH] init debut");
 
   pinMode(TOUCH_CS, OUTPUT);
   digitalWrite(TOUCH_CS, HIGH);
 
-  // GPIO36 = input only, pas de pullup interne
   pinMode(TOUCH_IRQ, INPUT);
 
   touchSPI.begin(TOUCH_CLK, TOUCH_MISO, TOUCH_MOSI, TOUCH_CS);
@@ -63,6 +75,14 @@ void touchInit() {
   }
 
   ts.setRotation(1);
+
+  // charge calibration depuis settings
+  touchSetCalibration(
+    settingsGet().touch_x_min,
+    settingsGet().touch_x_max,
+    settingsGet().touch_y_min,
+    settingsGet().touch_y_max
+  );
 
   Serial.print("[TOUCH] CS=");
   Serial.print(TOUCH_CS);
@@ -78,41 +98,33 @@ void touchInit() {
   Serial.println("[TOUCH] init fin");
 }
 
-bool touchPressed(int &x, int &y) {
+bool touchReadRaw(int &x, int &y, int &z) {
   int irq = digitalRead(TOUCH_IRQ);
 
-  // Sur XPT2046, IRQ est normalement actif a l'etat bas
   if (irq != 0) {
     return false;
   }
 
   TS_Point p = ts.getPoint();
 
-  Serial.print("[XPT RAW] x=");
-  Serial.print(p.x);
-  Serial.print(" y=");
-  Serial.print(p.y);
-  Serial.print(" z=");
-  Serial.println(p.z);
+  x = p.x;
+  y = p.y;
+  z = p.z;
 
-  // Filtres anti-lectures invalides
-  if (p.z < 150) {
+  if (p.z < 150) return false;
+  if ((p.x == 0 && p.y == 0) || (p.x >= 4095 && p.y >= 4095)) return false;
+
+  return true;
+}
+
+bool touchPressed(int &x, int &y) {
+  int rawX, rawY, rawZ;
+  if (!touchReadRaw(rawX, rawY, rawZ)) {
     return false;
   }
 
-  if ((p.x == 0 && p.y == 0) || (p.x >= 4095 && p.y >= 4095)) {
-    return false;
-  }
-
-  // Mapping provisoire en paysage
-  // On ajustera ensuite si X/Y sont inverses
-x = mapAndClamp(p.x, RAW_X_MIN, RAW_X_MAX, 0, SCREEN_W - 1);
-y = mapAndClamp(p.y, RAW_Y_MIN, RAW_Y_MAX, SCREEN_H - 1, 0);
-
-  Serial.print("[XPT MAP] x=");
-  Serial.print(x);
-  Serial.print(" y=");
-  Serial.println(y);
+  x = mapAndClamp(rawX, gRawXMin, gRawXMax, 0, SCREEN_W - 1);
+  y = mapAndClamp(rawY, gRawYMin, gRawYMax, SCREEN_H - 1, 0);
 
   return true;
 }

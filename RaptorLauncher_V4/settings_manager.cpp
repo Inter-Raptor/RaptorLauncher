@@ -15,6 +15,14 @@ static int clampValue(int v, int minV, int maxV) {
 void settingsSetDefaults() {
   gSettings.volume = 80;
   gSettings.brightness = 100;
+
+  gSettings.wifi_ssid = "";
+  gSettings.wifi_pass = "";
+
+  gSettings.touch_x_min = 200;
+  gSettings.touch_x_max = 3800;
+  gSettings.touch_y_min = 200;
+  gSettings.touch_y_max = 3800;
 }
 
 SystemSettings& settingsGet() {
@@ -25,6 +33,12 @@ bool settingsSave() {
   JsonDocument doc;
   doc["volume"] = gSettings.volume;
   doc["brightness"] = gSettings.brightness;
+  doc["wifi_ssid"] = gSettings.wifi_ssid;
+  doc["wifi_pass"] = gSettings.wifi_pass;
+  doc["touch_x_min"] = gSettings.touch_x_min;
+  doc["touch_x_max"] = gSettings.touch_x_max;
+  doc["touch_y_min"] = gSettings.touch_y_min;
+  doc["touch_y_max"] = gSettings.touch_y_max;
 
   if (SD.exists(SETTINGS_PATH)) {
     SD.remove(SETTINGS_PATH);
@@ -77,10 +91,31 @@ bool settingsInit() {
   gSettings.volume = clampValue(doc["volume"] | 80, 0, 100);
   gSettings.brightness = clampValue(doc["brightness"] | 100, 0, 100);
 
+  gSettings.wifi_ssid = doc["wifi_ssid"] | "";
+  gSettings.wifi_pass = doc["wifi_pass"] | "";
+
+  gSettings.touch_x_min = doc["touch_x_min"] | 200;
+  gSettings.touch_x_max = doc["touch_x_max"] | 3800;
+  gSettings.touch_y_min = doc["touch_y_min"] | 200;
+  gSettings.touch_y_max = doc["touch_y_max"] | 3800;
+
   Serial.print("[SETTINGS] volume = ");
   Serial.println(gSettings.volume);
+
   Serial.print("[SETTINGS] brightness = ");
   Serial.println(gSettings.brightness);
+
+  Serial.print("[SETTINGS] wifi_ssid = ");
+  Serial.println(gSettings.wifi_ssid);
+
+  Serial.print("[SETTINGS] touch_x_min = ");
+  Serial.println(gSettings.touch_x_min);
+  Serial.print("[SETTINGS] touch_x_max = ");
+  Serial.println(gSettings.touch_x_max);
+  Serial.print("[SETTINGS] touch_y_min = ");
+  Serial.println(gSettings.touch_y_min);
+  Serial.print("[SETTINGS] touch_y_max = ");
+  Serial.println(gSettings.touch_y_max);
 
   return true;
 }
