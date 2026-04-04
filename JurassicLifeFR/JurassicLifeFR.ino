@@ -205,13 +205,7 @@ namespace triA = triJ;
 namespace triS = triJ;
 
 
-// Décor
-#include "montagne.h"
-#include "sapin.h"
-#include "arbre.h"
-#include "buissonbaie.h"
-#include "buissonsansbaie.h"
-#include "flaque_eau_60x25.h"
+// Décor (mode compact: formes procédurales)
 #include "nuage.h"
 #include "ballon.h"
 
@@ -349,30 +343,13 @@ static inline uint16_t swap16(uint16_t v) { return (uint16_t)((v << 8) | (v >> 8
 static const uint16_t KEY      = 0xF81F;
 static const uint16_t KEY_SWAP = 0x1FF8;
 
-// ================== ALIAS décor ==================
-#define MONT_W    montagne_W
-#define MONT_H    montagne_H
-#define MONT_IMG  montagne
-
-#define SAPIN_W   sapin_W
-#define SAPIN_H   sapin_H
-#define SAPIN_IMG sapin
-
-#define ARBRE_W   arbre_W
-#define ARBRE_H   arbre_H
-#define ARBRE_IMG arbre
-
-#define BBAIE_W   buissonbaie_W
-#define BBAIE_H   buissonbaie_H
-#define BBAIE_IMG buissonbaie
-
-#define BSANS_W   buissonsansbaie_W
-#define BSANS_H   buissonsansbaie_H
-#define BSANS_IMG buissonsansbaie
-
-#define FLAQUE_W   flaque_eau_60x25_W
-#define FLAQUE_H   flaque_eau_60x25_H
-#define FLAQUE_IMG flaque_eau_60x25
+// ================== ALIAS décor (procédural) ==================
+static constexpr int BBAIE_W = 34;
+static constexpr int BBAIE_H = 30;
+static constexpr int BSANS_W = 30;
+static constexpr int BSANS_H = 26;
+static constexpr int FLAQUE_W = 60;
+static constexpr int FLAQUE_H = 25;
 
 // ================== ÉCRAN ==================
 #if DISPLAY_PROFILE == DISPLAY_PROFILE_2432S022
@@ -2560,8 +2537,8 @@ static void overlayUIIntoBand(int bandY, int bh) {
 
 // ================== DECOR ==================
 static void drawMountainImagesBand(float camX, int bandY) {
-  const int w = (int)MONT_W;
-  const int h = (int)MONT_H;
+  const int w = 90;
+  const int h = 60;
   const int yOnGround = GROUND_Y - h;
 
   float px = camX * 0.25f;
@@ -2576,7 +2553,8 @@ static void drawMountainImagesBand(float camX, int bandY) {
     int x = i * spacing - (int)px + jitter;
     int yLocal = yOnGround - bandY;
     if (yLocal >= band.height() || yLocal + h <= 0) continue;
-    drawImageKeyedOnBand(MONT_IMG, w, h, x, yLocal);
+    band.fillTriangle(x + w / 2, yLocal, x, yLocal + h, x + w, yLocal + h, 0x9CD3);
+    band.drawTriangle(x + w / 2, yLocal, x, yLocal + h, x + w, yLocal + h, 0x7BD0);
   }
 }
 static void drawGroundBand(float camX, int bandY) {
@@ -2605,38 +2583,46 @@ static void drawTreesMixedBand(float camX, int bandY) {
     int x = i * spacing - (int)px + jitter;
 
     bool useArbre = ((hh % 3) == 0);
-    const uint16_t* img = useArbre ? ARBRE_IMG : SAPIN_IMG;
-    int w = useArbre ? (int)ARBRE_W : (int)SAPIN_W;
-    int h = useArbre ? (int)ARBRE_H : (int)SAPIN_H;
-
+    int w = useArbre ? 24 : 20;
+    int h = useArbre ? 44 : 38;
     int yOnGround = GROUND_Y - h;
     int yLocal = yOnGround - bandY;
     if (yLocal >= band.height() || yLocal + h <= 0) continue;
-    drawImageKeyedOnBand(img, w, h, x, yLocal);
+    band.fillRect(x + w / 2 - 2, yLocal + h - 12, 4, 12, 0x8A22);
+    if (useArbre) {
+      band.fillCircle(x + w / 2, yLocal + 12, 10, 0x2BC8);
+      band.fillCircle(x + w / 2 - 7, yLocal + 18, 8, 0x2BC8);
+      band.fillCircle(x + w / 2 + 7, yLocal + 18, 8, 0x2BC8);
+    } else {
+      band.fillTriangle(x + w / 2, yLocal + 2, x + 1, yLocal + h - 12, x + w - 1, yLocal + h - 12, 0x1B66);
+    }
   }
 }
 
 static void drawFixedObjectsBand(float camX, int bandY) {
   {
-    const uint16_t* img = berriesLeftAvailable ? BBAIE_IMG : BSANS_IMG;
     int w = berriesLeftAvailable ? (int)BBAIE_W : (int)BSANS_W;
     int h = berriesLeftAvailable ? (int)BBAIE_H : (int)BSANS_H;
     int x = (int)roundf(bushLeftX - camX);
     int yOnGround = GROUND_Y - h + BUSH_Y_OFFSET;
     int yLocal = yOnGround - bandY;
     if (!(yLocal >= band.height() || yLocal + h <= 0) && !(x > SW || x + w < 0)) {
-      drawImageKeyedOnBand(img, w, h, x, yLocal);
+      band.fillRoundRect(x, yLocal + 6, w, h - 6, 8, 0x2BC8);
+      if (berriesLeftAvailable) {
+        band.fillCircle(x + 8, yLocal + h - 8, 2, 0xF800);
+        band.fillCircle(x + w - 10, yLocal + h - 10, 2, 0xF800);
+      }
     }
   }
 
   if (puddleVisible) {
-    const uint16_t* img = FLAQUE_IMG;
     int w = (int)FLAQUE_W, h = (int)FLAQUE_H;
     int x = (int)roundf(puddleX - camX);
     int yOnGround = GROUND_Y - h + PUDDLE_Y_OFFSET;
     int yLocal = yOnGround - bandY;
     if (!(yLocal >= band.height() || yLocal + h <= 0) && !(x > SW || x + w < 0)) {
-      drawImageKeyedOnBand(img, w, h, x, yLocal);
+      band.fillEllipse(x + w / 2, yLocal + h / 2, w / 2, h / 2, 0x5DDF);
+      band.drawEllipse(x + w / 2, yLocal + h / 2, w / 2, h / 2, 0x3D7B);
     }
   }
 
