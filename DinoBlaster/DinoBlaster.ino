@@ -86,10 +86,11 @@ static const int SD_SCK  = 18;
 static const int SD_MISO = 19;
 static const int SD_MOSI = 23;
 
-static const int PIN_LED_R = 17;
-static const int PIN_LED_G = 4;
-static const int PIN_LED_B = 16;
-static const bool RGB_COMMON_ANODE = false;
+// Alignement avec RaptorLauncher (led_manager): LED RGB commune anode
+static const int PIN_LED_R = 4;
+static const int PIN_LED_G = 16;
+static const int PIN_LED_B = 17;
+static const bool RGB_COMMON_ANODE = true;
 
 static const int PIN_AUDIO = 26;
 
@@ -100,12 +101,22 @@ static const char* SETTINGS_PATH = "/settings.json";
 static const int SCREEN_W = 320;
 static const int SCREEN_H = 240;
 static const int HUD_H = 24;
-static const int GROUND_H = 18;
+static const int GROUND_H = 0;
 static const int PLAY_Y = HUD_H + 2;
 
 static const unsigned long BLOOD_MS = 300;
 static const unsigned long MUZZLE_MS = 60;
-static const unsigned long LED_FLASH_MS = 35;
+static const unsigned long LED_FLASH_MS = 100;
+static const unsigned long DINO_MOVE_MS = 120;
+static const int DINO_SPEED_PX = 1;
+
+static const int MAX_DINOS = 2;
+static const unsigned long BONUS_MIN_INTERVAL_MS = 6000;
+static const unsigned long BONUS_MAX_INTERVAL_MS = 10000;
+static const unsigned long BONUS_MIN_LIFE_MS = 2000;
+static const unsigned long BONUS_MAX_LIFE_MS = 3000;
+static const int BONUS_TIME_SECONDS = 3;
+static const int BONUS_SIZE = 26;
 
 static const int NO_SPAWN_W = 120;
 static const int NO_SPAWN_H = 120;
@@ -179,7 +190,10 @@ struct DinoTarget {
   bool flipX = false;
   bool alive = false;
   unsigned long respawnAt = 0;
-} dino;
+  int vx = -DINO_SPEED_PX;
+};
+
+DinoTarget dinos[MAX_DINOS];
 
 struct BloodFX {
   bool active = false;
@@ -188,6 +202,14 @@ struct BloodFX {
   int spriteIndex = 0;
   unsigned long until = 0;
 } blood;
+
+struct TimeBonus {
+  bool active = false;
+  int x = 0;
+  int y = 0;
+  unsigned long until = 0;
+  unsigned long nextSpawnAt = 0;
+} bonus;
 
 enum GameState {
   GS_TITLE,
@@ -214,6 +236,7 @@ bool wavOk = false;
 unsigned long lastFrame = 0;
 unsigned long lastSecond = 0;
 unsigned long lastLog = 0;
+unsigned long lastDinoMove = 0;
 unsigned long ledFlashUntil = 0;
 unsigned long muzzleUntil = 0;
 
@@ -510,6 +533,7 @@ void drawHUD() {
 }
 
 void drawGround() {
+  if (GROUND_H <= 0) return;
   lcd.fillRect(0, SCREEN_H - GROUND_H, SCREEN_W, GROUND_H, TFT_DARKGREEN);
 }
 
@@ -568,7 +592,7 @@ void getIntroText(const char*& l1, const char*& l2, const char*& l3, const char*
 void eraseGunZone() {
   int gunX = SCREEN_W - pistolet_W - 6;
   int gunY = SCREEN_H - pistolet_H + 6;
-  clearRectSafe(gunX - 16, gunY - 4, pistolet_W + 24, pistolet_H + 20);
+  clearRectSafe(gunX - 28, gunY - 10, pistolet_W + 44, pistolet_H + 32);
 }
 
 void drawGun(bool shooting = false) {
@@ -591,9 +615,11 @@ void clearGunShotEffect() {
   drawGun(false);
 }
 
-void spawnDino() {
+void spawnDino(int idx) {
+  DinoTarget& dino = dinos[idx];
   dino.spriteIndex = randRange(0, 5);
-  dino.flipX = randRange(0, 1) == 1;
+  dino.flipX = false; // Tous les sprites regardent a gauche
+  dino.vx = -DINO_SPEED_PX;
 
   const DinoSpriteInfo& sp = DINO_SPRITES[dino.spriteIndex];
 
@@ -618,22 +644,32 @@ void spawnDino() {
   Serial.println("[DINO] spawn fallback");
 }
 
-void eraseDino() {
-  if (!dino.alive) return;
-  const DinoSpriteInfo& sp = DINO_SPRITES[dino.spriteIndex];
-  clearRectSafe(dino.x, dino.y, sp.w, sp.h);
+void eraseDinoAt(int x, int y, int spriteIndex) {
+  const DinoSpriteInfo& sp = DINO_SPRITES[spriteIndex];
+  clearRectSafe(x, y, sp.w, sp.h);
 }
 
-void drawDino() {
+void eraseDino(int idx) {
+  DinoTarget& dino = dinos[idx];
+  if (!dino.alive) return;
+  eraseDinoAt(dino.x, dino.y, dino.spriteIndex);
+}
+
+void drawDino(int idx) {
+  DinoTarget& dino = dinos[idx];
   if (!dino.alive) return;
   const DinoSpriteInfo& sp = DINO_SPRITES[dino.spriteIndex];
   drawRGB565Transparent(dino.x, dino.y, sp.data, sp.w, sp.h, sp.key, dino.flipX);
 }
 
-bool pointInDino(int x, int y) {
-  if (!dino.alive) return false;
-  const DinoSpriteInfo& sp = DINO_SPRITES[dino.spriteIndex];
-  return x >= dino.x && x < dino.x + sp.w && y >= dino.y && y < dino.y + sp.h;
+int hitDinoIndexAt(int x, int y) {
+  for (int i = 0; i < MAX_DINOS; i++) {
+    DinoTarget& dino = dinos[i];
+    if (!dino.alive) continue;
+    const DinoSpriteInfo& sp = DINO_SPRITES[dino.spriteIndex];
+    if (x >= dino.x && x < dino.x + sp.w && y >= dino.y && y < dino.y + sp.h) return i;
+  }
+  return -1;
 }
 
 void startBlood(int x, int y) {
@@ -656,6 +692,37 @@ void drawBlood() {
   drawRGB565Transparent(blood.x, blood.y, b.data, b.w, b.h, b.key, false);
 }
 
+void scheduleBonusSpawn() {
+  bonus.nextSpawnAt = millis() + randRange(BONUS_MIN_INTERVAL_MS, BONUS_MAX_INTERVAL_MS);
+}
+
+void spawnBonus() {
+  bonus.active = true;
+  bonus.x = randRange(6, SCREEN_W - BONUS_SIZE - 6);
+  bonus.y = randRange(PLAY_Y + 4, SCREEN_H - BONUS_SIZE - 6);
+  bonus.until = millis() + randRange(BONUS_MIN_LIFE_MS, BONUS_MAX_LIFE_MS);
+}
+
+void eraseBonus() {
+  if (!bonus.active) return;
+  clearRectSafe(bonus.x - 2, bonus.y - 2, BONUS_SIZE + 4, BONUS_SIZE + 4);
+}
+
+void drawBonus() {
+  if (!bonus.active) return;
+  lcd.fillCircle(bonus.x + BONUS_SIZE / 2, bonus.y + BONUS_SIZE / 2, BONUS_SIZE / 2, TFT_ORANGE);
+  lcd.drawCircle(bonus.x + BONUS_SIZE / 2, bonus.y + BONUS_SIZE / 2, BONUS_SIZE / 2, TFT_WHITE);
+  lcd.setTextColor(TFT_WHITE, TFT_ORANGE);
+  lcd.setTextSize(1);
+  lcd.setCursor(bonus.x + 6, bonus.y + 9);
+  lcd.print("+3s");
+}
+
+bool pointInBonus(int x, int y) {
+  if (!bonus.active) return false;
+  return x >= bonus.x && x < bonus.x + BONUS_SIZE && y >= bonus.y && y < bonus.y + BONUS_SIZE;
+}
+
 void gunShot() {
   muzzleUntil = millis() + MUZZLE_MS;
   fireSound();
@@ -672,7 +739,8 @@ void missShot() {
   Serial.printf("[GAME] rate misses=%d vies=%d\n", misses, lives);
 }
 
-void hitDino() {
+void hitDino(int idx) {
+  DinoTarget& dino = dinos[idx];
   score += 10 + combo * 2;
   combo++;
   hudDirty = true;
@@ -690,11 +758,20 @@ void startGame() {
   timeLeft = 45;
   lastSecond = millis();
   blood.active = false;
+  bonus.active = false;
+  scheduleBonusSpawn();
+  muzzleUntil = 0;
+  muzzleWasOn = false;
   state = GS_PLAY;
   hudDirty = true;
   needFullRedraw = true;
+  lastDinoMove = millis();
   ledOff();
-  spawnDino();
+  for (int i = 0; i < MAX_DINOS; i++) {
+    dinos[i].alive = false;
+    dinos[i].respawnAt = 0;
+    spawnDino(i);
+  }
 }
 
 void endGame() {
@@ -749,7 +826,8 @@ void fullRedrawGame() {
   drawGround();
   drawHUD();
   drawGun(false);
-  drawDino();
+  for (int i = 0; i < MAX_DINOS; i++) drawDino(i);
+  drawBonus();
 }
 
 void fullRedrawGameOver() {
@@ -822,7 +900,10 @@ void renderPlayPartial() {
   }
 
   if (blood.active) drawBlood();
-  if (dino.alive) drawDino();
+  for (int i = 0; i < MAX_DINOS; i++) {
+    if (dinos[i].alive) drawDino(i);
+  }
+  drawBonus();
 }
 
 void render() {
@@ -858,9 +939,36 @@ void updatePlay() {
     blood.active = false;
   }
 
-  if (!dino.alive && dino.respawnAt && millis() >= dino.respawnAt) {
-    spawnDino();
-    drawDino();
+  if (bonus.active && millis() > bonus.until) {
+    eraseBonus();
+    bonus.active = false;
+    scheduleBonusSpawn();
+  }
+
+  if (!bonus.active && bonus.nextSpawnAt && millis() >= bonus.nextSpawnAt) {
+    spawnBonus();
+  }
+
+  for (int i = 0; i < MAX_DINOS; i++) {
+    DinoTarget& dino = dinos[i];
+    if (!dino.alive && dino.respawnAt && millis() >= dino.respawnAt) {
+      spawnDino(i);
+    }
+  }
+
+  if (millis() - lastDinoMove >= DINO_MOVE_MS) {
+    lastDinoMove = millis();
+    for (int i = 0; i < MAX_DINOS; i++) {
+      DinoTarget& dino = dinos[i];
+      if (!dino.alive) continue;
+      eraseDino(i);
+      dino.x += dino.vx;
+      const DinoSpriteInfo& sp = DINO_SPRITES[dino.spriteIndex];
+      if (dino.x + sp.w < 0) {
+        dino.alive = false;
+        dino.respawnAt = millis() + randRange(500, 1200);
+      }
+    }
   }
 
   bool muzzleOn = millis() < muzzleUntil;
@@ -872,14 +980,23 @@ void updatePlay() {
   if (ts.pressed) {
     gunShot();
 
-    if (pointInDino(ts.x, ts.y)) {
-      eraseDino();
-      hitDino();
+    if (pointInBonus(ts.x, ts.y)) {
+      eraseBonus();
+      bonus.active = false;
+      scheduleBonusSpawn();
+      timeLeft += BONUS_TIME_SECONDS;
+      hudDirty = true;
     } else {
-      missShot();
-      if (lives <= 0) {
-        endGame();
-        return;
+      int idx = hitDinoIndexAt(ts.x, ts.y);
+      if (idx >= 0) {
+        eraseDino(idx);
+        hitDino(idx);
+      } else {
+        missShot();
+        if (lives <= 0) {
+          endGame();
+          return;
+        }
       }
     }
   }
