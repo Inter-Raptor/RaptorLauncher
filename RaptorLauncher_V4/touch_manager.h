@@ -1,12 +1,13 @@
 #pragma once
 
+extern int gTouchX;
+extern int gTouchY;
+extern bool gTouchPressed;
+
+extern int touch_x_min;
+extern int touch_x_max;
+extern int touch_y_min;
+extern int touch_y_max;
+
 void touchInit();
-bool touchPressed(int &x, int &y);
-
-// brut
-bool touchReadRaw(int &x, int &y, int &z);
-
-// calibration
-void touchSetCalibration(int xmin, int xmax, int ymin, int ymax);
-void touchGetCalibration(int &xmin, int &xmax, int &ymin, int &ymax);
-void touchResetCalibration();
+void touchUpdate();

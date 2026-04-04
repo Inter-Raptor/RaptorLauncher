@@ -7,6 +7,7 @@
 #include "audio_manager.h"
 #include "input_manager.h"
 #include "launcher_ui.h"
+#include "wifi_manager.h"
 
 void setup() {
   Serial.begin(115200);
@@ -16,14 +17,18 @@ void setup() {
   Serial.println("=== RaptorLauncher V4 ===");
 
   displayInit();
-  touchInit();
   storageInit();
 
   settingsInit();
+
+  touchInit();
   displaySetBrightness(map(settingsGet().brightness, 0, 100, 10, 255));
 
   audioInit();
   audioSetVolume(settingsGet().volume);
+
+  wifiManagerInit();
+
   inputInit();
   launcherInit();
 
@@ -31,8 +36,9 @@ void setup() {
 }
 
 void loop() {
+  wifiManagerUpdate();
   inputUpdate();
   launcherUpdate();
   launcherRender();
-  delay(16); // ~60 fps
+  delay(16);
 }
