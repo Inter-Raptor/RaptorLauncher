@@ -670,7 +670,7 @@ void launcherUpdate() {
         int yMin = (calTouchY[0] + calTouchY[1]) / 2;
         int yMax = (calTouchY[2] + calTouchY[3]) / 2;
 
-        if (xMax - xMin < 400 || yMax - yMin < 400) {
+        if (abs(xMax - xMin) < 400 || abs(yMax - yMin) < 400) {
           Serial.println("[CAL] valeurs invalides, calibration ignoree");
           currentScreen = SCREEN_SETTINGS;
           calStep = 0;
