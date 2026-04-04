@@ -194,7 +194,6 @@ extern bool sdReady;
 
 #include "DinoNames.h"
 #include "JurassicMusicRTTTL.h"
-#include "pageaccueil.h"
 
 // ================== ASSETS (namespaces rename) ==================
 #define triceratops triJ
@@ -4000,12 +3999,13 @@ static void resetToEgg(uint32_t now) {
 
 static void showHomeIntro(uint32_t now) {
   tft.fillScreen(TFT_BLACK);
-
-  int imgW = (int)pageaccueil_W;
-  int imgH = (int)pageaccueil_H;
-  int x = (SW - imgW) / 2;
-  int y = (SH - imgH) / 2;
-  tft.pushImage(x, y, imgW, imgH, pageaccueil);
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.setTextSize(2);
+  tft.setCursor(18, SH / 2 - 22);
+  tft.print("DinoLife");
+  tft.setTextSize(1);
+  tft.setCursor(18, SH / 2 + 6);
+  tft.print("Chargement...");
 
 #if ENABLE_AUDIO
   if (audioMode != AUDIO_OFF) {
