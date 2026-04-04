@@ -8,7 +8,6 @@
 #include "input_manager.h"
 #include "launcher_ui.h"
 #include "wifi_manager.h"
-#include "led_manager.h"
 
 void setup() {
   Serial.begin(115200);
@@ -27,8 +26,6 @@ void setup() {
 
   audioInit();
   audioSetVolume(settingsGet().volume);
-  ledManagerInit();
-  ledManagerSetBrightness(settingsGet().led_brightness);
 
   wifiManagerInit();
   

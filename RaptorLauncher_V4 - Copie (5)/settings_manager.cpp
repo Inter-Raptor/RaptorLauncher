@@ -26,7 +26,6 @@ void settingsSetDefaults() {
   gSettings.touch_y_max = 3800;
   gSettings.touch_offset_x = 0;
   gSettings.touch_offset_y = 0;
-  gSettings.led_brightness = 40;
 }
 
 SystemSettings& settingsGet() {
@@ -45,7 +44,6 @@ bool settingsSave() {
   doc["touch_y_max"] = gSettings.touch_y_max;
   doc["touch_offset_x"] = gSettings.touch_offset_x;
   doc["touch_offset_y"] = gSettings.touch_offset_y;
-  doc["led_brightness"] = gSettings.led_brightness;
 
   if (SD.exists(SETTINGS_TMP_PATH)) {
     SD.remove(SETTINGS_TMP_PATH);
@@ -64,7 +62,7 @@ bool settingsSave() {
   }
 
   f.close();
-
+  
   if (SD.exists(SETTINGS_PATH) && !SD.remove(SETTINGS_PATH)) {
     Serial.println("[SETTINGS] impossible de supprimer ancien settings.json");
     return false;
@@ -118,7 +116,6 @@ bool settingsInit() {
   gSettings.touch_y_max = doc["touch_y_max"] | 3800;
   gSettings.touch_offset_x = clampValue(doc["touch_offset_x"] | 0, -80, 80);
   gSettings.touch_offset_y = clampValue(doc["touch_offset_y"] | 0, -80, 80);
-  gSettings.led_brightness = clampValue(doc["led_brightness"] | 40, 0, 100);
 
   Serial.print("[SETTINGS] volume = ");
   Serial.println(gSettings.volume);
@@ -141,8 +138,6 @@ bool settingsInit() {
   Serial.println(gSettings.touch_offset_x);
   Serial.print("[SETTINGS] touch_offset_y = ");
   Serial.println(gSettings.touch_offset_y);
-  Serial.print("[SETTINGS] led_brightness = ");
-  Serial.println(gSettings.led_brightness);
 
   return true;
 }

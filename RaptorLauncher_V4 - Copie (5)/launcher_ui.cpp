@@ -7,7 +7,6 @@
 #include "storage_manager.h"
 #include "settings_manager.h"
 #include "wifi_manager.h"
-#include "led_manager.h"
 #include "types.h"
 
 static bool gNeedsRedraw = true;
@@ -24,12 +23,10 @@ static int gTouchLiveY = 0;
 
 static bool gWifiBusy = false;
 static String gWifiStatusText = "";
-static int gLedSelectedColor = 0;
 
 enum LauncherScreen {
   SCREEN_HOME,
   SCREEN_SETTINGS,
-  SCREEN_LED_PICKER,
   SCREEN_GAME_INFO,
   SCREEN_TOUCH_TEST,
   SCREEN_TOUCH_CALIB,
@@ -155,35 +152,6 @@ static const int CAL_SAVE_CONFIRM_X = 172;
 static const int CAL_SAVE_BTN_Y = 176;
 static const int CAL_SAVE_BTN_W = 110;
 static const int CAL_SAVE_BTN_H = 24;
-
-static const int LED_GRID_X = 16;
-static const int LED_GRID_Y = 34;
-static const int LED_CELL_W = 56;
-static const int LED_CELL_H = 28;
-static const int LED_GRID_COLS = 5;
-static const int LED_BRIGHT_MINUS_X = 34;
-static const int LED_BRIGHT_VALUE_X = 140;
-static const int LED_BRIGHT_PLUS_X = 246;
-static const int LED_BRIGHT_Y = 108;
-
-struct LedColor {
-  uint8_t r;
-  uint8_t g;
-  uint8_t b;
-};
-
-static const LedColor LED_COLORS[10] = {
-  {255, 255, 255},
-  {255, 0, 0},
-  {255, 128, 0},
-  {255, 255, 0},
-  {0, 255, 0},
-  {0, 255, 255},
-  {0, 0, 255},
-  {180, 0, 255},
-  {255, 0, 180},
-  {180, 120, 60}
-};
 
 // --------------------------------------------------
 // Outils
@@ -516,9 +484,14 @@ static void drawSettingsScreen() {
     displayDrawSmallText(80, SET_ROW8_Y + SET_TEXT_Y_OFFSET, "non configure");
   }
 
-  // LED
+  // IP
   displayDrawRect(4, SET_ROW9_Y - 2, 312, 16, COLOR_INFO_TEXT);
-  drawSettingsRowLabel(SET_ROW9_Y, "LED", "Ouvrir");
+  drawSettingsRowLabel(SET_ROW9_Y, "IP", nullptr);
+  if (wifiManagerIsActive()) {
+    displayDrawSmallText(80, SET_ROW9_Y + SET_TEXT_Y_OFFSET, wifiManagerGetIP().c_str());
+  } else {
+    displayDrawSmallText(80, SET_ROW9_Y + SET_TEXT_Y_OFFSET, "-");
+  }
 
   // Reset reglages
   displayDrawRect(4, SET_ROW10_Y - 2, 312, 16, COLOR_INFO_TEXT);
@@ -594,41 +567,6 @@ static void drawTouchCalibScreen() {
   int cx = calTargets[calStep].sx;
   int cy = calTargets[calStep].sy;
   drawCross(cx, cy);
-}
-
-static uint16_t ledColorTo565(const LedColor& c) {
-  return ((c.r & 0xF8) << 8) | ((c.g & 0xFC) << 3) | (c.b >> 3);
-}
-
-static void drawLedPickerScreen() {
-  displayClear();
-  displayDrawSmallText(8, 8, "LED");
-  displayDrawSmallText(42, 8, "Choisissez une couleur test");
-
-  for (int i = 0; i < 10; i++) {
-    int row = i / LED_GRID_COLS;
-    int col = i % LED_GRID_COLS;
-    int x = LED_GRID_X + col * 60;
-    int y = LED_GRID_Y + row * 32;
-    uint16_t c = ledColorTo565(LED_COLORS[i]);
-
-    displayFillRect(x, y, LED_CELL_W, LED_CELL_H, c);
-    displayDrawRect(x, y, LED_CELL_W, LED_CELL_H, COLOR_INFO_TEXT);
-    if (i == gLedSelectedColor) {
-      displayDrawRect(x + 1, y + 1, LED_CELL_W - 2, LED_CELL_H - 2, COLOR_INFO_TEXT);
-    }
-  }
-
-  displayDrawSmallText(8, LED_BRIGHT_Y - 14, "Luminosite LED");
-  drawMiniButton(LED_BRIGHT_MINUS_X, LED_BRIGHT_Y, "-");
-  char buf[16];
-  snprintf(buf, sizeof(buf), "%d", settingsGet().led_brightness);
-  displayDrawSmallText(LED_BRIGHT_VALUE_X, LED_BRIGHT_Y + 6, buf);
-  drawMiniButton(LED_BRIGHT_PLUS_X, LED_BRIGHT_Y, "+");
-
-  displayDrawSmallText(8, 150, "La LED s'eteint en quittant.");
-  displayDrawRect(INFO_BACK_X, INFO_BACK_Y, INFO_BACK_W, INFO_BACK_H, COLOR_INFO_TEXT);
-  drawFooterButton(INFO_BACK_X, INFO_BACK_Y, "Retour");
 }
 
 static void drawResetConfirmScreen() {
@@ -729,8 +667,6 @@ void launcherInit() {
   calWasTouching = false;
   gWifiBusy = false;
   gWifiStatusText = "";
-  gLedSelectedColor = 0;
-  ledManagerOff();
   gNeedsRedraw = true;
 }
 
@@ -931,12 +867,6 @@ void launcherUpdate() {
           }
         }
       }
-      else if (pointInRect(gLastTouchX, gLastTouchY, 8, SET_ROW9_Y, 312, 14)) {
-        currentScreen = SCREEN_LED_PICKER;
-        ledManagerSetBrightness(settingsGet().led_brightness);
-        ledManagerSetColor(LED_COLORS[gLedSelectedColor].r, LED_COLORS[gLedSelectedColor].g, LED_COLORS[gLedSelectedColor].b);
-        gNeedsRedraw = true;
-      }
       else if (pointInRect(gLastTouchX, gLastTouchY, 8, SET_ROW10_Y, 312, 14)) {
         currentScreen = SCREEN_CONFIRM_RESET;
         gNeedsRedraw = true;
@@ -966,45 +896,10 @@ void launcherUpdate() {
         gNeedsRedraw = true;
       }
     }
-    else if (currentScreen == SCREEN_LED_PICKER) {
-      bool handled = false;
-      for (int i = 0; i < 10; i++) {
-        int row = i / LED_GRID_COLS;
-        int col = i % LED_GRID_COLS;
-        int x = LED_GRID_X + col * 60;
-        int y = LED_GRID_Y + row * 32;
-        if (pointInRect(gLastTouchX, gLastTouchY, x, y, LED_CELL_W, LED_CELL_H)) {
-          gLedSelectedColor = i;
-          ledManagerSetBrightness(settingsGet().led_brightness);
-          ledManagerSetColor(LED_COLORS[i].r, LED_COLORS[i].g, LED_COLORS[i].b);
-          gNeedsRedraw = true;
-          handled = true;
-          break;
-        }
-      }
-
-      if (!handled && pointInRect(gLastTouchX, gLastTouchY, LED_BRIGHT_MINUS_X, LED_BRIGHT_Y, SET_BTN_W, SET_BTN_H)) {
-        settingsGet().led_brightness = clampValue(settingsGet().led_brightness - 5, 0, 100);
-        ledManagerSetBrightness(settingsGet().led_brightness);
-        saveSettingsNow();
-        gNeedsRedraw = true;
-      }
-      else if (!handled && pointInRect(gLastTouchX, gLastTouchY, LED_BRIGHT_PLUS_X, LED_BRIGHT_Y, SET_BTN_W, SET_BTN_H)) {
-        settingsGet().led_brightness = clampValue(settingsGet().led_brightness + 5, 0, 100);
-        ledManagerSetBrightness(settingsGet().led_brightness);
-        saveSettingsNow();
-        gNeedsRedraw = true;
-      }
-      else if (!handled && pointInRect(gLastTouchX, gLastTouchY, INFO_BACK_X, INFO_BACK_Y, INFO_BACK_W, INFO_BACK_H)) {
-        ledManagerOff();
-        currentScreen = SCREEN_SETTINGS;
-        gNeedsRedraw = true;
-      }
-    }
     else if (currentScreen == SCREEN_TOUCH_CALIB) {
       // aucun bouton retour pendant la calibration
     }
-    else if (currentScreen == SCREEN_TOUCH_CALIB_SAVE) {
+        else if (currentScreen == SCREEN_TOUCH_CALIB_SAVE) {
       if (pointInRect(gLastTouchX, gLastTouchY, CAL_SAVE_CANCEL_X, CAL_SAVE_BTN_Y, CAL_SAVE_BTN_W, CAL_SAVE_BTN_H)) {
         currentScreen = SCREEN_SETTINGS;
         gNeedsRedraw = true;
@@ -1033,7 +928,6 @@ void launcherUpdate() {
         applyBrightnessNow();
         audioSetVolume(settingsGet().volume);
         applyTouchCalibrationFromSettings();
-        ledManagerSetBrightness(settingsGet().led_brightness);
         saveSettingsNow();
         currentScreen = SCREEN_SETTINGS;
         gNeedsRedraw = true;
@@ -1052,8 +946,6 @@ void launcherRender() {
     drawHomeScreen();
   } else if (currentScreen == SCREEN_SETTINGS) {
     drawSettingsScreen();
-  } else if (currentScreen == SCREEN_LED_PICKER) {
-    drawLedPickerScreen();
   } else if (currentScreen == SCREEN_GAME_INFO) {
     drawGameInfoScreen();
   } else if (currentScreen == SCREEN_TOUCH_TEST) {

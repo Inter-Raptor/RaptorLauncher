@@ -332,7 +332,7 @@ static void handleSaveJson() {
     return;
   }
 
-  file.print(content);
+  file.print(server.arg("content"));
   file.close();
 
   redirectTo("/?d=" + urlEncode(dir));
