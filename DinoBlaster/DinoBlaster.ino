@@ -727,7 +727,7 @@ void gunShot() {
   muzzleUntil = millis() + MUZZLE_MS;
   fireSound();
   ledFlashRed(LED_FLASH_MS);
-  clearGunShotEffect();
+  eraseGunZone();
   drawGun(true);
 }
 
