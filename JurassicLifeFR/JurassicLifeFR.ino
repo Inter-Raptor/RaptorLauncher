@@ -13,13 +13,8 @@
 // >>> Audio : 1 = ON, 0 = OFF <<<
 #define ENABLE_AUDIO 1
 
-// >>> Calibration tactile XPT2046 : 1 = ON, 0 = OFF <<<
-// Par défaut : 2432S022 = OFF (garde le réglage de base), autres = ON.
-#if DISPLAY_PROFILE == DISPLAY_PROFILE_2432S022
-  #define ENABLE_TOUCH_CALIBRATION 0
-#else
-  #define ENABLE_TOUCH_CALIBRATION 1
-#endif
+// Le tactile est géré/calibré par le launcher.
+#define ENABLE_TOUCH_CALIBRATION 0
 
 // --- Options entrée (2432S028 / ILI9341 uniquement - pas assez de pins sur 2432S022) ---
 // Encoder rotatif cliquable (A/B + bouton), ou 3 boutons (gauche/droite/OK).
@@ -84,7 +79,14 @@ enum GamePhase : uint8_t { PHASE_EGG, PHASE_HATCHING, PHASE_ALIVE, PHASE_RESTREA
 
 enum AudioMode : uint8_t { AUDIO_OFF, AUDIO_LIMITED, AUDIO_TOTAL };
 enum AudioPriority : uint8_t { AUDIO_PRIO_LOW, AUDIO_PRIO_MED, AUDIO_PRIO_HIGH };
+enum Language : uint8_t { LANG_FR, LANG_EN };
 struct AudioStep;
+
+// LED externe optionnelle (laisser -1 si non câblée)
+static const int LED_PIN_R = -1;
+static const int LED_PIN_G = -1;
+static const int LED_PIN_B = -1;
+static const uint8_t LED_BRIGHTNESS_MAX = 180;
 
 // ================== APP MODE (gestion vs mini-jeux) ==================
 enum AppMode : uint8_t { MODE_PET, MODE_MG_WASH, MODE_MG_PLAY };
@@ -1066,7 +1068,7 @@ static const int AUDIO_PWM_CHANNEL = 6;
 static const int AUDIO_PWM_BITS = 10;
 static const uint16_t AUDIO_DUTY_NORMAL = 320;
 static const uint16_t AUDIO_DUTY_QUIET  = 150;
-static uint8_t audioVolumePercent = 1; // 0-100 pour reduire le volume global
+static const uint8_t audioVolumePercent = 100; // volume géré par le launcher
 
 struct AudioStep {
   uint16_t freq = 0;
@@ -1342,6 +1344,37 @@ static inline bool criticalBlinkOn(uint32_t now) {
   return ((now / 500UL) % 2U) == 0U;
 }
 
+static inline bool ledAvailable() {
+  return (LED_PIN_R >= 0 && LED_PIN_G >= 0 && LED_PIN_B >= 0);
+}
+
+static void setRgbLed(uint8_t r, uint8_t g, uint8_t b) {
+  if (!ledAvailable()) return;
+  analogWrite(LED_PIN_R, r);
+  analogWrite(LED_PIN_G, g);
+  analogWrite(LED_PIN_B, b);
+}
+
+static void updateMoodLed(uint32_t now) {
+  if (!ledAvailable() || phase != PHASE_ALIVE || !pet.vivant) {
+    setRgbLed(0, 0, 0);
+    return;
+  }
+  if (healthCriticalCount() > 0) {
+    bool on = ((now / 250UL) % 2U) == 0U;
+    uint8_t r = on ? LED_BRIGHTNESS_MAX : 0;
+    setRgbLed(r, 0, 0);
+    return;
+  }
+  if (state == ST_SLEEP) {
+    float wave = 0.5f + 0.5f * sinf((float)now * 0.004f);
+    uint8_t b = (uint8_t)(wave * (float)(LED_BRIGHTNESS_MAX / 2));
+    setRgbLed(0, 0, b);
+    return;
+  }
+  setRgbLed(0, 0, 0);
+}
+
 static void audioTickAlerts(uint32_t now) {
   if (audioMode == AUDIO_OFF) return;
   uint32_t interval = (audioMode == AUDIO_TOTAL) ? 10000UL : 20000UL;
@@ -1360,6 +1393,7 @@ static char petName[20] = "???";
 
 // ================== UI ==================
 static uint8_t uiSel = 0;
+static Language uiLanguage = LANG_FR;
 
 static const uint16_t COL_FAIM    = 0xFD20;
 static const uint16_t COL_SOIF    = 0x03FF;
@@ -1383,24 +1417,27 @@ static inline uint16_t btnColorForAction(UiAction a) {
     default:        return TFT_WHITE;
   }
 }
+static inline const char* tr(const char* fr, const char* en) {
+  return (uiLanguage == LANG_EN) ? en : fr;
+}
 static inline const char* btnLabel(UiAction a) {
   switch (a) {
-    case UI_REPOS:  return "Repos";
-    case UI_MANGER: return "Manger";
-    case UI_BOIRE:  return "Boire";
-    case UI_LAVER:  return "Laver";
-    case UI_JOUER:  return "Jouer";
-    case UI_CACA:   return "Caca";
-    case UI_CALIN:  return "Calin";
-    case UI_AUDIO:  return "Son";
+    case UI_REPOS:  return tr("Repos", "Rest");
+    case UI_MANGER: return tr("Manger", "Eat");
+    case UI_BOIRE:  return tr("Boire", "Drink");
+    case UI_LAVER:  return tr("Laver", "Wash");
+    case UI_JOUER:  return tr("Jouer", "Play");
+    case UI_CACA:   return tr("Caca", "Poop");
+    case UI_CALIN:  return tr("Calin", "Hug");
+    case UI_AUDIO:  return tr("Son", "Sound");
     default:        return "?";
   }
 }
 static inline const char* stageLabel(AgeStage s) {
   switch (s) {
-    case AGE_JUNIOR: return "Junior";
-    case AGE_ADULTE: return "Adulte";
-    case AGE_SENIOR: return "Senior";
+    case AGE_JUNIOR: return tr("Junior", "Junior");
+    case AGE_ADULTE: return tr("Adulte", "Adult");
+    case AGE_SENIOR: return tr("Senior", "Senior");
     default:         return "?";
   }
 }
@@ -1942,7 +1979,7 @@ static void activityShowProgress(uint32_t now, const char* text, uint32_t durMs)
   activityText[sizeof(activityText)-1] = 0;
 }
 
-// ================== SAVE SYSTEM (microSD JSON A/B) ==================
+// ================== SAVE SYSTEM (microSD JSON) ==================
 static const int SD_SCK  = 18;
 static const int SD_MISO = 19;
 static const int SD_MOSI = 23;
@@ -1952,17 +1989,13 @@ static const int SD_CS   = 5;
 static SPIClass sdSPI(HSPI);
 bool sdReady = false;
 
-static const char* SAVE_A  = "/saveA.json";
-static const char* SAVE_B  = "/saveB.json";
-static const char* TMP_A   = "/saveA.tmp";
-static const char* TMP_B   = "/saveB.tmp";
+static const char* SAVE_FILE = "/games/DinoLife/sauv.json";
+static const char* TMP_FILE  = "/games/DinoLife/sauv.tmp";
 
 static const uint32_t SAVE_EVERY_MS = 60000UL;
 
 static uint32_t saveSeq = 0;
 static uint32_t lastSaveAt = 0;
-static bool nextSlotIsA = true;  // alterne A/B
-
 static inline int iClamp(int v, int lo, int hi){ if(v<lo) return lo; if(v>hi) return hi; return v; }
 static inline int fToI100(float f){ return iClamp((int)lroundf(f), 0, 100); }
 
@@ -1973,6 +2006,8 @@ static bool sdInit() {
     Serial.println("[SD] init FAIL");
     return false;
   }
+  if (!SD.exists("/games")) SD.mkdir("/games");
+  if (!SD.exists("/games/DinoLife")) SD.mkdir("/games/DinoLife");
   Serial.println("[SD] init OK");
   return true;
 }
@@ -2043,22 +2078,11 @@ static void applyLoadedToRuntime(uint32_t now) {
 static bool loadLatestSave(uint32_t now) {
   if (!sdReady) return false;
 
-  StaticJsonDocument<768> dA, dB;
-  uint32_t sA=0, sB=0;
-  bool okA = readJsonFile(SAVE_A, dA, sA);
-  bool okB = readJsonFile(SAVE_B, dB, sB);
+  StaticJsonDocument<768> doc;
+  uint32_t seq = 0;
+  if (!readJsonFile(SAVE_FILE, doc, seq)) return false;
 
-  if (!okA && !okB) return false;
-
-  StaticJsonDocument<768>* bestDoc = nullptr;
-  bool bestIsA = true;
-
-  if (okA && (!okB || sA >= sB)) { bestDoc = &dA; bestIsA = true; }
-  else                           { bestDoc = &dB; bestIsA = false; }
-
-  auto& doc = *bestDoc;
-
-  saveSeq = doc["seq"] | 0UL;
+  saveSeq = seq;
 
   int p  = doc["phase"] | (int)PHASE_EGG;
   int st = doc["stage"] | (int)AGE_JUNIOR;
@@ -2089,22 +2113,21 @@ static bool loadLatestSave(uint32_t now) {
 
 #if ENABLE_AUDIO
   audioMode = (AudioMode)iClamp(doc["audioMode"] | (int)AUDIO_TOTAL, (int)AUDIO_OFF, (int)AUDIO_TOTAL);
-  audioVolumePercent = (uint8_t)iClamp(doc["audioVol"] | (int)audioVolumePercent, 1, 100);
 #else
   audioMode = AUDIO_OFF;
 #endif
+  const char* lang = doc["lang"] | "fr";
+  uiLanguage = (lang[0] == 'e' || lang[0] == 'E') ? LANG_EN : LANG_FR;
 
   if (!pet.vivant || pet.sante <= 0.0f) {
     pet.vivant = false;
     phase = PHASE_TOMB;
   }
 
-  nextSlotIsA = !bestIsA;
-
   applyLoadedToRuntime(now);
   Serial.printf("[SAVE] Loaded seq=%lu from %s\n",
                 (unsigned long)saveSeq,
-                bestIsA ? "A" : "B");
+                SAVE_FILE);
   return true;
 }
 
@@ -2123,8 +2146,8 @@ static bool writeSlotFile(const char* tmpPath, const char* finalPath, const char
 
 #if ENABLE_AUDIO
   doc["audioMode"] = (int)audioMode;
-  doc["audioVol"] = (int)audioVolumePercent;
 #endif
+  doc["lang"] = (uiLanguage == LANG_EN) ? "en" : "fr";
 
   JsonObject ps = doc.createNestedObject("pet");
   ps["faim"]    = fToI100(pet.faim);
@@ -2157,13 +2180,7 @@ static bool saveNow(uint32_t now, const char* why) {
   if (!sdReady) return false;
 
   saveSeq++;
-  const bool useA = nextSlotIsA;
-  nextSlotIsA = !nextSlotIsA;
-
-  const char* tmp  = useA ? TMP_A  : TMP_B;
-  const char* fin  = useA ? SAVE_A : SAVE_B;
-
-  bool ok = writeSlotFile(tmp, fin, why);
+  bool ok = writeSlotFile(TMP_FILE, SAVE_FILE, why);
   if (ok) {
     lastSaveAt = now;
   } else {
@@ -2327,16 +2344,16 @@ if (phase == PHASE_ALIVE) {
     int y2 = 50;
 
     int x = pad;
-    drawBarRound(uiTop, x, y1, w, h, pet.faim,    "Faim",    COL_FAIM);    x += w + pad;
-    drawBarRound(uiTop, x, y1, w, h, pet.soif,    "Soif",    COL_SOIF);    x += w + pad;
-    drawBarRound(uiTop, x, y1, w, h, pet.hygiene, "Hygiene", COL_HYGIENE); x += w + pad;
-    drawBarRound(uiTop, x, y1, w, h, pet.humeur,  "Bonheur",  COL_HUMEUR);
+    drawBarRound(uiTop, x, y1, w, h, pet.faim,    tr("Faim", "Hunger"),    COL_FAIM);    x += w + pad;
+    drawBarRound(uiTop, x, y1, w, h, pet.soif,    tr("Soif", "Thirst"),    COL_SOIF);    x += w + pad;
+    drawBarRound(uiTop, x, y1, w, h, pet.hygiene, tr("Hygiene", "Hygiene"), COL_HYGIENE); x += w + pad;
+    drawBarRound(uiTop, x, y1, w, h, pet.humeur,  tr("Bonheur", "Mood"),  COL_HUMEUR);
 
     x = pad;
-    drawBarRound(uiTop, x, y2, w, h, pet.energie, "Energie", COL_ENERGIE); x += w + pad;
-    drawBarRound(uiTop, x, y2, w, h, (100.0f - pet.fatigue), "Fatigue", COL_FATIGUE); x += w + pad;
-    drawBarRound(uiTop, x, y2, w, h, pet.amour,   "Amour",   COL_AMOUR2);  x += w + pad;
-    drawBarRound(uiTop, x, y2, w, h, pet.caca,    "Caca",    COL_CACA);
+    drawBarRound(uiTop, x, y2, w, h, pet.energie, tr("Energie", "Energy"), COL_ENERGIE); x += w + pad;
+    drawBarRound(uiTop, x, y2, w, h, (100.0f - pet.fatigue), tr("Fatigue", "Fatigue"), COL_FATIGUE); x += w + pad;
+    drawBarRound(uiTop, x, y2, w, h, pet.amour,   tr("Amour", "Love"),   COL_AMOUR2);  x += w + pad;
+    drawBarRound(uiTop, x, y2, w, h, pet.caca,    tr("Caca", "Poop"),    COL_CACA);
   }
 
   // Zone sous les barres (à la place de l'activity bar quand on est libre)
@@ -3082,10 +3099,8 @@ static void handleDeath(uint32_t now) {
 
 static void eraseSavesAndRestart() {
   if (sdReady) {
-    if (SD.exists(SAVE_A)) SD.remove(SAVE_A);
-    if (SD.exists(SAVE_B)) SD.remove(SAVE_B);
-    if (SD.exists(TMP_A)) SD.remove(TMP_A);
-    if (SD.exists(TMP_B)) SD.remove(TMP_B);
+    if (SD.exists(SAVE_FILE)) SD.remove(SAVE_FILE);
+    if (SD.exists(TMP_FILE)) SD.remove(TMP_FILE);
   }
   delay(50);
   ESP.restart();
@@ -3207,8 +3222,6 @@ struct TouchDeb {
 };
 static TouchDeb touch;
 static const uint32_t TOUCH_DEBOUNCE_MS = 25;
-static const uint32_t AUDIO_LONG_PRESS_MS = 650;
-
 static inline bool readTouchRaw(int16_t &x, int16_t &y) {
   return readTouchScreen(x, y);
 }
@@ -3490,20 +3503,6 @@ if (touch.stableDown) {
     touch.pressBtn = touch.lastBtn;
     touch.pressStart = now;
     touch.longPressFired = false;
-  }
-
-  if (!touch.longPressFired && touch.lastBtn >= 0 && uiButtonCount() == uiAliveCount()) {
-    UiAction heldAction = uiAliveActionAt((uint8_t)touch.lastBtn);
-    if (heldAction == UI_AUDIO && (int32_t)(now - touch.pressStart) >= (int32_t)AUDIO_LONG_PRESS_MS) {
-      audioVolumePercent = (audioVolumePercent >= 10) ? 1 : 10;
-      char tmp[32];
-      snprintf(tmp, sizeof(tmp), "Volume %u%%", audioVolumePercent);
-      setMsg(tmp, now, 1500);
-      uiSpriteDirty = true;
-      uiForceBands  = true;
-      if (sdReady) saveNow(now, "audio_vol");
-      touch.longPressFired = true;
-    }
   }
 }
 
@@ -4012,6 +4011,12 @@ SH = tft.height();
   if (BTN_LEFT >= 0) pinMode(BTN_LEFT, INPUT_PULLUP);
   if (BTN_RIGHT >= 0) pinMode(BTN_RIGHT, INPUT_PULLUP);
   if (BTN_OK >= 0) pinMode(BTN_OK, INPUT_PULLUP);
+  if (ledAvailable()) {
+    pinMode(LED_PIN_R, OUTPUT);
+    pinMode(LED_PIN_G, OUTPUT);
+    pinMode(LED_PIN_B, OUTPUT);
+    setRgbLed(0, 0, 0);
+  }
 
 #if DISPLAY_PROFILE != DISPLAY_PROFILE_2432S022
 #if ENABLE_TOUCH_CALIBRATION
@@ -4340,6 +4345,7 @@ if (ENC_BTN >= 0) raw = (digitalRead(ENC_BTN) == LOW);
     lastCritical = critical;
     lastBlinkOn = blinkOn;
   }
+  updateMoodLed(now);
 
   // rebuild UI
   if (uiSpriteDirty) {
