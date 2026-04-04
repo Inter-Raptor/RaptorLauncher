@@ -1,8 +1,13 @@
 #include <Arduino.h>
 #include "led_manager.h"
 
-// ESP32-2432S032R: LED RGB (WS2812) généralement sur GPIO 4
-static const int LED_PIN = 4;
+// ESP32-2432S032R: LED RGB discrete commune anode
+// Schéma: R=IO17, G=IO4, B=IO16
+static const int LED_PIN_R = 17;
+static const int LED_PIN_G = 4;
+static const int LED_PIN_B = 16;
+static const int LED_PWM_FREQ = 5000;
+static const int LED_PWM_RES = 8; // 0..255
 
 static int gLedBrightness = 40; // 0..100
 static uint8_t gBaseR = 255;
@@ -13,12 +18,25 @@ static uint8_t scaleToBrightness(uint8_t c) {
   return (uint8_t)((c * gLedBrightness) / 100);
 }
 
+// LED commune anode => actif à 0 (inversion PWM)
+static uint8_t toPwmActiveLow(uint8_t c) {
+  return 255 - c;
+}
+
 static void applyLed() {
-  neopixelWrite(LED_PIN, scaleToBrightness(gBaseR), scaleToBrightness(gBaseG), scaleToBrightness(gBaseB));
+  uint8_t r = scaleToBrightness(gBaseR);
+  uint8_t g = scaleToBrightness(gBaseG);
+  uint8_t b = scaleToBrightness(gBaseB);
+
+  ledcWrite(LED_PIN_R, toPwmActiveLow(r));
+  ledcWrite(LED_PIN_G, toPwmActiveLow(g));
+  ledcWrite(LED_PIN_B, toPwmActiveLow(b));
 }
 
 void ledManagerInit() {
-  pinMode(LED_PIN, OUTPUT);
+  ledcAttach(LED_PIN_R, LED_PWM_FREQ, LED_PWM_RES);
+  ledcAttach(LED_PIN_G, LED_PWM_FREQ, LED_PWM_RES);
+  ledcAttach(LED_PIN_B, LED_PWM_FREQ, LED_PWM_RES);
   ledManagerOff();
 }
 
@@ -40,5 +58,7 @@ void ledManagerOff() {
   gBaseR = 0;
   gBaseG = 0;
   gBaseB = 0;
-  neopixelWrite(LED_PIN, 0, 0, 0);
+  ledcWrite(LED_PIN_R, 255);
+  ledcWrite(LED_PIN_G, 255);
+  ledcWrite(LED_PIN_B, 255);
 }
