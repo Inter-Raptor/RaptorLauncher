@@ -492,8 +492,19 @@ static void drawTouchTestScreen() {
   }
 }
 
-else if (currentScreen == SCREEN_TOUCH_CALIB) {
-  // aucun bouton retour pendant la calibration
+static void drawTouchCalibScreen() {
+  displayClear();
+
+  displayDrawSmallText(60, 8, "Calibration");
+  displayDrawSmallText(34, 22, "Touchez les 5 croix");
+
+  char buf[32];
+  snprintf(buf, sizeof(buf), "Point %d/5", calStep + 1);
+  displayDrawSmallText(110, 40, buf);
+
+  int cx = calTargets[calStep].sx;
+  int cy = calTargets[calStep].sy;
+  drawCross(cx, cy);
 }
 
 // --------------------------------------------------
@@ -732,12 +743,8 @@ void launcherUpdate() {
       }
     }
     else if (currentScreen == SCREEN_TOUCH_CALIB) {
-      if (pointInRect(gLastTouchX, gLastTouchY, INFO_BACK_X, INFO_BACK_Y, INFO_BACK_W, INFO_BACK_H)) {
-        currentScreen = SCREEN_SETTINGS;
-        calStep = 0;
-        gNeedsRedraw = true;
-      }
-    }
+  // aucun bouton retour pendant la calibration
+}
   }
 
   wasTouching = touching;

@@ -34,13 +34,16 @@ void touchUpdate() {
   if (touch.touched()) {
     TS_Point p = touch.getPoint();
 
-    gTouchX = map(p.x, touch_x_min, touch_x_max, 0, 320);
-    gTouchY = map(p.y, touch_y_min, touch_y_max, 240, 0);
+    gTouchX = map(p.x, touch_x_min, touch_x_max, 0, 319);
+gTouchY = map(p.y, touch_y_min, touch_y_max, 239, 0);
 
-    if (gTouchX < 0) gTouchX = 0;
-    if (gTouchX > 319) gTouchX = 319;
-    if (gTouchY < 0) gTouchY = 0;
-    if (gTouchY > 239) gTouchY = 239;
+// correction offset fixe
+gTouchX -= 13;
+
+if (gTouchX < 0) gTouchX = 0;
+if (gTouchX > 319) gTouchX = 340;
+if (gTouchY < 0) gTouchY = 0;
+if (gTouchY > 239) gTouchY = 239;
 
     gTouchPressed = true;
   } else {
