@@ -4,6 +4,7 @@
 #include "settings_manager.h"
 
 static const char* SETTINGS_PATH = "/settings.json";
+static const char* SETTINGS_TMP_PATH = "/settings.tmp";
 static SystemSettings gSettings;
 
 static int clampValue(int v, int minV, int maxV) {
@@ -23,6 +24,9 @@ void settingsSetDefaults() {
   gSettings.touch_x_max = 3800;
   gSettings.touch_y_min = 200;
   gSettings.touch_y_max = 3800;
+  gSettings.touch_offset_x = 0;
+  gSettings.touch_offset_y = 0;
+  gSettings.led_brightness = 40;
 }
 
 SystemSettings& settingsGet() {
@@ -39,14 +43,17 @@ bool settingsSave() {
   doc["touch_x_max"] = gSettings.touch_x_max;
   doc["touch_y_min"] = gSettings.touch_y_min;
   doc["touch_y_max"] = gSettings.touch_y_max;
+  doc["touch_offset_x"] = gSettings.touch_offset_x;
+  doc["touch_offset_y"] = gSettings.touch_offset_y;
+  doc["led_brightness"] = gSettings.led_brightness;
 
-  if (SD.exists(SETTINGS_PATH)) {
-    SD.remove(SETTINGS_PATH);
+  if (SD.exists(SETTINGS_TMP_PATH)) {
+    SD.remove(SETTINGS_TMP_PATH);
   }
 
-  File f = SD.open(SETTINGS_PATH, FILE_WRITE);
+  File f = SD.open(SETTINGS_TMP_PATH, FILE_WRITE);
   if (!f) {
-    Serial.println("[SETTINGS] impossible d'ouvrir settings.json en ecriture");
+    Serial.println("[SETTINGS] impossible d'ouvrir settings.tmp en ecriture");
     return false;
   }
 
@@ -57,6 +64,17 @@ bool settingsSave() {
   }
 
   f.close();
+
+  if (SD.exists(SETTINGS_PATH) && !SD.remove(SETTINGS_PATH)) {
+    Serial.println("[SETTINGS] impossible de supprimer ancien settings.json");
+    return false;
+  }
+
+  if (!SD.rename(SETTINGS_TMP_PATH, SETTINGS_PATH)) {
+    Serial.println("[SETTINGS] impossible de renommer settings.tmp -> settings.json");
+    return false;
+  }
+
   Serial.println("[SETTINGS] sauvegarde OK");
   return true;
 }
@@ -98,6 +116,9 @@ bool settingsInit() {
   gSettings.touch_x_max = doc["touch_x_max"] | 3800;
   gSettings.touch_y_min = doc["touch_y_min"] | 200;
   gSettings.touch_y_max = doc["touch_y_max"] | 3800;
+  gSettings.touch_offset_x = clampValue(doc["touch_offset_x"] | 0, -80, 80);
+  gSettings.touch_offset_y = clampValue(doc["touch_offset_y"] | 0, -80, 80);
+  gSettings.led_brightness = clampValue(doc["led_brightness"] | 40, 0, 100);
 
   Serial.print("[SETTINGS] volume = ");
   Serial.println(gSettings.volume);
@@ -116,6 +137,12 @@ bool settingsInit() {
   Serial.println(gSettings.touch_y_min);
   Serial.print("[SETTINGS] touch_y_max = ");
   Serial.println(gSettings.touch_y_max);
+  Serial.print("[SETTINGS] touch_offset_x = ");
+  Serial.println(gSettings.touch_offset_x);
+  Serial.print("[SETTINGS] touch_offset_y = ");
+  Serial.println(gSettings.touch_offset_y);
+  Serial.print("[SETTINGS] led_brightness = ");
+  Serial.println(gSettings.led_brightness);
 
   return true;
 }

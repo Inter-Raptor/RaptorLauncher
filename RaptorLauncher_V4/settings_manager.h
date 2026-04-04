@@ -12,6 +12,9 @@ struct SystemSettings {
   int touch_x_max;
   int touch_y_min;
   int touch_y_max;
+  int touch_offset_x;
+  int touch_offset_y;
+  int led_brightness;
 };
 
 bool settingsInit();

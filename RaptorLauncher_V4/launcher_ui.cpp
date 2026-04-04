@@ -7,6 +7,7 @@
 #include "storage_manager.h"
 #include "settings_manager.h"
 #include "wifi_manager.h"
+#include "led_manager.h"
 #include "types.h"
 
 static bool gNeedsRedraw = true;
@@ -23,13 +24,17 @@ static int gTouchLiveY = 0;
 
 static bool gWifiBusy = false;
 static String gWifiStatusText = "";
+static int gLedSelectedColor = 0;
 
 enum LauncherScreen {
   SCREEN_HOME,
   SCREEN_SETTINGS,
+  SCREEN_LED_PICKER,
   SCREEN_GAME_INFO,
   SCREEN_TOUCH_TEST,
-  SCREEN_TOUCH_CALIB
+  SCREEN_TOUCH_CALIB,
+  SCREEN_TOUCH_CALIB_SAVE,
+  SCREEN_CONFIRM_RESET
 };
 
 static LauncherScreen currentScreen = SCREEN_HOME;
@@ -53,6 +58,12 @@ static int calStep = 0;
 static int calTouchX[CAL_POINT_COUNT];
 static int calTouchY[CAL_POINT_COUNT];
 static bool calWasTouching = false;
+static int pendingTouchXMin = 200;
+static int pendingTouchXMax = 3800;
+static int pendingTouchYMin = 200;
+static int pendingTouchYMax = 3800;
+static int pendingTouchOffsetX = 0;
+static int pendingTouchOffsetY = 0;
 
 // --------------------------------------------------
 // Couleurs
@@ -128,6 +139,51 @@ static const int SET_PLUS_X  = 286;
 static const int SET_BTN_Y_OFFSET = -2;
 static const int SET_BTN_W = 24;
 static const int SET_BTN_H = 16;
+static const int SET_TEXT_Y_OFFSET = 3;
+
+static const int RESET_POPUP_X = 20;
+static const int RESET_POPUP_Y = 62;
+static const int RESET_POPUP_W = 280;
+static const int RESET_POPUP_H = 116;
+static const int RESET_CANCEL_X = 38;
+static const int RESET_BTN_Y = 142;
+static const int RESET_BTN_W = 110;
+static const int RESET_BTN_H = 24;
+static const int RESET_CONFIRM_X = 172;
+static const int CAL_SAVE_CANCEL_X = 38;
+static const int CAL_SAVE_CONFIRM_X = 172;
+static const int CAL_SAVE_BTN_Y = 176;
+static const int CAL_SAVE_BTN_W = 110;
+static const int CAL_SAVE_BTN_H = 24;
+
+static const int LED_GRID_X = 16;
+static const int LED_GRID_Y = 34;
+static const int LED_CELL_W = 56;
+static const int LED_CELL_H = 28;
+static const int LED_GRID_COLS = 5;
+static const int LED_BRIGHT_MINUS_X = 34;
+static const int LED_BRIGHT_VALUE_X = 140;
+static const int LED_BRIGHT_PLUS_X = 246;
+static const int LED_BRIGHT_Y = 108;
+
+struct LedColor {
+  uint8_t r;
+  uint8_t g;
+  uint8_t b;
+};
+
+static const LedColor LED_COLORS[10] = {
+  {255, 255, 255},
+  {255, 0, 0},
+  {255, 128, 0},
+  {255, 255, 0},
+  {0, 255, 0},
+  {0, 255, 255},
+  {0, 0, 255},
+  {180, 0, 255},
+  {255, 0, 180},
+  {180, 120, 60}
+};
 
 // --------------------------------------------------
 // Outils
@@ -161,6 +217,8 @@ static void applyTouchCalibrationFromSettings() {
   touch_x_max = settingsGet().touch_x_max;
   touch_y_min = settingsGet().touch_y_min;
   touch_y_max = settingsGet().touch_y_max;
+  touch_offset_x = settingsGet().touch_offset_x;
+  touch_offset_y = settingsGet().touch_offset_y;
 }
 
 static void saveSettingsNow() {
@@ -234,6 +292,13 @@ static void drawPlayButton(int x, int y, int w, int h, const char* text) {
 static void drawMiniButton(int x, int y, const char* text) {
   displayDrawRect(x, y, SET_BTN_W, SET_BTN_H, COLOR_INFO_TEXT);
   displayDrawSmallText(x + 8, y + 5, text);
+}
+
+static void drawSettingsRowLabel(int rowY, const char* label, const char* action = nullptr, int actionX = 220) {
+  displayDrawSmallText(8, rowY + SET_TEXT_Y_OFFSET, label);
+  if (action != nullptr) {
+    displayDrawSmallText(actionX, rowY + SET_TEXT_Y_OFFSET, action);
+  }
 }
 
 static void splitLabelTwoLines(const String& input, String& line1, String& line2) {
@@ -403,71 +468,61 @@ static void drawSettingsScreen() {
 
   // Volume
   displayDrawRect(4, SET_ROW1_Y - 2, 312, 16, COLOR_INFO_TEXT);
-  displayDrawSmallText(8, SET_ROW1_Y, "Volume");
+  drawSettingsRowLabel(SET_ROW1_Y, "Volume");
   drawMiniButton(SET_MINUS_X, SET_ROW1_Y + SET_BTN_Y_OFFSET, "-");
   snprintf(buf, sizeof(buf), "%d", settingsGet().volume);
-  displayDrawSmallText(SET_VALUE_X, SET_ROW1_Y + 2, buf);
+  displayDrawSmallText(SET_VALUE_X, SET_ROW1_Y + SET_TEXT_Y_OFFSET, buf);
   drawMiniButton(SET_PLUS_X, SET_ROW1_Y + SET_BTN_Y_OFFSET, "+");
 
   // Luminosite
   displayDrawRect(4, SET_ROW2_Y - 2, 312, 16, COLOR_INFO_TEXT);
-  displayDrawSmallText(8, SET_ROW2_Y, "Luminosite");
+  drawSettingsRowLabel(SET_ROW2_Y, "Luminosite");
   drawMiniButton(SET_MINUS_X, SET_ROW2_Y + SET_BTN_Y_OFFSET, "-");
   snprintf(buf, sizeof(buf), "%d", settingsGet().brightness);
-  displayDrawSmallText(SET_VALUE_X, SET_ROW2_Y + 2, buf);
+  displayDrawSmallText(SET_VALUE_X, SET_ROW2_Y + SET_TEXT_Y_OFFSET, buf);
   drawMiniButton(SET_PLUS_X, SET_ROW2_Y + SET_BTN_Y_OFFSET, "+");
 
   // Test audio
   displayDrawRect(4, SET_ROW3_Y - 2, 312, 16, COLOR_INFO_TEXT);
-  displayDrawSmallText(8, SET_ROW3_Y, "Test audio");
-  displayDrawSmallText(220, SET_ROW3_Y, "Taper");
+  drawSettingsRowLabel(SET_ROW3_Y, "Test audio", "Taper");
 
   // Test tactile
   displayDrawRect(4, SET_ROW4_Y - 2, 312, 16, COLOR_INFO_TEXT);
-  displayDrawSmallText(8, SET_ROW4_Y, "Test tactile");
-  displayDrawSmallText(220, SET_ROW4_Y, "Ouvrir");
+  drawSettingsRowLabel(SET_ROW4_Y, "Test tactile", "Ouvrir");
 
   // Calibration tactile
   displayDrawRect(4, SET_ROW5_Y - 2, 312, 16, COLOR_INFO_TEXT);
-  displayDrawSmallText(8, SET_ROW5_Y, "Calibration tactile");
-  displayDrawSmallText(220, SET_ROW5_Y, "Ouvrir");
+  drawSettingsRowLabel(SET_ROW5_Y, "Calibration tactile", "Ouvrir");
 
   // Reset tactile
   displayDrawRect(4, SET_ROW6_Y - 2, 312, 16, COLOR_INFO_TEXT);
-  displayDrawSmallText(8, SET_ROW6_Y, "Reset tactile");
-  displayDrawSmallText(220, SET_ROW6_Y, "Reset");
+  drawSettingsRowLabel(SET_ROW6_Y, "Reset tactile", "Reset");
 
   // WiFi
   displayDrawRect(4, SET_ROW7_Y - 2, 312, 16, COLOR_INFO_TEXT);
-  displayDrawSmallText(8, SET_ROW7_Y, "WiFi");
+  drawSettingsRowLabel(SET_ROW7_Y, "WiFi");
   if (gWifiBusy) {
-    displayDrawSmallText(190, SET_ROW7_Y, "Connexion...");
+    displayDrawSmallText(190, SET_ROW7_Y + SET_TEXT_Y_OFFSET, "Connexion...");
   } else {
-    displayDrawSmallText(220, SET_ROW7_Y, wifiManagerIsActive() ? "ON" : "OFF");
+    displayDrawSmallText(220, SET_ROW7_Y + SET_TEXT_Y_OFFSET, wifiManagerIsActive() ? "ON" : "OFF");
   }
 
   // SSID
   displayDrawRect(4, SET_ROW8_Y - 2, 312, 16, COLOR_INFO_TEXT);
-  displayDrawSmallText(8, SET_ROW8_Y, "SSID");
+  drawSettingsRowLabel(SET_ROW8_Y, "SSID", nullptr);
   if (settingsGet().wifi_ssid.length() > 0) {
-    displayDrawSmallText(80, SET_ROW8_Y, settingsGet().wifi_ssid.c_str());
+    displayDrawSmallText(80, SET_ROW8_Y + SET_TEXT_Y_OFFSET, settingsGet().wifi_ssid.c_str());
   } else {
-    displayDrawSmallText(80, SET_ROW8_Y, "non configure");
+    displayDrawSmallText(80, SET_ROW8_Y + SET_TEXT_Y_OFFSET, "non configure");
   }
 
-  // IP
+  // LED
   displayDrawRect(4, SET_ROW9_Y - 2, 312, 16, COLOR_INFO_TEXT);
-  displayDrawSmallText(8, SET_ROW9_Y, "IP");
-  if (wifiManagerIsActive()) {
-    displayDrawSmallText(80, SET_ROW9_Y, wifiManagerGetIP().c_str());
-  } else {
-    displayDrawSmallText(80, SET_ROW9_Y, "-");
-  }
+  drawSettingsRowLabel(SET_ROW9_Y, "LED", "Ouvrir");
 
   // Reset reglages
   displayDrawRect(4, SET_ROW10_Y - 2, 312, 16, COLOR_INFO_TEXT);
-  displayDrawSmallText(8, SET_ROW10_Y, "Reset reglages");
-  displayDrawSmallText(220, SET_ROW10_Y, "Reset");
+  drawSettingsRowLabel(SET_ROW10_Y, "Reset reglages", "Reset");
 
   // Statut WiFi
   if (gWifiStatusText.length() > 0) {
@@ -541,6 +596,83 @@ static void drawTouchCalibScreen() {
   drawCross(cx, cy);
 }
 
+static uint16_t ledColorTo565(const LedColor& c) {
+  return ((c.r & 0xF8) << 8) | ((c.g & 0xFC) << 3) | (c.b >> 3);
+}
+
+static void drawLedPickerScreen() {
+  displayClear();
+  displayDrawSmallText(8, 8, "LED");
+  displayDrawSmallText(42, 8, "Choisissez une couleur test");
+
+  for (int i = 0; i < 10; i++) {
+    int row = i / LED_GRID_COLS;
+    int col = i % LED_GRID_COLS;
+    int x = LED_GRID_X + col * 60;
+    int y = LED_GRID_Y + row * 32;
+    uint16_t c = ledColorTo565(LED_COLORS[i]);
+
+    displayFillRect(x, y, LED_CELL_W, LED_CELL_H, c);
+    displayDrawRect(x, y, LED_CELL_W, LED_CELL_H, COLOR_INFO_TEXT);
+    if (i == gLedSelectedColor) {
+      displayDrawRect(x + 1, y + 1, LED_CELL_W - 2, LED_CELL_H - 2, COLOR_INFO_TEXT);
+    }
+  }
+
+  displayDrawSmallText(8, LED_BRIGHT_Y - 14, "Luminosite LED");
+  drawMiniButton(LED_BRIGHT_MINUS_X, LED_BRIGHT_Y, "-");
+  char buf[16];
+  snprintf(buf, sizeof(buf), "%d", settingsGet().led_brightness);
+  displayDrawSmallText(LED_BRIGHT_VALUE_X, LED_BRIGHT_Y + 6, buf);
+  drawMiniButton(LED_BRIGHT_PLUS_X, LED_BRIGHT_Y, "+");
+
+  displayDrawSmallText(8, 150, "La LED s'eteint en quittant.");
+  displayDrawRect(INFO_BACK_X, INFO_BACK_Y, INFO_BACK_W, INFO_BACK_H, COLOR_INFO_TEXT);
+  drawFooterButton(INFO_BACK_X, INFO_BACK_Y, "Retour");
+}
+
+static void drawResetConfirmScreen() {
+  drawSettingsScreen();
+
+  displayFillRect(RESET_POPUP_X, RESET_POPUP_Y, RESET_POPUP_W, RESET_POPUP_H, 0x0000);
+  displayDrawRect(RESET_POPUP_X, RESET_POPUP_Y, RESET_POPUP_W, RESET_POPUP_H, COLOR_INFO_TEXT);
+  displayDrawSmallText(40, 82, "Confirmer le reset");
+  displayDrawSmallText(34, 96, "de tous les reglages ?");
+  displayDrawSmallText(34, 110, "Cette action est");
+  displayDrawSmallText(34, 124, "irreversible.");
+
+  displayDrawRect(RESET_CANCEL_X, RESET_BTN_Y, RESET_BTN_W, RESET_BTN_H, COLOR_INFO_TEXT);
+  displayDrawSmallText(56, RESET_BTN_Y + 8, "Annuler");
+
+  displayFillRect(RESET_CONFIRM_X, RESET_BTN_Y, RESET_BTN_W, RESET_BTN_H, COLOR_PLAY_BOX);
+  displayDrawRect(RESET_CONFIRM_X, RESET_BTN_Y, RESET_BTN_W, RESET_BTN_H, COLOR_INFO_TEXT);
+  displayDrawSmallTextColor(184, RESET_BTN_Y + 8, "Confirmer", COLOR_PLAY_TEXT, COLOR_PLAY_BOX);
+}
+
+static void drawCalibSaveScreen() {
+  displayClear();
+  displayDrawSmallText(42, 20, "Calibration terminee");
+  displayDrawSmallText(18, 40, "Sauvegarder ces reglages ?");
+
+  char buf[96];
+  snprintf(buf, sizeof(buf), "X:%d..%d", pendingTouchXMin, pendingTouchXMax);
+  displayDrawSmallText(18, 66, buf);
+  snprintf(buf, sizeof(buf), "Y:%d..%d", pendingTouchYMin, pendingTouchYMax);
+  displayDrawSmallText(18, 80, buf);
+  snprintf(buf, sizeof(buf), "Offset X:%d Y:%d", pendingTouchOffsetX, pendingTouchOffsetY);
+  displayDrawSmallText(18, 94, buf);
+
+  displayDrawSmallText(18, 122, "Annuler = garder");
+  displayDrawSmallText(18, 136, "l'ancien calibrage");
+
+  displayDrawRect(CAL_SAVE_CANCEL_X, CAL_SAVE_BTN_Y, CAL_SAVE_BTN_W, CAL_SAVE_BTN_H, COLOR_INFO_TEXT);
+  displayDrawSmallText(56, CAL_SAVE_BTN_Y + 8, "Annuler");
+
+  displayFillRect(CAL_SAVE_CONFIRM_X, CAL_SAVE_BTN_Y, CAL_SAVE_BTN_W, CAL_SAVE_BTN_H, COLOR_PLAY_BOX);
+  displayDrawRect(CAL_SAVE_CONFIRM_X, CAL_SAVE_BTN_Y, CAL_SAVE_BTN_W, CAL_SAVE_BTN_H, COLOR_INFO_TEXT);
+  displayDrawSmallTextColor(198, CAL_SAVE_BTN_Y + 8, "Sauver", COLOR_PLAY_TEXT, COLOR_PLAY_BOX);
+}
+
 // --------------------------------------------------
 // Hit tests
 // --------------------------------------------------
@@ -597,6 +729,8 @@ void launcherInit() {
   calWasTouching = false;
   gWifiBusy = false;
   gWifiStatusText = "";
+  gLedSelectedColor = 0;
+  ledManagerOff();
   gNeedsRedraw = true;
 }
 
@@ -622,36 +756,65 @@ void launcherUpdate() {
   // calibration par croix avec coordonnées mappées
   if (currentScreen == SCREEN_TOUCH_CALIB) {
     if (touching && !calWasTouching) {
-      calTouchX[calStep] = gTouchX;
-      calTouchY[calStep] = gTouchY;
+      calTouchX[calStep] = gTouchRawX;
+      calTouchY[calStep] = gTouchRawY;
 
-      Serial.printf("[CAL] point %d -> X=%d Y=%d\n", calStep, gTouchX, gTouchY);
+      Serial.printf("[CAL] point %d raw -> X=%d Y=%d\n", calStep, gTouchRawX, gTouchRawY);
 
       calStep++;
       delay(250);
 
       if (calStep >= CAL_POINT_COUNT) {
-        int dxMin = calTouchX[0] - 20;
-        int dxMax = calTouchX[1] - 300;
-        int dyMin = calTouchY[0] - 20;
-        int dyMax = calTouchY[2] - 220;
+        int xMin = (calTouchX[0] + calTouchX[3]) / 2;
+        int xMax = (calTouchX[1] + calTouchX[2]) / 2;
+        int yMin = (calTouchY[0] + calTouchY[1]) / 2;
+        int yMax = (calTouchY[2] + calTouchY[3]) / 2;
 
-        settingsGet().touch_x_min += dxMin * 8;
-        settingsGet().touch_x_max += dxMax * 8;
-        settingsGet().touch_y_min += dyMin * 8;
-        settingsGet().touch_y_max += dyMax * 8;
+        if (abs(xMax - xMin) < 400 || abs(yMax - yMin) < 400) {
+          Serial.println("[CAL] valeurs invalides, calibration ignoree");
+          currentScreen = SCREEN_SETTINGS;
+          calStep = 0;
+          gNeedsRedraw = true;
+          calWasTouching = touching;
+          return;
+        }
 
-        settingsGet().touch_x_min = clampValue(settingsGet().touch_x_min, 0, 4095);
-        settingsGet().touch_x_max = clampValue(settingsGet().touch_x_max, 0, 4095);
-        settingsGet().touch_y_min = clampValue(settingsGet().touch_y_min, 0, 4095);
-        settingsGet().touch_y_max = clampValue(settingsGet().touch_y_max, 0, 4095);
+        // Les croix sont à l'intérieur de l'écran (pas aux bords).
+        // On extrapole donc jusqu'aux vraies bornes écran.
+        const int sxLeft = calTargets[0].sx;   // 20
+        const int sxRight = calTargets[1].sx;  // 300
+        const int syTop = calTargets[0].sy;    // 20
+        const int syBottom = calTargets[2].sy; // 220
 
-        applyTouchCalibrationFromSettings();
-        saveSettingsNow();
+        long spanRawX = (long)xMax - (long)xMin;
+        long spanScreenX = (long)sxRight - (long)sxLeft;
+        long rawAtX0 = (long)xMin + ((0L - (long)sxLeft) * spanRawX) / spanScreenX;
+        long rawAtX319 = (long)xMin + ((319L - (long)sxLeft) * spanRawX) / spanScreenX;
 
-        Serial.println("[CAL] DONE");
+        long spanRawY = (long)yMax - (long)yMin;
+        long spanScreenY = (long)syBottom - (long)syTop;
+        long rawAtY239 = (long)yMin + ((239L - (long)syTop) * spanRawY) / spanScreenY;
+        long rawAtY0 = (long)yMin + ((0L - (long)syTop) * spanRawY) / spanScreenY;
 
-        currentScreen = SCREEN_SETTINGS;
+        pendingTouchXMin = clampValue((int)rawAtX0, 0, 4095);
+        pendingTouchXMax = clampValue((int)rawAtX319, 0, 4095);
+        pendingTouchYMin = clampValue((int)rawAtY239, 0, 4095);
+        pendingTouchYMax = clampValue((int)rawAtY0, 0, 4095);
+
+        int centerMappedX = map(calTouchX[4], pendingTouchXMin, pendingTouchXMax, 0, 319);
+        int centerMappedY = map(calTouchY[4], pendingTouchYMin, pendingTouchYMax, 239, 0);
+        pendingTouchOffsetX = clampValue(160 - centerMappedX, -80, 80);
+        pendingTouchOffsetY = clampValue(120 - centerMappedY, -80, 80);
+
+        Serial.printf("[CAL] pending xMin=%d xMax=%d yMin=%d yMax=%d offX=%d offY=%d\n",
+                      pendingTouchXMin,
+                      pendingTouchXMax,
+                      pendingTouchYMin,
+                      pendingTouchYMax,
+                      pendingTouchOffsetX,
+                      pendingTouchOffsetY);
+
+        currentScreen = SCREEN_TOUCH_CALIB_SAVE;
         calStep = 0;
       }
 
@@ -733,6 +896,8 @@ void launcherUpdate() {
         settingsGet().touch_x_max = 3800;
         settingsGet().touch_y_min = 200;
         settingsGet().touch_y_max = 3800;
+        settingsGet().touch_offset_x = 0;
+        settingsGet().touch_offset_y = 0;
         applyTouchCalibrationFromSettings();
         saveSettingsNow();
         gNeedsRedraw = true;
@@ -766,12 +931,14 @@ void launcherUpdate() {
           }
         }
       }
+      else if (pointInRect(gLastTouchX, gLastTouchY, 8, SET_ROW9_Y, 312, 14)) {
+        currentScreen = SCREEN_LED_PICKER;
+        ledManagerSetBrightness(settingsGet().led_brightness);
+        ledManagerSetColor(LED_COLORS[gLedSelectedColor].r, LED_COLORS[gLedSelectedColor].g, LED_COLORS[gLedSelectedColor].b);
+        gNeedsRedraw = true;
+      }
       else if (pointInRect(gLastTouchX, gLastTouchY, 8, SET_ROW10_Y, 312, 14)) {
-        settingsSetDefaults();
-        applyBrightnessNow();
-        audioSetVolume(settingsGet().volume);
-        applyTouchCalibrationFromSettings();
-        saveSettingsNow();
+        currentScreen = SCREEN_CONFIRM_RESET;
         gNeedsRedraw = true;
       }
       else if (pointInRect(gLastTouchX, gLastTouchY, INFO_BACK_X, INFO_BACK_Y, INFO_BACK_W, INFO_BACK_H)) {
@@ -799,8 +966,78 @@ void launcherUpdate() {
         gNeedsRedraw = true;
       }
     }
+    else if (currentScreen == SCREEN_LED_PICKER) {
+      bool handled = false;
+      for (int i = 0; i < 10; i++) {
+        int row = i / LED_GRID_COLS;
+        int col = i % LED_GRID_COLS;
+        int x = LED_GRID_X + col * 60;
+        int y = LED_GRID_Y + row * 32;
+        if (pointInRect(gLastTouchX, gLastTouchY, x, y, LED_CELL_W, LED_CELL_H)) {
+          gLedSelectedColor = i;
+          ledManagerSetBrightness(settingsGet().led_brightness);
+          ledManagerSetColor(LED_COLORS[i].r, LED_COLORS[i].g, LED_COLORS[i].b);
+          gNeedsRedraw = true;
+          handled = true;
+          break;
+        }
+      }
+
+      if (!handled && pointInRect(gLastTouchX, gLastTouchY, LED_BRIGHT_MINUS_X, LED_BRIGHT_Y, SET_BTN_W, SET_BTN_H)) {
+        settingsGet().led_brightness = clampValue(settingsGet().led_brightness - 5, 0, 100);
+        ledManagerSetBrightness(settingsGet().led_brightness);
+        saveSettingsNow();
+        gNeedsRedraw = true;
+      }
+      else if (!handled && pointInRect(gLastTouchX, gLastTouchY, LED_BRIGHT_PLUS_X, LED_BRIGHT_Y, SET_BTN_W, SET_BTN_H)) {
+        settingsGet().led_brightness = clampValue(settingsGet().led_brightness + 5, 0, 100);
+        ledManagerSetBrightness(settingsGet().led_brightness);
+        saveSettingsNow();
+        gNeedsRedraw = true;
+      }
+      else if (!handled && pointInRect(gLastTouchX, gLastTouchY, INFO_BACK_X, INFO_BACK_Y, INFO_BACK_W, INFO_BACK_H)) {
+        ledManagerOff();
+        currentScreen = SCREEN_SETTINGS;
+        gNeedsRedraw = true;
+      }
+    }
     else if (currentScreen == SCREEN_TOUCH_CALIB) {
       // aucun bouton retour pendant la calibration
+    }
+    else if (currentScreen == SCREEN_TOUCH_CALIB_SAVE) {
+      if (pointInRect(gLastTouchX, gLastTouchY, CAL_SAVE_CANCEL_X, CAL_SAVE_BTN_Y, CAL_SAVE_BTN_W, CAL_SAVE_BTN_H)) {
+        currentScreen = SCREEN_SETTINGS;
+        gNeedsRedraw = true;
+      } else if (pointInRect(gLastTouchX, gLastTouchY, CAL_SAVE_CONFIRM_X, CAL_SAVE_BTN_Y, CAL_SAVE_BTN_W, CAL_SAVE_BTN_H)) {
+        settingsGet().touch_x_min = pendingTouchXMin;
+        settingsGet().touch_x_max = pendingTouchXMax;
+        settingsGet().touch_y_min = pendingTouchYMin;
+        settingsGet().touch_y_max = pendingTouchYMax;
+        settingsGet().touch_offset_x = pendingTouchOffsetX;
+        settingsGet().touch_offset_y = pendingTouchOffsetY;
+
+        applyTouchCalibrationFromSettings();
+        saveSettingsNow();
+        Serial.println("[CAL] DONE + SAVED");
+
+        currentScreen = SCREEN_SETTINGS;
+        gNeedsRedraw = true;
+      }
+    }
+    else if (currentScreen == SCREEN_CONFIRM_RESET) {
+      if (pointInRect(gLastTouchX, gLastTouchY, RESET_CANCEL_X, RESET_BTN_Y, RESET_BTN_W, RESET_BTN_H)) {
+        currentScreen = SCREEN_SETTINGS;
+        gNeedsRedraw = true;
+      } else if (pointInRect(gLastTouchX, gLastTouchY, RESET_CONFIRM_X, RESET_BTN_Y, RESET_BTN_W, RESET_BTN_H)) {
+        settingsSetDefaults();
+        applyBrightnessNow();
+        audioSetVolume(settingsGet().volume);
+        applyTouchCalibrationFromSettings();
+        ledManagerSetBrightness(settingsGet().led_brightness);
+        saveSettingsNow();
+        currentScreen = SCREEN_SETTINGS;
+        gNeedsRedraw = true;
+      }
     }
   }
 
@@ -815,11 +1052,17 @@ void launcherRender() {
     drawHomeScreen();
   } else if (currentScreen == SCREEN_SETTINGS) {
     drawSettingsScreen();
+  } else if (currentScreen == SCREEN_LED_PICKER) {
+    drawLedPickerScreen();
   } else if (currentScreen == SCREEN_GAME_INFO) {
     drawGameInfoScreen();
   } else if (currentScreen == SCREEN_TOUCH_TEST) {
     drawTouchTestScreen();
-  } else {
+  } else if (currentScreen == SCREEN_TOUCH_CALIB) {
     drawTouchCalibScreen();
+  } else if (currentScreen == SCREEN_TOUCH_CALIB_SAVE) {
+    drawCalibSaveScreen();
+  } else {
+    drawResetConfirmScreen();
   }
 }
