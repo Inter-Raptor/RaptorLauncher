@@ -698,6 +698,12 @@ void launcherUpdate() {
         applyTouchCalibrationFromSettings();
         saveSettingsNow();
 
+        Serial.printf("[CAL] saved xMin=%d xMax=%d yMin=%d yMax=%d\n",
+                      settingsGet().touch_x_min,
+                      settingsGet().touch_x_max,
+                      settingsGet().touch_y_min,
+                      settingsGet().touch_y_max);
+
         Serial.println("[CAL] DONE");
 
         currentScreen = SCREEN_SETTINGS;
