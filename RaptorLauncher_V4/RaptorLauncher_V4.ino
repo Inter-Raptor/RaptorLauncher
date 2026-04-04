@@ -9,6 +9,7 @@
 #include "launcher_ui.h"
 #include "wifi_manager.h"
 #include "led_manager.h"
+#include "mcp23017_manager.h"
 
 void setup() {
   Serial.begin(115200);
@@ -29,6 +30,7 @@ void setup() {
   audioSetVolume(settingsGet().volume);
   ledManagerInit();
   ledManagerSetBrightness(settingsGet().led_brightness);
+  mcp23017Init();
 
   wifiManagerInit();
   
