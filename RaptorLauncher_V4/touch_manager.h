@@ -2,6 +2,8 @@
 
 extern int gTouchX;
 extern int gTouchY;
+extern int gTouchRawX;
+extern int gTouchRawY;
 extern bool gTouchPressed;
 
 extern int touch_x_min;
