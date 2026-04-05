@@ -56,6 +56,9 @@ public:
   void drawSmallText(int x, int y, const char* text, uint16_t fg = SDK_COLOR_TEXT, uint16_t bg = SDK_COLOR_BG);
   void drawCenteredText(int y, const char* text, uint16_t fg = SDK_COLOR_TEXT, uint16_t bg = SDK_COLOR_BG);
 
+  // Assets image
+  bool drawRaw565(const String& path, int x, int y, int width, int height);
+
   void playBeep(int freq = 1200, int durationMs = 80);
 
   // Armement securite: au boot du jeu, le prochain redemarrage revient sur launcher.
@@ -66,6 +69,7 @@ public:
   // Helpers de chemin lies au dossier de jeu.
   String gameRootPath() const;
   String saveJsonPath() const;
+  String assetPath(const String& filename) const;
 
   // Persistance JSON standard dans /games/<jeu>/sauv.json
   bool saveJson(const JsonDocument& doc);
@@ -84,6 +88,11 @@ public:
   // Capteur luminosite (si present sur la revision hardware)
   int readLightRaw() const;
   int readLightPercent() const;
+
+  // Batterie (optionnel, si ADC batterie configure)
+  bool hasBatterySense() const;
+  int batteryMilliVolts() const;
+  int batteryPercent() const;
 
   // Wi-Fi optionnel via /settings.json
   bool wifiConnectFromSettings();

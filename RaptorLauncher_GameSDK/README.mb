@@ -78,15 +78,18 @@ Si le fichier est absent/invalide, le SDK retombe sur les macros de `raptor_game
 - `isTouchPressed()/isTouchReleased()`
 - `touchX()/touchY()`
 - `clear/drawRect/fillRect/drawSmallText/drawCenteredText`
+- `drawRaw565(path, x, y, w, h)`
 - `playBeep(freq, ms)`
 - `requestReturnToLauncher()`
 - `saveJson/loadJson/saveJsonPath`
+- `assetPath(filename)`
 - `isSdReady()`
 - `loadLauncherSettings(doc)`
 - `validateGameMeta(path, errorOut)`
 - `sdkHealthReport()`
 - `setLedRgb(r,g,b)` / `ledOff()`
 - `readLightRaw()` / `readLightPercent()`
+- `hasBatterySense()` / `batteryMilliVolts()` / `batteryPercent()`
 - `wifiConnectFromSettings()` / `wifiIsConnected()` / `wifiDisconnect()`
 
 ---

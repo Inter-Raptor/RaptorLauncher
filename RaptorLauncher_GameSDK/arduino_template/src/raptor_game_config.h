@@ -71,3 +71,9 @@
 
 // Wi-Fi optionnel
 #define SDK_WIFI_CONNECT_TIMEOUT_MS 12000
+
+// Batterie (optionnel). Mettre -1 si non cable / inconnu
+#define SDK_PIN_BATTERY_ADC -1
+#define SDK_BATTERY_ADC_DIVIDER 2.0f
+#define SDK_BATTERY_MV_MIN 3300
+#define SDK_BATTERY_MV_MAX 4200
