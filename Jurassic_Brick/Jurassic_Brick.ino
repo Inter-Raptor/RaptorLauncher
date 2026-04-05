@@ -320,17 +320,19 @@ struct DisplayProfile {
   bool invert;
   bool swapBytes;
   bool swapRB;
+  bool brownFix;
 };
 
 static const DisplayProfile DISPLAY_PROFILES[] = {
-  { "P0 inv1 swap0 rb0", true,  false, false },
-  { "P1 inv0 swap0 rb0", false, false, false },
-  { "P2 inv1 swap1 rb0", true,  true,  false },
-  { "P3 inv0 swap1 rb0", false, true,  false },
-  { "P4 inv1 swap0 rb1", true,  false, true  },
-  { "P5 inv0 swap0 rb1", false, false, true  },
-  { "P6 inv1 swap1 rb1", true,  true,  true  },
-  { "P7 inv0 swap1 rb1", false, true,  true  },
+  { "P0 inv1 swap0 rb0",      true,  false, false, false },
+  { "P1 inv0 swap0 rb0",      false, false, false, false },
+  { "P2 inv1 swap1 rb0",      true,  true,  false, false },
+  { "P3 inv0 swap1 rb0",      false, true,  false, false },
+  { "P4 inv1 swap0 rb1",      true,  false, true,  false },
+  { "P5 inv0 swap0 rb1",      false, false, true,  false },
+  { "P6 inv1 swap1 rb1",      true,  true,  true,  false },
+  { "P7 inv0 swap1 rb1",      false, true,  true,  false },
+  { "P8 inv0 swap1 rb0+bfix", false, true,  false, true  },
 };
 static constexpr uint8_t DISPLAY_PROFILE_COUNT =
   (uint8_t)(sizeof(DISPLAY_PROFILES) / sizeof(DISPLAY_PROFILES[0]));
@@ -357,6 +359,29 @@ static inline uint16_t swapRB565(uint16_t c) {
 uint16_t applyDisplayPixelMap(uint16_t c) {
   const DisplayProfile& p = DISPLAY_PROFILES[gDisplayProfile];
   if (p.swapRB) c = swapRB565(c);
+  if (p.brownFix) {
+    uint8_t r = r5(c);
+    uint8_t g = g6(c);
+    uint8_t b = b5(c);
+
+    // Corrige les bruns qui virent rose/violet sur certains panels.
+    if (r > 10 && g > 6 && b > 6 && r > g) {
+      // Réduit la composante bleue (responsable du rose).
+      b = (uint8_t)(b * 45 / 100);
+      // Redonne un peu de vert pour revenir vers brun.
+      g = (uint8_t)((g * 115) / 100);
+      if (g > 63) g = 63;
+    }
+
+    // Éclaircit légèrement les bruns clairs pour éviter qu'ils
+    // tombent en brun foncé.
+    if (r > 12 && g > 10 && b < 8) {
+      r = (uint8_t)min(31, (int)r + 2);
+      g = (uint8_t)min(63, (int)g + 4);
+    }
+
+    c = (uint16_t)((r << 11) | (g << 5) | b);
+  }
   return c;
 }
 
@@ -1180,7 +1205,9 @@ void setup() {
 
   tft.init();
   tft.setRotation(3);
-  applyDisplayProfile(0);
+  // Profil par défaut proche du rendu attendu (retour utilisateur: P3)
+  // avec correctif brun activé.
+  applyDisplayProfile(8);
   tft.fillScreen(C_BLACK);
   Serial.println("[DISPLAY] Boot calibration: tap top-left (0..80,0..40) to switch profile.");
 
