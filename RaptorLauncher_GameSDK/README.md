@@ -1,26 +1,26 @@
 # RaptorLauncher Game SDK PRO (Arduino IDE)
 
-Oui: ce kit est pensé pour être un **starter kit pro**, pas juste un exemple.
-Il intègre les points critiques que tu as demandés:
+Ce dépôt vise un principe simple : **API publique, documentation et implémentation doivent rester alignées**.
 
-1. **Retour launcher armé dès le démarrage du jeu** (boot safety).
-2. **Sauvegarde standard dans `sauv.json`** dans le même dossier que le jeu.
-3. **Contraintes de `meta.json` claires** (icône et titre avec tailles imposées).
-4. **Pins/pilotes/libs préconfigurés** pour réduire au maximum la friction.
-5. **Support tactile exposé dans l'API** (position + états press/release).
+La **source de vérité** est :
+- `arduino_template/src/raptor_game_sdk.h`
+
+Si une fonction n'est pas déclarée dans ce fichier, elle ne doit pas être présentée comme disponible.
 
 ---
 
 ## 1) Structure du kit
 
 - `docs/ASSETS_AUDIO_WIFI_POWER.md`
-  - guide complet assets/audio/wifi/luminosite/batterie/sd
+  - guide complet assets/audio/wifi/luminosité/batterie/sd
 - `docs/API_PUBLIC.md`
-  - liste exacte des fonctions réellement exposées dans le SDK
+  - liste exacte des fonctions exposées + distinction core/optionnel
 - `arduino_template/`
-  - `arduino_template.ino` : jeu exemple prêt à compiler
+  - `arduino_template.ino` : template jeu prêt à compiler
   - `src/raptor_game_config.h` : pins + conventions meta/save
-  - `src/raptor_game_sdk.h/.cpp` : API simplifiée
+  - `src/raptor_game_sdk.h/.cpp` : API publique et implémentation
+- `examples/SDK_TestLab/`
+  - sketch de validation officiel du SDK (compile = cohérence API)
 - `sd_template/games/MonJeu/`
   - `meta.json` modèle compatible launcher
   - `assets/` pour tes ressources
@@ -31,7 +31,66 @@ Il intègre les points critiques que tu as demandés:
 
 ---
 
-## 2) Règles PRO déjà prévues
+## 2) Niveaux de support
+
+### SDK de base (disponible)
+- affichage simple (`clear`, `drawRect`, `fillRect`, texte)
+- boutons (MCP23017)
+- tactile (`touchX/touchY`, pressed/released)
+- `drawRaw565(...)`
+- `playBeep(...)`
+- JSON save/load (`saveJson/loadJson`)
+- LED RGB
+- capteur luminosité
+- batterie (si ADC configuré)
+- Wi‑Fi via `settings.json`
+- boot safety / retour launcher
+
+### SDK optionnel selon build
+- `drawBmp(...)`
+- `drawPng(...)`
+- `playWav(...)`
+- `playMp3(...)`
+
+Ces appels existent toujours dans l'API publique, mais leur réussite dépend des capacités compilées.
+
+---
+
+## 3) Fonctions de capacité (à vérifier avant usage optionnel)
+
+- `hasBmpSupport()`
+- `hasPngSupport()`
+- `hasWavSupport()`
+- `hasMp3Support()`
+
+Exemple recommandé :
+
+```cpp
+if (sdk.hasPngSupport()) {
+  (void)sdk.drawPng(sdk.assetPath("overlay.png"), 0, 0);
+}
+```
+
+---
+
+## 4) Tableau de support réel
+
+| Fonction | État |
+|---|---|
+| `drawRaw565` | OK |
+| `drawBmp` | OK si SD + support BMP LovyanGFX |
+| `drawPng` | Optionnel (retourne `false` si décodeur PNG absent) |
+| `playBeep` | OK |
+| `playWav` | Optionnel (retourne `false` sans audio avancé) |
+| `playMp3` | Optionnel (retourne `false` sans audio avancé) |
+| `saveJson/loadJson` | OK |
+| `wifi*` | OK (si paramètres présents) |
+| `battery*` | OK (si pin ADC batterie configurée) |
+| `touch*` | OK |
+
+---
+
+## 5) Règles PRO prévues
 
 ### A. Boot safety launcher
 Au `sdk.begin()`, le SDK appelle automatiquement `armReturnToLauncherOnNextBoot()`.
@@ -63,46 +122,28 @@ Si le fichier est absent/invalide, le SDK retombe sur les macros de `raptor_game
 
 ---
 
-## 3) Installation rapide
+## 6) Installation rapide
 
 1. Installer la carte **ESP32 by Espressif**.
 2. Installer les libs de `docs/libraries_arduino_ide.txt`.
 3. Copier `arduino_template/` dans ton dossier de sketch.
-4. Mettre le bon nom de dossier jeu dans `SDK_GAME_FOLDER_NAME` (`src/raptor_game_config.h`).
-5. Compiler/flash.
+4. Garder la structure **officielle unique** suivante :
+
+```text
+MonJeu/
+├── MonJeu.ino
+└── src/
+    ├── raptor_game_sdk.h
+    ├── raptor_game_sdk.cpp
+    └── raptor_game_config.h
+```
+
+5. Mettre le bon nom de dossier jeu dans `SDK_GAME_FOLDER_NAME` (`src/raptor_game_config.h`).
+6. Compiler/flash.
 
 ---
 
-## 4) API utile
-
-- `begin()` : init hardware + armement retour launcher
-- `updateInputs()` : refresh boutons + tactile
-- `isHeld/isPressed/isReleased`
-- `isTouchHeld()` ou alias `isTouching()`
-- `isTouchPressed()/isTouchReleased()`
-- `touchX()/touchY()`
-- `clear/drawRect/fillRect/drawSmallText/drawCenteredText`
-- `drawRaw565(path, x, y, w, h)`
-- `drawBmp(path, x, y)`
-- `drawPng(path, x, y)`
-- `playBeep(freq, ms)`
-- `playWav(path)` / `playMp3(path)` (si libs audio avancées installées)
-- `requestReturnToLauncher()`
-- `saveJson/loadJson/saveJsonPath`
-- `assetPath(filename)`
-- `isSdReady()`
-- `loadLauncherSettings(doc)`
-- `validateGameMeta(path, errorOut)`
-- `sdkHealthReport()`
-- `setLedRgb(r,g,b)` / `ledOff()`
-- `readLightRaw()` / `readLightPercent()`
-- `hasBatterySense()` / `batteryMilliVolts()` / `batteryPercent()`
-- `hasPngDecoder()` / `hasAdvancedAudio()`
-- `wifiConnectFromSettings()` / `wifiIsConnected()` / `wifiDisconnect()`
-
----
-
-## 5) Exemple meta.json (obligatoire)
+## 7) Exemple meta.json (obligatoire)
 
 ```json
 {
@@ -123,7 +164,7 @@ Si le fichier est absent/invalide, le SDK retombe sur les macros de `raptor_game
 
 ---
 
-## 6) Checklist avant test
+## 8) Checklist avant test
 
 - [ ] dossier SD: `/games/MonJeu/`
 - [ ] `meta.json` présent
@@ -135,15 +176,6 @@ Si le fichier est absent/invalide, le SDK retombe sur les macros de `raptor_game
 - [ ] test bouton START (retour launcher)
 - [ ] test tactile (coordonnées et déplacement)
 - [ ] test écriture `sauv.json`
+- [ ] test exemple `examples/SDK_TestLab`
 
 Ce kit te donne une base solide pour créer vite, proprement, et garder la compatibilité launcher.
-
-
-> Note: `drawBmp/drawPng/playWav/playMp3` sont exposes dans le SDK.
-> Leur execution depend des capacites compilees (`hasPngDecoder()`, `hasAdvancedAudio()`).
-> Le template montre aussi leur usage conditionnel.
-
-
-### Batterie
-Par defaut `SDK_PIN_BATTERY_ADC = -1` (desactive).
-Renseigne la vraie pin ADC de ta revision carte dans `raptor_game_config.h` pour activer `batteryMilliVolts()` et `batteryPercent()`.
