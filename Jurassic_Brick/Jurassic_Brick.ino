@@ -643,16 +643,39 @@ const uint16_t* currentBg() {
   }
 }
 
+uint16_t currentBgKey() {
+  uint8_t bg = bbGetLevelBg(gLevel);
+  switch (bg) {
+    case BG_FOND_JEUX_H: return fond_jeuxh_KEY;
+    case BG_FOND_JEUX_D: return fond_jeuxd_KEY;
+    case BG_FOND_JEUX:
+    default: return fond_jeux_KEY;
+  }
+}
+
 void drawFullBackground() {
   const uint16_t* bg = currentBg();
+  const uint16_t bgKey = currentBgKey();
   static uint16_t line[SCREEN_W];
+  static uint16_t prevLine[SCREEN_W];
 
   for (int y = 0; y < SCREEN_H; y++) {
     for (int x = 0; x < SCREEN_W; x++) {
-      line[x] = pgm_read_word(&bg[y * SCREEN_W + x]);
-      line[x] = applyDisplayPixelMap(line[x]);
+      uint16_t p = pgm_read_word(&bg[y * SCREEN_W + x]);
+
+      // Les fonds ne sont pas censés utiliser de transparence.
+      // Si le convertisseur a injecté la key (0xF81F), on reconstruit
+      // avec les voisins pour éviter les artéfacts magenta/couleur.
+      if (p == bgKey) {
+        if (x > 0) p = line[x - 1];
+        else if (y > 0) p = prevLine[x];
+        else p = C_BLACK;
+      }
+
+      line[x] = applyDisplayPixelMap(p);
     }
     tft.pushImage(0, y, SCREEN_W, 1, line);
+    memcpy(prevLine, line, sizeof(line));
   }
 }
 
@@ -665,13 +688,23 @@ void restoreBgRect(int x, int y, int w, int h) {
   if (w <= 0 || h <= 0) return;
 
   const uint16_t* bg = currentBg();
+  const uint16_t bgKey = currentBgKey();
   static uint16_t line[SCREEN_W];
 
   for (int yy = 0; yy < h; yy++) {
     int sy = y + yy;
     for (int xx = 0; xx < w; xx++) {
-      line[xx] = pgm_read_word(&bg[sy * SCREEN_W + (x + xx)]);
-      line[xx] = applyDisplayPixelMap(line[xx]);
+      uint16_t p = pgm_read_word(&bg[sy * SCREEN_W + (x + xx)]);
+      if (p == bgKey) {
+        if (xx > 0) p = line[xx - 1];
+        else if ((x + xx) > 0) {
+          p = pgm_read_word(&bg[sy * SCREEN_W + (x + xx - 1)]);
+          if (p == bgKey) p = C_BLACK;
+        } else {
+          p = C_BLACK;
+        }
+      }
+      line[xx] = applyDisplayPixelMap(p);
     }
     tft.pushImage(x, sy, w, 1, line);
   }
