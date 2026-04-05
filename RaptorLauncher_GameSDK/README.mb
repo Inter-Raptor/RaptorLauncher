@@ -7,6 +7,7 @@ Il intègre les points critiques que tu as demandés:
 2. **Sauvegarde standard dans `sauv.json`** dans le même dossier que le jeu.
 3. **Contraintes de `meta.json` claires** (icône et titre avec tailles imposées).
 4. **Pins/pilotes/libs préconfigurés** pour réduire au maximum la friction.
+5. **Support tactile exposé dans l'API** (position + états press/release).
 
 ---
 
@@ -62,8 +63,10 @@ Par convention de ce kit:
 ## 4) API utile
 
 - `begin()` : init hardware + armement retour launcher
-- `updateInputs()` : refresh boutons
+- `updateInputs()` : refresh boutons + tactile
 - `isHeld/isPressed/isReleased`
+- `isTouchHeld/isTouchPressed/isTouchReleased`
+- `touchX()/touchY()`
 - `clear/drawRect/fillRect/drawSmallText/drawCenteredText`
 - `playBeep(freq, ms)`
 - `requestReturnToLauncher()`
@@ -101,6 +104,7 @@ Par convention de ce kit:
 - [ ] `title.raw` en **320x240**
 - [ ] nom de dossier aligné avec `SDK_GAME_FOLDER_NAME`
 - [ ] test bouton START (retour launcher)
+- [ ] test tactile (coordonnées et déplacement)
 - [ ] test écriture `sauv.json`
 
 Ce kit te donne une base solide pour créer vite, proprement, et garder la compatibilité launcher.

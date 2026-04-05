@@ -123,17 +123,36 @@ void RaptorGameSDK::updateInputs() {
     input.released[i] = false;
   }
 
-  if (!mcpReady) return;
+  bool prevTouch = touchHeld;
+  touchHeld = touch.touched();
+  touchPressedEdge = (!prevTouch && touchHeld);
+  touchReleasedEdge = (prevTouch && !touchHeld);
 
-  uint16_t gpioAB = mcp.readGPIOAB();
-  uint8_t gpioA = gpioAB & 0xFF;
-  uint8_t gpioB = (gpioAB >> 8) & 0xFF;
-  mapButtonsFromMcp(gpioA, gpioB);
+  if (touchHeld) {
+    TS_Point p = touch.getPoint();
+    int x = map(p.x, SDK_TOUCH_X_MIN, SDK_TOUCH_X_MAX, 0, SDK_SCREEN_WIDTH - 1);
+    int y = map(p.y, SDK_TOUCH_Y_MIN, SDK_TOUCH_Y_MAX, SDK_SCREEN_HEIGHT - 1, 0);
+    touchPx = constrain(x, 0, SDK_SCREEN_WIDTH - 1);
+    touchPy = constrain(y, 0, SDK_SCREEN_HEIGHT - 1);
+  }
+
+  if (mcpReady) {
+    uint16_t gpioAB = mcp.readGPIOAB();
+    uint8_t gpioA = gpioAB & 0xFF;
+    uint8_t gpioB = (gpioAB >> 8) & 0xFF;
+    mapButtonsFromMcp(gpioA, gpioB);
+  }
 }
 
 bool RaptorGameSDK::isHeld(GameButton b) const { return input.held[b]; }
 bool RaptorGameSDK::isPressed(GameButton b) const { return input.pressed[b]; }
 bool RaptorGameSDK::isReleased(GameButton b) const { return input.released[b]; }
+
+bool RaptorGameSDK::isTouchHeld() const { return touchHeld; }
+bool RaptorGameSDK::isTouchPressed() const { return touchPressedEdge; }
+bool RaptorGameSDK::isTouchReleased() const { return touchReleasedEdge; }
+int RaptorGameSDK::touchX() const { return touchPx; }
+int RaptorGameSDK::touchY() const { return touchPy; }
 
 int RaptorGameSDK::width() const { return gLcd.width(); }
 int RaptorGameSDK::height() const { return gLcd.height(); }

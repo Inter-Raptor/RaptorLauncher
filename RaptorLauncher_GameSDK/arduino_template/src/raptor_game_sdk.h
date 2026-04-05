@@ -38,6 +38,13 @@ public:
   bool isPressed(GameButton b) const;
   bool isReleased(GameButton b) const;
 
+  // Tactile
+  bool isTouchHeld() const;
+  bool isTouchPressed() const;
+  bool isTouchReleased() const;
+  int touchX() const;
+  int touchY() const;
+
   int width() const;
   int height() const;
 
@@ -69,6 +76,12 @@ private:
 
   InputState input{};
   bool mcpReady = false;
+
+  bool touchHeld = false;
+  bool touchPressedEdge = false;
+  bool touchReleasedEdge = false;
+  int touchPx = 0;
+  int touchPy = 0;
 
   SPIClass sdSPI = SPIClass(HSPI);
   XPT2046_Touchscreen touch = XPT2046_Touchscreen(SDK_PIN_TOUCH_CS, SDK_PIN_TOUCH_IRQ);
