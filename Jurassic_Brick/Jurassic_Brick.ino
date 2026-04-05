@@ -6,6 +6,8 @@
 #include <ArduinoJson.h>
 #include <LovyanGFX.hpp>
 #include <XPT2046_Touchscreen.h>
+#include <esp_ota_ops.h>
+#include <esp_partition.h>
 #include <math.h>
 #include <string.h>
 
@@ -26,6 +28,9 @@
 
 #include "brick_breaker_levels.h"
 #include "brick_breaker_colors.h"
+
+// Forward declaration for Arduino auto-generated prototypes.
+enum SfxId : uint8_t;
 
 // =====================================================
 // Pins RaptorLauncher V4
@@ -93,7 +98,7 @@ static constexpr int START_HEARTS = 3;
 
 static constexpr uint32_t FRAME_MS = 16;      // ~60 FPS
 static constexpr uint32_t LED_FLASH_MS = 35;
-static constexpr char SAVE_FILE[] = "/sauv.json";
+static constexpr char SAVE_FILE[] = "/games/JurassicBrickBreaker/sauv.json";
 
 // =====================================================
 // Langues
@@ -211,8 +216,8 @@ public:
       cfg.offset_y        = 0;
       cfg.offset_rotation = 0;
       cfg.readable        = true;
-      cfg.invert          = true;
-      cfg.rgb_order       = false;
+      cfg.invert          = false;
+      cfg.rgb_order       = true;
       cfg.dlen_16bit      = false;
       cfg.bus_shared      = false;
       _panel.config(cfg);
@@ -323,16 +328,21 @@ uint16_t tint565(uint16_t src, uint16_t tint) {
   uint8_t sg = g6(src);
   uint8_t sb = b5(src);
 
-  uint8_t lum = (uint8_t)((sr * 2 + sg + sb * 2) / 2);
-  if (lum > 63) lum = 63;
+  // Luminance plus fidèle pour éviter les dérives de teinte
+  // (ex: brun qui vire rose / jaune).
+  uint8_t sr8 = (uint8_t)((sr * 255) / 31);
+  uint8_t sg8 = (uint8_t)((sg * 255) / 63);
+  uint8_t sb8 = (uint8_t)((sb * 255) / 31);
+
+  uint8_t lum8 = (uint8_t)((30 * sr8 + 59 * sg8 + 11 * sb8) / 100);
 
   uint8_t tr = r5(tint);
   uint8_t tg = g6(tint);
   uint8_t tb = b5(tint);
 
-  uint8_t rr = (tr * lum) / 63;
-  uint8_t gg = (tg * lum) / 63;
-  uint8_t bb = (tb * lum) / 63;
+  uint8_t rr = (uint8_t)((tr * lum8) / 255);
+  uint8_t gg = (uint8_t)((tg * lum8) / 255);
+  uint8_t bb = (uint8_t)((tb * lum8) / 255);
 
   return rgb565(rr, gg, bb);
 }
@@ -377,9 +387,26 @@ void ledFlash565(uint16_t c) {
 // Retour launcher
 // =====================================================
 void requestLauncherOnNextBoot() {
+  // Compat ancienne logique launcher (flag bool).
   prefs.begin("raptor", false);
   prefs.putBool("boot_launcher", true);
   prefs.end();
+
+  // Compat RaptorLauncher V4 OTA: retourne explicitement vers la partition launcher.
+  prefs.begin("raptor_boot", false);
+  String launcherLabel = prefs.getString("launcher", "");
+  prefs.end();
+
+  if (launcherLabel.length() > 0) {
+    const esp_partition_t* launcher = esp_partition_find_first(
+      ESP_PARTITION_TYPE_APP,
+      ESP_PARTITION_SUBTYPE_ANY,
+      launcherLabel.c_str()
+    );
+    if (launcher) {
+      esp_ota_set_boot_partition(launcher);
+    }
+  }
 }
 
 void leaveToLauncher() {
@@ -574,12 +601,11 @@ void restoreBgRect(int x, int y, int w, int h) {
 void drawSpriteTransparentTinted(
   int x, int y,
   const uint16_t* data, int w, int h,
+  uint16_t key,
   uint16_t tintColor,
   bool useTint
 ) {
   if (x >= SCREEN_W || y >= SCREEN_H || x + w <= 0 || y + h <= 0) return;
-
-  const uint16_t key = pgm_read_word(&data[w - 1]);
 
   static uint16_t rowBuffer[64];
   if (w > 64) return;
@@ -621,8 +647,8 @@ void drawSpriteTransparentTinted(
   }
 }
 
-void drawSpriteTransparentRaw(int x, int y, const uint16_t* data, int w, int h) {
-  drawSpriteTransparentTinted(x, y, data, w, h, 0, false);
+void drawSpriteTransparentRaw(int x, int y, const uint16_t* data, int w, int h, uint16_t key) {
+  drawSpriteTransparentTinted(x, y, data, w, h, key, 0, false);
 }
 
 // =====================================================
@@ -634,7 +660,7 @@ void drawLivesHud() {
                 HUD_LIVES_Y2 - HUD_LIVES_Y1 + 1);
 
   for (int i = 0; i < gHearts; i++) {
-    drawSpriteTransparentRaw(2 + i * 22, 2, coeur, coeur_W, coeur_H);
+    drawSpriteTransparentRaw(2 + i * 22, 2, coeur, coeur_W, coeur_H, coeur_KEY);
   }
 }
 
@@ -643,10 +669,18 @@ void drawScoreHud() {
                 HUD_SCORE_X2 - HUD_SCORE_X1 + 1,
                 HUD_SCORE_Y2 - HUD_SCORE_Y1 + 1);
 
-  tft.setTextSize(1);
-  tft.setTextColor(C_WHITE, C_BLACK);
-  tft.setCursor(HUD_SCORE_X1, 8);
-  tft.printf("%s %lu", txt(TXT_SCORE, gSettings.language), (unsigned long)gScore);
+  // Texte HUD transparent (pas de fond noir) + score plus grand.
+  tft.setTextSize(2);
+  tft.setTextColor(C_WHITE);
+
+  char scoreBuf[16];
+  snprintf(scoreBuf, sizeof(scoreBuf), "%lu", (unsigned long)gScore);
+
+  int textW = tft.textWidth(scoreBuf);
+  int x = HUD_SCORE_X2 - textW;
+  if (x < HUD_SCORE_X1) x = HUD_SCORE_X1;
+  tft.setCursor(x, 5);
+  tft.print(scoreBuf);
 }
 
 void drawHud() {
@@ -678,16 +712,16 @@ void drawBrick(uint8_t row, uint8_t col) {
   uint16_t tint = bbGetBrickColor(gLevel, row, col);
 
   if (b.type == BRICK_BASE) {
-    drawSpriteTransparentTinted(x, y, briquebase, briquebase_W, briquebase_H, tint, true);
+    drawSpriteTransparentTinted(x, y, briquebase, briquebase_W, briquebase_H, briquebase_KEY, tint, true);
   } else if (b.type == BRICK_BONUS) {
-    drawSpriteTransparentTinted(x, y, briquebonus, briquebonus_W, briquebonus_H, tint, true);
+    drawSpriteTransparentTinted(x, y, briquebonus, briquebonus_W, briquebonus_H, briquebonus_KEY, tint, true);
   } else if (b.type == BRICK_HARD) {
     if (b.hp >= 3) {
-      drawSpriteTransparentTinted(x, y, briquedur, briquedur_W, briquedur_H, tint, true);
+      drawSpriteTransparentTinted(x, y, briquedur, briquedur_W, briquedur_H, briquedur_KEY, tint, true);
     } else if (b.hp == 2) {
-      drawSpriteTransparentTinted(x, y, briquetaper1fois, briquetaper1fois_W, briquetaper1fois_H, tint, true);
+      drawSpriteTransparentTinted(x, y, briquetaper1fois, briquetaper1fois_W, briquetaper1fois_H, briquetaper1fois_KEY, tint, true);
     } else {
-      drawSpriteTransparentTinted(x, y, briquebase, briquebase_W, briquebase_H, tint, true);
+      drawSpriteTransparentTinted(x, y, briquebase, briquebase_W, briquebase_H, briquebase_KEY, tint, true);
     }
   }
 }
@@ -707,6 +741,7 @@ void drawPaddle() {
   drawSpriteTransparentTinted(
     gPaddleX, PADDLE_Y,
     platforme, platforme_W, platforme_H,
+    platforme_KEY,
     bbGetPaddleColor(gLevel), true
   );
 }
@@ -715,6 +750,7 @@ void drawBall() {
   drawSpriteTransparentTinted(
     (int)gBallX, (int)gBallY,
     bille, bille_W, bille_H,
+    bille_KEY,
     bbGetBallColor(gLevel), true
   );
 }
@@ -1084,8 +1120,13 @@ void updateScoreEntry() {
 void setup() {
   Serial.begin(115200);
 
+  // Si le jeu démarre directement après un reboot "boot game",
+  // on force le prochain boot sur le launcher.
+  requestLauncherOnNextBoot();
+
   tft.init();
   tft.setRotation(3);
+  tft.setSwapBytes(false);
   tft.fillScreen(C_BLACK);
 
   touch.begin();
