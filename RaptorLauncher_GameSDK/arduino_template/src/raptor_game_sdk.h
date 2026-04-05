@@ -59,6 +59,7 @@ public:
   // Assets image
   bool drawRaw565(const String& path, int x, int y, int width, int height);
   bool drawBmp(const String& path, int x = 0, int y = 0);
+  bool drawJpg(const String& path, int x = 0, int y = 0);
   bool drawPng(const String& path, int x = 0, int y = 0);
 
   void playBeep(int freq = 1200, int durationMs = 80);
@@ -100,6 +101,7 @@ public:
 
   // Capacites optionnelles (selon build/libs disponibles)
   bool hasBmpSupport() const;
+  bool hasJpgSupport() const;
   bool hasPngSupport() const;
   bool hasWavSupport() const;
   bool hasMp3Support() const;

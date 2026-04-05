@@ -31,6 +31,9 @@ void loop() {
   if (sdk.hasBmpSupport()) {
     (void)sdk.drawBmp(sdk.assetPath("splash.bmp"), 0, 0);
   }
+  if (sdk.hasJpgSupport()) {
+    (void)sdk.drawJpg(sdk.assetPath("photo.jpg"), 0, 0);
+  }
   if (sdk.hasPngSupport()) {
     (void)sdk.drawPng(sdk.assetPath("overlay.png"), 0, 0);
   }
@@ -47,8 +50,9 @@ void loop() {
   snprintf(line, sizeof(line), "SD:%s WiFi:%s", sdk.isSdReady() ? "OK" : "KO", sdk.wifiIsConnected() ? "ON" : "OFF");
   sdk.drawSmallText(8, 88, line);
 
-  snprintf(line, sizeof(line), "BMP:%s PNG:%s WAV:%s MP3:%s",
+  snprintf(line, sizeof(line), "BMP:%s JPG:%s PNG:%s WAV:%s MP3:%s",
            sdk.hasBmpSupport() ? "Y" : "N",
+           sdk.hasJpgSupport() ? "Y" : "N",
            sdk.hasPngSupport() ? "Y" : "N",
            sdk.hasWavSupport() ? "Y" : "N",
            sdk.hasMp3Support() ? "Y" : "N");

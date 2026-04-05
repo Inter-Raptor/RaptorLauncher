@@ -2,7 +2,7 @@
 #include <Preferences.h>
 #include <esp_partition.h>
 #include <esp_ota_ops.h>
-#if __has_include(<ESP8266Audio.h>) && __has_include(<AudioFileSourceSD.h>) && __has_include(<AudioGeneratorWAV.h>) && __has_include(<AudioGeneratorMP3.h>) && __has_include(<AudioOutputI2SNoDAC.h>)
+#if __has_include(<AudioFileSourceSD.h>) && __has_include(<AudioGeneratorWAV.h>) && __has_include(<AudioGeneratorMP3.h>) && __has_include(<AudioOutputI2SNoDAC.h>)
   #include <AudioFileSourceSD.h>
   #include <AudioGeneratorWAV.h>
   #include <AudioGeneratorMP3.h>
@@ -272,9 +272,15 @@ bool RaptorGameSDK::drawBmp(const String& path, int x, int y) {
   File f = SD.open(path, FILE_READ);
   if (!f) return false;
   f.close();
-  // LovyanGFX: drawBmpFile(fs, path, x, y)
-  gLcd.drawBmpFile(SD, path.c_str(), x, y);
-  return true;
+  return gLcd.drawBmpFile(SD, path.c_str(), x, y);
+}
+
+bool RaptorGameSDK::drawJpg(const String& path, int x, int y) {
+  if (!sdReady) return false;
+  File f = SD.open(path, FILE_READ);
+  if (!f) return false;
+  f.close();
+  return gLcd.drawJpgFile(SD, path.c_str(), x, y);
 }
 
 bool RaptorGameSDK::drawPng(const String& path, int x, int y) {
@@ -282,14 +288,7 @@ bool RaptorGameSDK::drawPng(const String& path, int x, int y) {
   File f = SD.open(path, FILE_READ);
   if (!f) return false;
   f.close();
-  // Selon version LovyanGFX, drawPngFile peut ne pas etre dispo.
-  #ifdef LGFX_HAS_PNG_DECODER
-    gLcd.drawPngFile(SD, path.c_str(), x, y);
-    return true;
-  #else
-    (void)x; (void)y;
-    return false;
-  #endif
+  return gLcd.drawPngFile(SD, path.c_str(), x, y);
 }
 
 bool RaptorGameSDK::playWav(const String& path) {
@@ -504,8 +503,12 @@ bool RaptorGameSDK::hasBmpSupport() const {
   return true;
 }
 
+bool RaptorGameSDK::hasJpgSupport() const {
+  return true;
+}
+
 bool RaptorGameSDK::hasPngSupport() const {
-  return hasPngDecoder();
+  return true;
 }
 
 bool RaptorGameSDK::hasWavSupport() const {
@@ -517,11 +520,7 @@ bool RaptorGameSDK::hasMp3Support() const {
 }
 
 bool RaptorGameSDK::hasPngDecoder() const {
-  #ifdef LGFX_HAS_PNG_DECODER
-    return true;
-  #else
-    return false;
-  #endif
+  return hasPngSupport();
 }
 
 bool RaptorGameSDK::hasAdvancedAudio() const {

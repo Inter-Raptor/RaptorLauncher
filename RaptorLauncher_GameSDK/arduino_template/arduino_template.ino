@@ -32,7 +32,7 @@ void gameInit() {
   sdk.drawSmallText(10, 50, "A: +1 point  B: reset");
   sdk.drawSmallText(10, 62, "SELECT: sauver  START: quitter");
   sdk.drawSmallText(10, 74, "Touch: deplace le carre");
-  sdk.drawSmallText(10, 98, "AUDIO/BMP/PNG wrappers actifs");
+  sdk.drawSmallText(10, 98, "AUDIO/BMP/JPG/PNG actifs");
 
   String err;
   if (!sdk.validateGameMeta("/games/MonJeu/meta.json", err)) {
@@ -46,6 +46,9 @@ void gameInit() {
 
   // Exemples wrappers avances (optionnels selon libs/format)
   (void)sdk.drawBmp(sdk.assetPath("splash.bmp"), 0, 0);
+  if (sdk.hasJpgSupport()) {
+    (void)sdk.drawJpg(sdk.assetPath("photo.jpg"), 0, 0);
+  }
   if (sdk.hasPngSupport()) {
     (void)sdk.drawPng(sdk.assetPath("overlay.png"), 0, 0);
   }
@@ -107,7 +110,7 @@ void gameUpdate() {
   sdk.drawSmallText(10, 38, line);
 
   int ldr = sdk.readLightPercent();
-  snprintf(line, sizeof(line), "LDR:%d%% SD:%s PNG:%s WAV:%s", ldr, sdk.isSdReady() ? "OK" : "KO", sdk.hasPngSupport()?"Y":"N", sdk.hasWavSupport()?"Y":"N");
+  snprintf(line, sizeof(line), "LDR:%d%% SD:%s JPG:%s PNG:%s", ldr, sdk.isSdReady() ? "OK" : "KO", sdk.hasJpgSupport()?"Y":"N", sdk.hasPngSupport()?"Y":"N");
   sdk.drawSmallText(10, 52, line);
 
   String health = sdk.sdkHealthReport();
