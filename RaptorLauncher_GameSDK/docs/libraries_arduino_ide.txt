@@ -1,0 +1,17 @@
+Bibliotheques Arduino IDE a installer
+====================================
+
+Obligatoires:
+- LovyanGFX
+- XPT2046_Touchscreen
+- Adafruit MCP23017 (Adafruit_MCP23X17)
+- ArduinoJson
+- ESP32 board package (Espressif)
+
+Utilisees par le template/SDK:
+- Preferences (incluse avec ESP32 core)
+- esp_ota_ops / esp_partition (incluses avec ESP32 core)
+
+Optionnelles selon jeu:
+- WiFi
+- HTTPClient
