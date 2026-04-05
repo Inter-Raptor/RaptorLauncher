@@ -349,6 +349,10 @@ static inline uint16_t rgb565(uint8_t rr, uint8_t gg, uint8_t bb) {
   return ((uint16_t)rr << 11) | ((uint16_t)gg << 5) | bb;
 }
 
+static inline uint16_t rgb888To565(uint8_t r, uint8_t g, uint8_t b) {
+  return (uint16_t)(((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3));
+}
+
 static inline uint16_t swapRB565(uint16_t c) {
   uint16_t r = (c >> 11) & 0x1F;
   uint16_t g = (c >> 5) & 0x3F;
@@ -982,6 +986,27 @@ void drawBootScreen() {
   tft.print(txt(TXT_BOOT_LINE1, gSettings.language));
   tft.setCursor(90, 138);
   tft.print(txt(TXT_BOOT_LINE2, gSettings.language));
+
+  // Patches de calibration couleur (pas de transparence, fillRect direct).
+  // 0: brun clair, 1: brun fonce, 2: orange, 3: jaune, 4: rouge, 5: bleu
+  const uint16_t patches[6] = {
+    rgb888To565(205, 160, 110),
+    rgb888To565(110, 70, 40),
+    rgb888To565(245, 140, 20),
+    rgb888To565(250, 235, 40),
+    rgb888To565(230, 40, 40),
+    rgb888To565(50, 90, 235)
+  };
+  const int py = 206;
+  const int pw = 18;
+  const int ph = 12;
+  const int px0 = 8;
+  const int gap = 3;
+  for (int i = 0; i < 6; i++) {
+    int px = px0 + i * (pw + gap);
+    tft.fillRect(px, py, pw, ph, applyDisplayPixelMap(patches[i]));
+    tft.drawRect(px, py, pw, ph, C_WHITE);
+  }
 }
 
 void drawGameOverScreen() {
@@ -1210,6 +1235,7 @@ void setup() {
   applyDisplayProfile(8);
   tft.fillScreen(C_BLACK);
   Serial.println("[DISPLAY] Boot calibration: tap top-left (0..80,0..40) to switch profile.");
+  Serial.println("[DISPLAY] Color patches: 0=brun_clair, 1=brun_fonce, 2=orange, 3=jaune, 4=rouge, 5=bleu");
 
   touch.begin();
 
