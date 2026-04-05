@@ -164,6 +164,7 @@ static void prepareReturnToLauncher();
 // AJOUT (tactile) : prototypes pour éviter tout souci d'auto-prototypes Arduino
 static void uiPressAction(uint32_t now);
 static void handleTouchUI(uint32_t now);
+static bool rawToScreenLauncherMap(const TouchSample& r, int &sx, int &sy);
 
 // Mini-jeux
 static void mgBegin(TaskKind k, uint32_t now);
@@ -883,7 +884,6 @@ static inline bool readTouchScreen(int16_t &sx, int16_t &sy) {
   if (touchCal.ok) {
     if (!rawToScreenAffine(r, x, y)) return false;
   } else {
-    if (!launcherTouchMapReady) return false;
     if (!rawToScreenLauncherMap(r, x, y)) return false;
   }
   sx = (int16_t)x;
@@ -1389,7 +1389,6 @@ static int touch_offset_y = 0;
 static bool touch_swap_xy = false;
 static bool touch_invert_x = false;
 static bool touch_invert_y = false;
-static bool launcherTouchMapReady = false;
 
 static int mapAndClampAxis(int raw, int inMin, int inMax, int outMax) {
   if (outMax <= 0) return 0;
@@ -1476,7 +1475,6 @@ static void syncLauncherSettings(uint32_t now) {
     touch_swap_xy = touch["swap_xy"] | touch_swap_xy;
     touch_invert_x = touch["invert_x"] | touch_invert_x;
     touch_invert_y = touch["invert_y"] | touch_invert_y;
-    launcherTouchMapReady = true;
   }
 
   touch_x_min = doc["touch_x_min"] | touch_x_min;
@@ -1491,7 +1489,6 @@ static void syncLauncherSettings(uint32_t now) {
 
   if (touch_x_min == touch_x_max) touch_x_max = touch_x_min + 1;
   if (touch_y_min == touch_y_max) touch_y_max = touch_y_min + 1;
-  launcherTouchMapReady = true;
 
   const char* lang = doc["language"] | nullptr;
   if (!lang || !lang[0]) lang = doc["lang"] | nullptr;
