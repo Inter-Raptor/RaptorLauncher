@@ -28,9 +28,11 @@
   static const int BTN_RIGHT = -1;
   static const int BTN_OK    = -1;
 #elif DISPLAY_PROFILE == DISPLAY_PROFILE_2432S028
-  static const int ENC_A   = 22;   // A=22
-  static const int ENC_B   = 27;   // B=27
-  static const int ENC_BTN = 35;   // BTN=35 (ou -1 pour désactiver)
+  // Le launcher utilise déjà plusieurs GPIO (BL=27, I2C=21/22, etc.).
+  // Sur 2432S028/2432S032R on désactive l'encodeur/boutons par défaut.
+  static const int ENC_A   = -1;
+  static const int ENC_B   = -1;
+  static const int ENC_BTN = -1;
 
   static const int BTN_LEFT  = -1;
   static const int BTN_RIGHT = -1;
