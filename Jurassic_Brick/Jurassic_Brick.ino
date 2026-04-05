@@ -653,6 +653,17 @@ uint16_t currentBgKey() {
   }
 }
 
+uint16_t normalizeBgPixel(uint16_t p) {
+  // Certains pixels issus de la conversion du fond sont violets/roses
+  // (ex: 0x4147) alors que le sprite source attend un brun foncé.
+  // On remappe ces valeurs vers la palette brune attendue.
+  switch (p) {
+    case 0x4147: return rgb888To565(86, 56, 36);   // brun foncé
+    case 0x61C6: return rgb888To565(112, 74, 48);  // brun moyen
+    default: return p;
+  }
+}
+
 void drawFullBackground() {
   const uint16_t* bg = currentBg();
   const uint16_t bgKey = currentBgKey();
@@ -672,6 +683,7 @@ void drawFullBackground() {
         else p = C_BLACK;
       }
 
+      p = normalizeBgPixel(p);
       line[x] = applyDisplayPixelMap(p);
     }
     tft.pushImage(0, y, SCREEN_W, 1, line);
@@ -704,6 +716,7 @@ void restoreBgRect(int x, int y, int w, int h) {
           p = C_BLACK;
         }
       }
+      p = normalizeBgPixel(p);
       line[xx] = applyDisplayPixelMap(p);
     }
     tft.pushImage(x, sy, w, 1, line);
