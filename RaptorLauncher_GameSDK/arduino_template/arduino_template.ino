@@ -31,6 +31,7 @@ void gameInit() {
   sdk.drawCenteredText(20, "Mon Jeu RaptorLauncher");
   sdk.drawSmallText(10, 50, "A: +1 point  B: reset");
   sdk.drawSmallText(10, 62, "SELECT: sauver  START: quitter");
+  sdk.drawSmallText(10, 74, "Touch: deplace le carre");
   sdk.playBeep(1200, 90);
 
   loadSave();
@@ -54,6 +55,11 @@ void gameUpdate() {
     sdk.playBeep(700, 120);
   }
 
+  if (sdk.isTouchHeld()) {
+    playerX = sdk.touchX() - 6;
+    playerY = sdk.touchY() - 6;
+  }
+
   if (sdk.isPressed(BTN_SELECT)) {
     saveGame();
     sdk.playBeep(1500, 70);
@@ -71,6 +77,9 @@ void gameUpdate() {
 
   snprintf(line, sizeof(line), "Save: %s", sdk.saveJsonPath().c_str());
   sdk.drawSmallText(10, 24, line);
+
+  snprintf(line, sizeof(line), "Touch: %s (%d,%d)", sdk.isTouchHeld() ? "ON" : "OFF", sdk.touchX(), sdk.touchY());
+  sdk.drawSmallText(10, 38, line);
 
   sdk.drawSmallText(10, sdk.height() - 14, "START = retour launcher");
 
