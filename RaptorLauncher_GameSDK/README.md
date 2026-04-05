@@ -139,4 +139,10 @@ Si le fichier est absent/invalide, le SDK retombe sur les macros de `raptor_game
 Ce kit te donne une base solide pour créer vite, proprement, et garder la compatibilité launcher.
 
 
-> Note: BMP/PNG/WAV/MP3 restent des modules avancés à brancher selon bibliothèques choisies.
+> Note: `drawBmp/drawPng/playWav/playMp3` sont exposes dans le SDK.
+> Leur execution depend des capacites compilees (`hasPngDecoder()`, `hasAdvancedAudio()`).
+
+
+### Batterie
+Par defaut `SDK_PIN_BATTERY_ADC = -1` (desactive).
+Renseigne la vraie pin ADC de ta revision carte dans `raptor_game_config.h` pour activer `batteryMilliVolts()` et `batteryPercent()`.
