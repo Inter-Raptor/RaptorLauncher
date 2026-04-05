@@ -48,6 +48,7 @@ Si une fonction n'est pas déclarée dans ce fichier, elle ne doit pas être pr�
 
 ### SDK optionnel selon build
 - `drawBmp(...)`
+- `drawJpg(...)`
 - `drawPng(...)`
 - `playWav(...)`
 - `playMp3(...)`
@@ -59,6 +60,7 @@ Ces appels existent toujours dans l'API publique, mais leur réussite dépend de
 ## 3) Fonctions de capacité (à vérifier avant usage optionnel)
 
 - `hasBmpSupport()`
+- `hasJpgSupport()`
 - `hasPngSupport()`
 - `hasWavSupport()`
 - `hasMp3Support()`
@@ -73,20 +75,25 @@ if (sdk.hasPngSupport()) {
 
 ---
 
-## 4) Tableau de support réel
+## 4) Tableau de support réel (état actuel)
 
 | Fonction | État |
 |---|---|
 | `drawRaw565` | OK |
-| `drawBmp` | OK si SD + support BMP LovyanGFX |
-| `drawPng` | Optionnel (retourne `false` si décodeur PNG absent) |
+| `drawBmp` | OK (si fichier présent sur SD) |
+| `drawJpg` | OK (si fichier présent sur SD) |
+| `drawPng` | OK (si fichier présent sur SD) |
 | `playBeep` | OK |
-| `playWav` | Optionnel (retourne `false` sans audio avancé) |
-| `playMp3` | Optionnel (retourne `false` sans audio avancé) |
+| `playWav` | OK si lib audio installée; sinon `false` |
+| `playMp3` | OK si lib audio installée; sinon `false` |
 | `saveJson/loadJson` | OK |
 | `wifi*` | OK (si paramètres présents) |
 | `battery*` | OK (si pin ADC batterie configurée) |
 | `touch*` | OK |
+
+### Limites connues
+- GIF/WebP non supportés.
+- Les wrappers audio WAV/MP3 sont bloquants (lecture synchrone).
 
 ---
 
