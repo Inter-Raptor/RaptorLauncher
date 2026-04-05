@@ -6,6 +6,8 @@
 #include <ArduinoJson.h>
 #include <LovyanGFX.hpp>
 #include <XPT2046_Touchscreen.h>
+#include <esp_ota_ops.h>
+#include <esp_partition.h>
 #include <math.h>
 #include <string.h>
 
@@ -394,9 +396,26 @@ void ledFlash565(uint16_t c) {
 // Retour launcher
 // =====================================================
 void requestLauncherOnNextBoot() {
+  // Compat ancienne logique launcher (flag bool).
   prefs.begin("raptor", false);
   prefs.putBool("boot_launcher", true);
   prefs.end();
+
+  // Compat RaptorLauncher V4 OTA: retourne explicitement vers la partition launcher.
+  prefs.begin("raptor_boot", false);
+  String launcherLabel = prefs.getString("launcher", "");
+  prefs.end();
+
+  if (launcherLabel.length() > 0) {
+    const esp_partition_t* launcher = esp_partition_find_first(
+      ESP_PARTITION_TYPE_APP,
+      ESP_PARTITION_SUBTYPE_ANY,
+      launcherLabel.c_str()
+    );
+    if (launcher) {
+      esp_ota_set_boot_partition(launcher);
+    }
+  }
 }
 
 void leaveToLauncher() {
