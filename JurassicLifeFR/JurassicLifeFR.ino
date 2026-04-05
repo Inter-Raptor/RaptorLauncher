@@ -1096,6 +1096,7 @@ static AudioStep audioDynSeq[128];
 static const char* audioLoopRtttl = nullptr;
 static AudioPriority audioLoopPriority = AUDIO_PRIO_LOW;
 static TriState state = ST_SIT;
+static bool displayReady = false;
 
 static void audioSetTone(uint16_t freq, uint16_t duty) {
   if (freq == 0 || duty == 0) {
@@ -1373,6 +1374,13 @@ static uint8_t uiSel = 0;
 static Language uiLanguage = LANG_FR;
 static const char* LAUNCHER_SETTINGS_FILE = "/settings.json";
 static uint32_t nextLauncherSyncAt = 0;
+static int launcherScreenBrightnessPercent = 100;
+static int touch_x_min = 200;
+static int touch_x_max = 3800;
+static int touch_y_min = 200;
+static int touch_y_max = 3800;
+static int touch_offset_x = 0;
+static int touch_offset_y = 0;
 
 static void syncLauncherSettings(uint32_t now) {
   if (!sdReady) return;
