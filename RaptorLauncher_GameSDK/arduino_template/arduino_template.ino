@@ -38,6 +38,10 @@ void gameInit() {
     String msg = String("Meta KO: ") + err;
     sdk.drawSmallText(10, 86, msg.c_str());
   }
+  sdk.setLedRgb(0, 40, 0);
+  if (sdk.wifiConnectFromSettings()) {
+    sdk.playBeep(1800, 60);
+  }
   sdk.playBeep(1200, 90);
 
   loadSave();
@@ -87,12 +91,18 @@ void gameUpdate() {
   snprintf(line, sizeof(line), "Touch: %s (%d,%d)", sdk.isTouchHeld() ? "ON" : "OFF", sdk.touchX(), sdk.touchY());
   sdk.drawSmallText(10, 38, line);
 
+  int ldr = sdk.readLightPercent();
+  snprintf(line, sizeof(line), "LDR: %d%%  SD:%s", ldr, sdk.isSdReady() ? "OK" : "KO");
+  sdk.drawSmallText(10, 52, line);
+
   String health = sdk.sdkHealthReport();
   sdk.drawSmallText(10, sdk.height() - 26, health.c_str());
   sdk.drawSmallText(10, sdk.height() - 14, "START = retour launcher");
 
   if (sdk.isPressed(BTN_START)) {
     saveGame();
+    sdk.wifiDisconnect();
+    sdk.ledOff();
     sdk.requestReturnToLauncher();
   }
 
