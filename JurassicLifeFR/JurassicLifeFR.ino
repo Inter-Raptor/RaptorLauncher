@@ -1362,7 +1362,7 @@ static int touch_offset_x = 0;
 static int touch_offset_y = 0;
 static bool touch_swap_xy = false;
 static bool touch_invert_x = false;
-static bool touch_invert_y = false;
+static bool touch_invert_y = true;
 
 static int mapAndClampAxis(int raw, int inMin, int inMax, int outMax) {
   if (outMax <= 0) return 0;
