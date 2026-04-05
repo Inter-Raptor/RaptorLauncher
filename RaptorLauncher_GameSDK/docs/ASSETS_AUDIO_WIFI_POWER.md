@@ -19,6 +19,8 @@ Inconvénients:
 Helpers SDK disponibles:
 - `assetPath("sprite.raw")`
 - `drawRaw565(path, x, y, width, height)`
+- `drawBmp(path, x, y)`
+- `drawPng(path, x, y)` (si support PNG actif)
 
 ### B. BMP depuis SD
 - Utiliser des BMP si tu veux de la simplicité.
@@ -36,6 +38,11 @@ SDK de base:
 Audio avancé (module optionnel):
 - WAV mono (préféré pour effets courts)
 - MP3 (plutôt musiques/voix)
+
+Wrappers SDK disponibles:
+- `playWav(path)`
+- `playMp3(path)`
+- `hasAdvancedAudio()`
 
 Recommandation:
 - Commencer par beep + WAV mono.

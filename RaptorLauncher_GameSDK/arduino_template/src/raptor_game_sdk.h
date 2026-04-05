@@ -58,8 +58,12 @@ public:
 
   // Assets image
   bool drawRaw565(const String& path, int x, int y, int width, int height);
+  bool drawBmp(const String& path, int x = 0, int y = 0);
+  bool drawPng(const String& path, int x = 0, int y = 0);
 
   void playBeep(int freq = 1200, int durationMs = 80);
+  bool playWav(const String& path);
+  bool playMp3(const String& path);
 
   // Armement securite: au boot du jeu, le prochain redemarrage revient sur launcher.
   bool armReturnToLauncherOnNextBoot();
@@ -95,6 +99,9 @@ public:
   int batteryPercent() const;
 
   // Wi-Fi optionnel via /settings.json
+  bool hasPngDecoder() const;
+  bool hasAdvancedAudio() const;
+
   bool wifiConnectFromSettings();
   void wifiDisconnect();
   bool wifiIsConnected() const;

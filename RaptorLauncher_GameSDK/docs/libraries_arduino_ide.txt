@@ -1,19 +1,22 @@
 Bibliotheques Arduino IDE a installer
 ====================================
 
-Obligatoires:
+SDK de base (obligatoire):
 - LovyanGFX
 - XPT2046_Touchscreen
 - Adafruit MCP23017 (Adafruit_MCP23X17)
 - ArduinoJson
 - ESP32 board package (Espressif)
 
-Utilisees par le template/SDK:
-- Preferences (incluse avec ESP32 core)
-- esp_ota_ops / esp_partition (incluses avec ESP32 core)
-- WiFi (incluse avec ESP32 core)
+Incluses avec ESP32 core (pas d'installation séparée):
+- Preferences
+- esp_ota_ops / esp_partition
+- WiFi
 
-Optionnelles selon jeu:
-- PNGdec (si PNG decode custom)
-- JPEGDEC (si JPEG decode custom)
-- ESP8266Audio (si audio WAV/MP3 avance)
+Fonctions avancées (optionnelles):
+- PNGdec (PNG custom)
+- JPEGDEC (JPEG custom)
+- ESP8266Audio (WAV/MP3)
+
+Voir aussi:
+- `RaptorLauncher_GameSDK/dependencies/README.md`
