@@ -73,20 +73,26 @@ if (sdk.hasPngSupport()) {
 
 ---
 
-## 4) Tableau de support réel
+## 4) Tableau de support réel (état actuel)
 
 | Fonction | État |
 |---|---|
 | `drawRaw565` | OK |
-| `drawBmp` | OK si SD + support BMP LovyanGFX |
-| `drawPng` | Optionnel (retourne `false` si décodeur PNG absent) |
+| `drawBmp` | Partiel : appel API dispo, dépend du build LovyanGFX + SD |
+| `drawPng` | Partiel : appel API dispo, retourne `false` si décodeur PNG absent |
+| `drawJpg` | Non implémenté (pas encore exposé dans l'API) |
 | `playBeep` | OK |
-| `playWav` | Optionnel (retourne `false` sans audio avancé) |
-| `playMp3` | Optionnel (retourne `false` sans audio avancé) |
+| `playWav` | Partiel : appel API dispo, retourne `false` sans audio avancé |
+| `playMp3` | Partiel : appel API dispo, retourne `false` sans audio avancé |
 | `saveJson/loadJson` | OK |
 | `wifi*` | OK (si paramètres présents) |
 | `battery*` | OK (si pin ADC batterie configurée) |
 | `touch*` | OK |
+
+### Fonctions explicitement absentes pour l'instant
+- Aucune fonction `drawJpg(...)` n'est encore publique.
+- Pas de gestion GIF/WebP.
+- Pas de streaming audio non bloquant dans cette version (les wrappers audio sont synchrones).
 
 ---
 
