@@ -98,7 +98,7 @@ static constexpr int START_HEARTS = 3;
 
 static constexpr uint32_t FRAME_MS = 16;      // ~60 FPS
 static constexpr uint32_t LED_FLASH_MS = 35;
-static constexpr char SAVE_FILE[] = "/sauv.json";
+static constexpr char SAVE_FILE[] = "/games/JurassicBrickBreaker/sauv.json";
 
 // =====================================================
 // Langues
@@ -321,6 +321,10 @@ static inline uint8_t b5(uint16_t c) { return c & 0x1F; }
 
 static inline uint16_t rgb565(uint8_t rr, uint8_t gg, uint8_t bb) {
   return ((uint16_t)rr << 11) | ((uint16_t)gg << 5) | bb;
+}
+
+static inline uint16_t swap16(uint16_t v) {
+  return (uint16_t)((v << 8) | (v >> 8));
 }
 
 uint16_t tint565(uint16_t src, uint16_t tint) {
@@ -633,7 +637,13 @@ void drawSpriteTransparentTinted(
 
         for (int i = 0; i < runW; i++) {
           uint16_t src = pgm_read_word(&data[yy * w + runStart + i]);
-          rowBuffer[i] = useTint ? tint565(src, tintColor) : src;
+          if (useTint) {
+            // setSwapBytes(true) est actif : les couleurs calculées doivent
+            // être pré-swappées pour conserver la teinte réelle à l'écran.
+            rowBuffer[i] = swap16(tint565(src, tintColor));
+          } else {
+            rowBuffer[i] = src;
+          }
         }
 
         int drawX = x + runStart;
