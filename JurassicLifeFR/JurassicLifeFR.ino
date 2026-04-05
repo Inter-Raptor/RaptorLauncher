@@ -880,7 +880,12 @@ static inline bool readTouchScreen(int16_t &sx, int16_t &sy) {
   TouchSample r = readTouchFiltered();
   if (!r.valid) return false;
   int x, y;
-  if (!rawToScreenAffine(r, x, y)) return false;
+  if (touchCal.ok) {
+    if (!rawToScreenAffine(r, x, y)) return false;
+  } else {
+    if (!launcherTouchMapReady) return false;
+    if (!rawToScreenLauncherMap(r, x, y)) return false;
+  }
   sx = (int16_t)x;
   sy = (int16_t)y;
   return true;
@@ -1381,6 +1386,54 @@ static int touch_y_min = 200;
 static int touch_y_max = 3800;
 static int touch_offset_x = 0;
 static int touch_offset_y = 0;
+static bool touch_swap_xy = false;
+static bool touch_invert_x = false;
+static bool touch_invert_y = false;
+static bool launcherTouchMapReady = false;
+
+static int mapAndClampAxis(int raw, int inMin, int inMax, int outMax) {
+  if (outMax <= 0) return 0;
+  if (inMin == inMax) return outMax / 2;
+  long num = (long)(raw - inMin) * (long)outMax;
+  long den = (long)(inMax - inMin);
+  long v = den != 0 ? (num / den) : (outMax / 2);
+  if (v < 0) v = 0;
+  if (v > outMax) v = outMax;
+  return (int)v;
+}
+
+static void applyLauncherDisplayBrightness() {
+  if (!displayReady) return;
+  int pct = launcherScreenBrightnessPercent;
+  if (pct < 0) pct = 0;
+  if (pct > 100) pct = 100;
+  uint8_t level = (uint8_t)((pct * 255 + 50) / 100);
+  tft.setBrightness(level);
+}
+
+static bool rawToScreenLauncherMap(const TouchSample& r, int &sx, int &sy) {
+  if (!r.valid) return false;
+  int W = tft.width();
+  int H = tft.height();
+  if (W <= 0 || H <= 0) return false;
+
+  int rx = (int)r.x + touch_offset_x;
+  int ry = (int)r.y + touch_offset_y;
+  if (touch_swap_xy) {
+    int tmp = rx;
+    rx = ry;
+    ry = tmp;
+  }
+
+  int x = mapAndClampAxis(rx, touch_x_min, touch_x_max, W - 1);
+  int y = mapAndClampAxis(ry, touch_y_min, touch_y_max, H - 1);
+  if (touch_invert_x) x = (W - 1) - x;
+  if (touch_invert_y) y = (H - 1) - y;
+
+  sx = x;
+  sy = y;
+  return true;
+}
 
 static void syncLauncherSettings(uint32_t now) {
   if (!sdReady) return;
@@ -1400,10 +1453,45 @@ static void syncLauncherSettings(uint32_t now) {
   if (vol < 0) vol = 0;
   if (vol > 100) vol = 100;
   launcherVolumePercent = (uint8_t)vol;
-  int ledBright = doc["led_brightness"] | (doc["brightness"] | (int)launcherLedBrightnessPercent);
+
+  int screenBright = doc["screen_brightness"] | (doc["display_brightness"] | (doc["brightness"] | launcherScreenBrightnessPercent));
+  if (screenBright < 0) screenBright = 0;
+  if (screenBright > 100) screenBright = 100;
+  launcherScreenBrightnessPercent = screenBright;
+  applyLauncherDisplayBrightness();
+
+  int ledBright = doc["led_brightness"] | (int)launcherLedBrightnessPercent;
   if (ledBright < 0) ledBright = 0;
   if (ledBright > 100) ledBright = 100;
   launcherLedBrightnessPercent = (uint8_t)ledBright;
+
+  JsonVariantConst touch = doc["touch"];
+  if (!touch.isNull()) {
+    touch_x_min = touch["x_min"] | touch["xmin"] | touch_x_min;
+    touch_x_max = touch["x_max"] | touch["xmax"] | touch_x_max;
+    touch_y_min = touch["y_min"] | touch["ymin"] | touch_y_min;
+    touch_y_max = touch["y_max"] | touch["ymax"] | touch_y_max;
+    touch_offset_x = touch["offset_x"] | touch["dx"] | touch_offset_x;
+    touch_offset_y = touch["offset_y"] | touch["dy"] | touch_offset_y;
+    touch_swap_xy = touch["swap_xy"] | touch_swap_xy;
+    touch_invert_x = touch["invert_x"] | touch_invert_x;
+    touch_invert_y = touch["invert_y"] | touch_invert_y;
+    launcherTouchMapReady = true;
+  }
+
+  touch_x_min = doc["touch_x_min"] | touch_x_min;
+  touch_x_max = doc["touch_x_max"] | touch_x_max;
+  touch_y_min = doc["touch_y_min"] | touch_y_min;
+  touch_y_max = doc["touch_y_max"] | touch_y_max;
+  touch_offset_x = doc["touch_offset_x"] | touch_offset_x;
+  touch_offset_y = doc["touch_offset_y"] | touch_offset_y;
+  touch_swap_xy = doc["touch_swap_xy"] | touch_swap_xy;
+  touch_invert_x = doc["touch_invert_x"] | touch_invert_x;
+  touch_invert_y = doc["touch_invert_y"] | touch_invert_y;
+
+  if (touch_x_min == touch_x_max) touch_x_max = touch_x_min + 1;
+  if (touch_y_min == touch_y_max) touch_y_max = touch_y_min + 1;
+  launcherTouchMapReady = true;
 
   const char* lang = doc["language"] | nullptr;
   if (!lang || !lang[0]) lang = doc["lang"] | nullptr;
@@ -4040,11 +4128,11 @@ tft.setRotation(ROT);
 Wire.begin(TOUCH_SDA, TOUCH_SCL);
 Wire.setClock(400000);
 g_touch.init(TOUCH_SDA, TOUCH_SCL, -1, -1);
-tft.setBrightness(255);
 #else
-tft.setBrightness(255);
 softSPIBeginTouch();
 #endif
+displayReady = true;
+applyLauncherDisplayBrightness();
 
 SW = tft.width();
 SH = tft.height();
