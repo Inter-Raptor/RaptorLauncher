@@ -1125,7 +1125,9 @@ void setup() {
 
   tft.init();
   tft.setRotation(3);
-  tft.setSwapBytes(false);
+  // Les assets RGB565 du jeu doivent être envoyés avec swap d'octets
+  // pour correspondre au format attendu par pushImage() sur cet écran.
+  tft.setSwapBytes(true);
   tft.fillScreen(C_BLACK);
 
   touch.begin();
