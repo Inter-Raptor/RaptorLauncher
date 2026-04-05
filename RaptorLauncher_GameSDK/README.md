@@ -186,3 +186,30 @@ MonJeu/
 - [ ] test exemple `examples/SDK_TestLab`
 
 Ce kit te donne une base solide pour créer vite, proprement, et garder la compatibilité launcher.
+
+---
+
+## 9) Cas ROM Game Boy (`.gb`) : où mettre `PokemonBleu.gb` ?
+
+Le launcher **ne lance pas directement un `.gb`**.
+Il lance uniquement un **`.bin` ESP32** (mécanisme OTA).
+
+Donc pour un jeu GB:
+
+1. Utiliser un binaire d'émulateur (ex: `gb_emulator.bin`) comme entrée launcher.
+2. Mettre la ROM dans un sous-dossier (`roms/`) lu par l'émulateur.
+
+Template prêt fourni:
+
+```text
+sd_template/games/PokemonBleu_GB/
+├── meta.json               # bin = gb_emulator.bin
+├── boot.json               # rom_path, save_path, options emulateur
+├── gb_emulator.bin         # à copier (non versionné ici)
+├── roms/
+│   └── PokemonBleu.gb      # à copier si usage légal
+├── assets/
+│   ├── icon.raw            # 50x50
+│   └── title.raw           # 320x240
+└── sauv.json               # généré au runtime
+```

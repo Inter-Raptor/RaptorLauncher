@@ -1,0 +1,14 @@
+{
+  "name": "Pokemon Bleu (GB)",
+  "author": "Toi",
+  "description": "Template Game Boy via emulateur",
+  "type": "mixed",
+  "icon": "icon.raw",
+  "icon_w": 50,
+  "icon_h": 50,
+  "title": "title.raw",
+  "title_w": 320,
+  "title_h": 240,
+  "bin": "gb_emulator.bin",
+  "save": "sauv.json"
+}
