@@ -74,6 +74,7 @@ private:
   void initDisplay();
   void initInput();
   void mapButtonsFromMcp(uint8_t gpioA, uint8_t gpioB);
+  void loadTouchCalibrationFromSettings();
 
   InputState input{};
   bool mcpReady = false;
@@ -83,6 +84,13 @@ private:
   bool touchReleasedEdge = false;
   int touchPx = 0;
   int touchPy = 0;
+
+  int touchCalXMin = SDK_TOUCH_X_MIN;
+  int touchCalXMax = SDK_TOUCH_X_MAX;
+  int touchCalYMin = SDK_TOUCH_Y_MIN;
+  int touchCalYMax = SDK_TOUCH_Y_MAX;
+  int touchOffsetX = 0;
+  int touchOffsetY = 0;
 
   SPIClass sdSPI = SPIClass(HSPI);
   XPT2046_Touchscreen touch = XPT2046_Touchscreen(SDK_PIN_TOUCH_CS, SDK_PIN_TOUCH_IRQ);
