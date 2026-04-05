@@ -149,6 +149,7 @@ bool RaptorGameSDK::isPressed(GameButton b) const { return input.pressed[b]; }
 bool RaptorGameSDK::isReleased(GameButton b) const { return input.released[b]; }
 
 bool RaptorGameSDK::isTouchHeld() const { return touchHeld; }
+bool RaptorGameSDK::isTouching() const { return touchHeld; }
 bool RaptorGameSDK::isTouchPressed() const { return touchPressedEdge; }
 bool RaptorGameSDK::isTouchReleased() const { return touchReleasedEdge; }
 int RaptorGameSDK::touchX() const { return touchPx; }

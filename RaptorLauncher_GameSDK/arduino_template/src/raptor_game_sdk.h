@@ -40,6 +40,7 @@ public:
 
   // Tactile
   bool isTouchHeld() const;
+  bool isTouching() const; // alias clair
   bool isTouchPressed() const;
   bool isTouchReleased() const;
   int touchX() const;
