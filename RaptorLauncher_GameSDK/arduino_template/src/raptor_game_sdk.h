@@ -98,10 +98,17 @@ public:
   int batteryMilliVolts() const;
   int batteryPercent() const;
 
-  // Wi-Fi optionnel via /settings.json
+  // Capacites optionnelles (selon build/libs disponibles)
+  bool hasBmpSupport() const;
+  bool hasPngSupport() const;
+  bool hasWavSupport() const;
+  bool hasMp3Support() const;
+
+  // Compatibilite historique
   bool hasPngDecoder() const;
   bool hasAdvancedAudio() const;
 
+  // Wi-Fi optionnel via /settings.json
   bool wifiConnectFromSettings();
   void wifiDisconnect();
   bool wifiIsConnected() const;

@@ -1,37 +1,39 @@
 # API publique réellement exposée par `RaptorGameSDK`
 
-Ce fichier sert de référence rapide pour éviter tout décalage entre doc et code.
+Ce fichier sert de référence pour éviter tout décalage entre doc et code.
 
-## I/O jeu
+**Source de vérité :** `arduino_template/src/raptor_game_sdk.h`
+
+---
+
+## 1) SDK de base
+
+### I/O jeu
 - `begin()`
 - `updateInputs()`
 - `isHeld(...)`, `isPressed(...)`, `isReleased(...)`
 
-## Tactile
+### Tactile
 - `isTouchHeld()` / `isTouching()`
 - `isTouchPressed()` / `isTouchReleased()`
 - `touchX()` / `touchY()`
 
-## Affichage
+### Affichage
 - `clear(...)`
 - `drawRect(...)`
 - `fillRect(...)`
 - `drawSmallText(...)`
 - `drawCenteredText(...)`
 - `drawRaw565(path, x, y, w, h)`
-- `drawBmp(path, x, y)`
-- `drawPng(path, x, y)`
 
-## Audio
+### Audio de base
 - `playBeep(freq, ms)`
-- `playWav(path)`
-- `playMp3(path)`
 
-## Boot/launcher
+### Boot/launcher
 - `armReturnToLauncherOnNextBoot()`
 - `requestReturnToLauncher()`
 
-## Stockage / chemins
+### Stockage / chemins
 - `gameRootPath()`
 - `saveJsonPath()`
 - `assetPath(filename)`
@@ -42,7 +44,7 @@ Ce fichier sert de référence rapide pour éviter tout décalage entre doc et c
 - `validateGameMeta(...)`
 - `sdkHealthReport()`
 
-## LED / capteurs / réseau
+### LED / capteurs / réseau
 - `setLedRgb(r,g,b)`
 - `ledOff()`
 - `readLightRaw()`
@@ -50,8 +52,44 @@ Ce fichier sert de référence rapide pour éviter tout décalage entre doc et c
 - `hasBatterySense()`
 - `batteryMilliVolts()`
 - `batteryPercent()`
-- `hasPngDecoder()`
-- `hasAdvancedAudio()`
 - `wifiConnectFromSettings()`
 - `wifiDisconnect()`
 - `wifiIsConnected()`
+
+---
+
+## 2) SDK optionnel (selon build/libs)
+
+Ces fonctions sont déclarées dans l'API publique pour garantir la compilation. Elles peuvent retourner `false` selon les capacités compilées.
+
+- `drawBmp(path, x, y)`
+- `drawPng(path, x, y)`
+- `playWav(path)`
+- `playMp3(path)`
+
+### Fonctions de capacité
+- `hasBmpSupport()`
+- `hasPngSupport()`
+- `hasWavSupport()`
+- `hasMp3Support()`
+
+### Compatibilité historique
+- `hasPngDecoder()`
+- `hasAdvancedAudio()`
+
+---
+
+## 3) Tableau de support réel
+
+| Fonction | État |
+|---|---|
+| `drawRaw565` | OK |
+| `drawBmp` | OK si SD + support BMP LovyanGFX |
+| `drawPng` | Optionnel (retourne `false` si décodeur PNG absent) |
+| `playBeep` | OK |
+| `playWav` | Optionnel (retourne `false` sans audio avancé) |
+| `playMp3` | Optionnel (retourne `false` sans audio avancé) |
+| `saveJson/loadJson` | OK |
+| `wifi*` | OK (si paramètres présents) |
+| `battery*` | OK (si pin ADC batterie configurée) |
+| `touch*` | OK |

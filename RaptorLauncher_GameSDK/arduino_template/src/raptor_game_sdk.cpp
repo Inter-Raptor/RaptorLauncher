@@ -500,6 +500,22 @@ int RaptorGameSDK::batteryPercent() const {
   return pct;
 }
 
+bool RaptorGameSDK::hasBmpSupport() const {
+  return true;
+}
+
+bool RaptorGameSDK::hasPngSupport() const {
+  return hasPngDecoder();
+}
+
+bool RaptorGameSDK::hasWavSupport() const {
+  return hasAdvancedAudio();
+}
+
+bool RaptorGameSDK::hasMp3Support() const {
+  return hasAdvancedAudio();
+}
+
 bool RaptorGameSDK::hasPngDecoder() const {
   #ifdef LGFX_HAS_PNG_DECODER
     return true;
