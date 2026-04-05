@@ -1020,6 +1020,8 @@ static const uint16_t AUDIO_DUTY_NORMAL = 320;
 static const uint16_t AUDIO_DUTY_QUIET  = 150;
 static uint8_t launcherVolumePercent = 80; // relu depuis /settings.json
 static uint8_t launcherLedBrightnessPercent = 40; // relu depuis /settings.json
+static uint16_t audioLastFreq = 0;
+static uint16_t audioLastDuty = 0;
 
 struct AudioStep {
   uint16_t freq = 0;
@@ -1078,6 +1080,8 @@ static TriState state = ST_SIT;
 static bool displayReady = false;
 
 static void audioSetTone(uint16_t freq, uint16_t duty) {
+  audioLastFreq = freq;
+  audioLastDuty = duty;
   if (freq == 0 || duty == 0) {
     audioWriteTone(0);
     audioWriteDuty(0);
@@ -1422,10 +1426,14 @@ static void syncLauncherSettings(uint32_t now) {
   f.close();
   if (err) return;
 
-  int vol = doc["volume"] | (int)launcherVolumePercent;
+  int vol = doc["volume"] | (doc["audio_volume"] | (int)launcherVolumePercent);
   if (vol < 0) vol = 0;
   if (vol > 100) vol = 100;
+  bool volumeChanged = ((int)launcherVolumePercent != vol);
   launcherVolumePercent = (uint8_t)vol;
+  if (volumeChanged) {
+    audioSetTone(audioLastFreq, audioLastDuty);
+  }
 
   int screenBright = doc["screen_brightness"] | (doc["display_brightness"] | (doc["backlight"] | (doc["brightness"] | launcherScreenBrightnessPercent)));
   if (screenBright < 0) screenBright = 0;
@@ -1464,16 +1472,29 @@ static void syncLauncherSettings(uint32_t now) {
   if (touch_x_min == touch_x_max) touch_x_max = touch_x_min + 1;
   if (touch_y_min == touch_y_max) touch_y_max = touch_y_min + 1;
 
-  const char* lang = doc["language"] | nullptr;
-  if (!lang || !lang[0]) lang = doc["lang"] | nullptr;
-  if (!lang || !lang[0]) lang = doc["locale"] | "fr";
-  char c0 = (char)tolower((unsigned char)lang[0]);
-  char c1 = (char)tolower((unsigned char)lang[1]);
-  if (c0 == 'e' && c1 == 'n') uiLanguage = LANG_EN;
-  else if (c0 == 'd' && c1 == 'e') uiLanguage = LANG_DE;
-  else if (c0 == 'i' && c1 == 't') uiLanguage = LANG_IT;
-  else if (c0 == 'e' && c1 == 's') uiLanguage = LANG_ES;
-  else uiLanguage = LANG_FR;
+  int langCode = doc["language"] | -1;
+  if (langCode >= 0 && langCode <= 4) {
+    // Mapping launcher: 0=EN,1=FR,2=ES,3=DE,4=IT
+    switch (langCode) {
+      case 0: uiLanguage = LANG_EN; break;
+      case 1: uiLanguage = LANG_FR; break;
+      case 2: uiLanguage = LANG_ES; break;
+      case 3: uiLanguage = LANG_DE; break;
+      case 4: uiLanguage = LANG_IT; break;
+      default: uiLanguage = LANG_FR; break;
+    }
+  } else {
+    const char* lang = doc["language"] | nullptr;
+    if (!lang || !lang[0]) lang = doc["lang"] | nullptr;
+    if (!lang || !lang[0]) lang = doc["locale"] | "fr";
+    char c0 = (char)tolower((unsigned char)lang[0]);
+    char c1 = (char)tolower((unsigned char)lang[1]);
+    if (c0 == 'e' && c1 == 'n') uiLanguage = LANG_EN;
+    else if (c0 == 'd' && c1 == 'e') uiLanguage = LANG_DE;
+    else if (c0 == 'i' && c1 == 't') uiLanguage = LANG_IT;
+    else if (c0 == 'e' && c1 == 's') uiLanguage = LANG_ES;
+    else uiLanguage = LANG_FR;
+  }
 }
 
 static const uint16_t COL_FAIM    = 0xFD20;
@@ -2482,8 +2503,8 @@ const int TOP_BTN_PAD = 8;
     int xL = TOP_BTN_PAD;
     int xR = SW - TOP_BTN_PAD - TOP_BTN_W;
 
-    drawTopBtn(xL, "Manger", btnColorForAction(UI_MANGER), cdEat);
-    drawTopBtn(xR, "Boire",  btnColorForAction(UI_BOIRE),  cdDrink);
+    drawTopBtn(xL, btnLabel(UI_MANGER), btnColorForAction(UI_MANGER), cdEat);
+    drawTopBtn(xR, btnLabel(UI_BOIRE),  btnColorForAction(UI_BOIRE),  cdDrink);
 #endif
   }
 
