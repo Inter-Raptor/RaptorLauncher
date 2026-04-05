@@ -65,7 +65,8 @@ Par convention de ce kit:
 - `begin()` : init hardware + armement retour launcher
 - `updateInputs()` : refresh boutons + tactile
 - `isHeld/isPressed/isReleased`
-- `isTouchHeld/isTouchPressed/isTouchReleased`
+- `isTouchHeld()` ou alias `isTouching()`
+- `isTouchPressed()/isTouchReleased()`
 - `touchX()/touchY()`
 - `clear/drawRect/fillRect/drawSmallText/drawCenteredText`
 - `playBeep(freq, ms)`
