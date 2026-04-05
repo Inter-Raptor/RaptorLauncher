@@ -555,23 +555,23 @@ static inline bool readTouchScreen(int16_t &sx, int16_t &sy) {
 #else
 // --- Touch XPT2046 (librairie XPT2046_Touchscreen) ---
 static SPIClass touchSPI(VSPI);
-static XPT2046_Touchscreen touch(TOUCH_CS, TOUCH_IRQ);
+static XPT2046_Touchscreen xptTouch(TOUCH_CS, TOUCH_IRQ);
 
 static void beginTouchController() {
   pinMode(TOUCH_CS, OUTPUT);
   digitalWrite(TOUCH_CS, HIGH);
   pinMode(TOUCH_IRQ, INPUT);
   touchSPI.begin(TOUCH_CLK, TOUCH_MISO, TOUCH_MOSI, TOUCH_CS);
-  touch.begin(touchSPI);
+  xptTouch.begin(touchSPI);
 }
 
 static TouchSample readTouchOnce() {
   TouchSample s{};
-  if (!touch.touched()) {
+  if (!xptTouch.touched()) {
     s.valid = false;
     return s;
   }
-  TS_Point p = touch.getPoint();
+  TS_Point p = xptTouch.getPoint();
   s.x = (uint16_t)p.x;
   s.y = (uint16_t)p.y;
   s.z = (uint16_t)(p.z > 0 ? p.z : 1);
