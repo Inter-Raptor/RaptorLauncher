@@ -1426,7 +1426,7 @@ static void syncLauncherSettings(uint32_t now) {
   f.close();
   if (err) return;
 
-  int vol = doc["volume"] | (int)launcherVolumePercent;
+  int vol = doc["volume"] | (doc["audio_volume"] | (int)launcherVolumePercent);
   if (vol < 0) vol = 0;
   if (vol > 100) vol = 100;
   bool volumeChanged = ((int)launcherVolumePercent != vol);
@@ -1474,7 +1474,15 @@ static void syncLauncherSettings(uint32_t now) {
 
   int langCode = doc["language"] | -1;
   if (langCode >= 0 && langCode <= 4) {
-    uiLanguage = (Language)langCode;
+    // Mapping launcher: 0=EN,1=FR,2=ES,3=DE,4=IT
+    switch (langCode) {
+      case 0: uiLanguage = LANG_EN; break;
+      case 1: uiLanguage = LANG_FR; break;
+      case 2: uiLanguage = LANG_ES; break;
+      case 3: uiLanguage = LANG_DE; break;
+      case 4: uiLanguage = LANG_IT; break;
+      default: uiLanguage = LANG_FR; break;
+    }
   } else {
     const char* lang = doc["language"] | nullptr;
     if (!lang || !lang[0]) lang = doc["lang"] | nullptr;
@@ -2495,8 +2503,8 @@ const int TOP_BTN_PAD = 8;
     int xL = TOP_BTN_PAD;
     int xR = SW - TOP_BTN_PAD - TOP_BTN_W;
 
-    drawTopBtn(xL, "Manger", btnColorForAction(UI_MANGER), cdEat);
-    drawTopBtn(xR, "Boire",  btnColorForAction(UI_BOIRE),  cdDrink);
+    drawTopBtn(xL, btnLabel(UI_MANGER), btnColorForAction(UI_MANGER), cdEat);
+    drawTopBtn(xR, btnLabel(UI_BOIRE),  btnColorForAction(UI_BOIRE),  cdDrink);
 #endif
   }
 
