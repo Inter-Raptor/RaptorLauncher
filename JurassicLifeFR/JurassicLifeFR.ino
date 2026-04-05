@@ -52,11 +52,11 @@
 //   LCD CS=17, RST=-1, BL=0 (PWM)
 //   Touch I2C: SDA=21, SCL=22
 // 2432S028 / 2432S032R (ST7789 + XPT2046)
-//   LCD SPI: SCLK=14, MOSI=13, MISO=12, DC=2, CS=15, BL=21
-//   Touch XPT2046 (soft-SPI): CLK=25, MOSI=32, MISO=39, CS=33, IRQ=36
+//   LCD SPI: SCLK=14, MOSI=13, MISO=12, DC=2, CS=15, BL=27
+//   Touch XPT2046 (soft-SPI): CLK=14, MOSI=13, MISO=12, CS=33, IRQ=36
 // ILI9341_320x240 (TFT classique + XPT2046)
-//   LCD SPI: SCLK=14, MOSI=13, MISO=12, DC=2, CS=15, BL=21
-//   Touch XPT2046 (soft-SPI): CLK=25, MOSI=32, MISO=39, CS=33, IRQ=36
+//   LCD SPI: SCLK=14, MOSI=13, MISO=12, DC=2, CS=15, BL=27
+//   Touch XPT2046 (soft-SPI): CLK=14, MOSI=13, MISO=12, CS=33, IRQ=36
 // Entrées (optionnelles): encoder = ENC_A/ENC_B/ENC_BTN, boutons = BTN_LEFT/BTN_RIGHT/BTN_OK
 // SD (toutes cartes): SCK=18, MISO=19, MOSI=23, CS=5// SD (par carte)
 // 2432S022: SCK=18, MISO=19, MOSI=23, CS=5
@@ -443,9 +443,9 @@ static constexpr int RAW_H = 320;
 #else
 // --- ILI9341 SPI (2432S028 ou TFT classique 320x240) ---
 static constexpr int TOUCH_IRQ  = 36; // input-only
-static constexpr int TOUCH_MOSI = 32;
-static constexpr int TOUCH_MISO = 39;
-static constexpr int TOUCH_CLK  = 25;
+static constexpr int TOUCH_MOSI = 13;
+static constexpr int TOUCH_MISO = 12;
+static constexpr int TOUCH_CLK  = 14;
 static constexpr int TOUCH_CS   = 33;
 
 class LGFX : public lgfx::LGFX_Device {
@@ -1407,7 +1407,7 @@ static void applyLauncherDisplayBrightness() {
   int pct = launcherScreenBrightnessPercent;
   if (pct < 0) pct = 0;
   if (pct > 100) pct = 100;
-  uint8_t level = (uint8_t)((pct * 255 + 50) / 100);
+  uint8_t level = (uint8_t)(10 + ((pct * 245 + 50) / 100));
   tft.setBrightness(level);
 }
 
@@ -1454,7 +1454,7 @@ static void syncLauncherSettings(uint32_t now) {
   if (vol > 100) vol = 100;
   launcherVolumePercent = (uint8_t)vol;
 
-  int screenBright = doc["screen_brightness"] | (doc["display_brightness"] | (doc["brightness"] | launcherScreenBrightnessPercent));
+  int screenBright = doc["screen_brightness"] | (doc["display_brightness"] | (doc["backlight"] | (doc["brightness"] | launcherScreenBrightnessPercent)));
   if (screenBright < 0) screenBright = 0;
   if (screenBright > 100) screenBright = 100;
   launcherScreenBrightnessPercent = screenBright;
