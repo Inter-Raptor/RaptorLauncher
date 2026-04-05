@@ -29,6 +29,7 @@ struct InputState {
 
 struct GameInfo {
   String folder;
+  String rootPath;
 
   String name;
   String author;
@@ -45,4 +46,6 @@ struct GameInfo {
 
   String bin;
   String save;
+  String rom;
+  String runner;
 };

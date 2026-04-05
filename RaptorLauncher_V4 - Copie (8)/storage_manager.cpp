@@ -11,6 +11,120 @@
 
 static SPIClass sdSPI(HSPI);
 
+static bool hasGbExtension(const String& path) {
+  return path.endsWith(".gb") || path.endsWith(".gbc");
+}
+
+static void readJsonMeta(GameInfo& game, const String& metaPath) {
+  File meta = SD.open(metaPath, FILE_READ);
+  if (!meta) {
+    Serial.println("[SD] meta/game json absent ou impossible a ouvrir");
+    return;
+  }
+
+  JsonDocument doc;
+  DeserializationError err = deserializeJson(doc, meta);
+  meta.close();
+
+  if (err) {
+    Serial.print("[JSON] erreur: ");
+    Serial.println(err.c_str());
+    return;
+  }
+
+  game.name        = doc["name"]        | doc["title"] | game.name;
+  game.author      = doc["author"]      | "";
+  game.description = doc["description"] | "";
+  game.type        = doc["type"]        | "mixed";
+
+  game.icon        = doc["icon"]        | "";
+  game.iconW       = doc["icon_w"]      | game.iconW;
+  game.iconH       = doc["icon_h"]      | game.iconH;
+
+  game.title       = doc["title"]       | "";
+  game.titleW      = doc["title_w"]     | game.titleW;
+  game.titleH      = doc["title_h"]     | game.titleH;
+
+  game.bin         = doc["bin"]         | game.bin;
+  game.save        = doc["save"]        | game.save;
+  game.rom         = doc["rom"]         | "";
+  game.runner      = doc["runner"]      | "gb_runner.bin";
+}
+
+static void addGamesFromRoot(const char* basePath, const char* defaultMetaName, std::vector<GameInfo>& outList) {
+  File root = SD.open(basePath);
+  if (!root) {
+    Serial.print("[SD] dossier introuvable: ");
+    Serial.println(basePath);
+    return;
+  }
+
+  if (!root.isDirectory()) {
+    Serial.print("[SD] chemin non dossier: ");
+    Serial.println(basePath);
+    root.close();
+    return;
+  }
+
+  File file = root.openNextFile();
+  while (file) {
+    if (file.isDirectory()) {
+      GameInfo game;
+
+      String folderName = String(file.name());
+
+      if (folderName.startsWith(String(basePath) + "/")) {
+        folderName.remove(0, String(basePath).length());
+      }
+      if (!folderName.startsWith("/")) {
+        folderName = "/" + folderName;
+      }
+
+      game.folder = folderName;
+      game.rootPath = basePath;
+
+      game.name = folderName.substring(1);
+      game.author = "";
+      game.description = "";
+      game.type = "mixed";
+
+      game.icon = "";
+      game.iconW = 0;
+      game.iconH = 0;
+
+      game.title = "";
+      game.titleW = 0;
+      game.titleH = 0;
+
+      game.bin = "game.bin";
+      game.save = "sauv.json";
+      game.rom = "";
+      game.runner = "gb_runner.bin";
+
+      String metaPath = String(basePath) + folderName + "/" + defaultMetaName;
+      readJsonMeta(game, metaPath);
+
+      if (game.type == "emulationGB") {
+        if (!hasGbExtension(game.rom)) {
+          Serial.print("[JSON] ROM ignoree (extension invalide): ");
+          Serial.println(game.rom);
+          file = root.openNextFile();
+          continue;
+        }
+        if (game.bin.length() == 0 || game.bin == "game.bin") {
+          game.bin = game.runner;
+        }
+      }
+
+      outList.push_back(game);
+    }
+
+    file = root.openNextFile();
+  }
+
+  root.close();
+}
+
 bool storageInit() {
   Serial.println("[SD] init debut");
 
@@ -28,126 +142,8 @@ bool storageInit() {
 std::vector<GameInfo> storageListGames() {
   std::vector<GameInfo> list;
 
-  File root = SD.open("/games");
-  if (!root) {
-    Serial.println("[SD] dossier /games introuvable");
-    return list;
-  }
+  addGamesFromRoot("/games", "meta.json", list);
+  addGamesFromRoot("/emulationGB", "game.json", list);
 
-  if (!root.isDirectory()) {
-    Serial.println("[SD] /games n'est pas un dossier");
-    root.close();
-    return list;
-  }
-
-  File file = root.openNextFile();
-  while (file) {
-    if (file.isDirectory()) {
-      GameInfo game;
-
-      String folderName = String(file.name());
-
-      if (folderName.startsWith("/games/")) {
-        folderName.remove(0, 6);
-      }
-      if (!folderName.startsWith("/")) {
-        folderName = "/" + folderName;
-      }
-
-      game.folder = folderName;
-
-      game.name = folderName.substring(1);
-      game.author = "";
-      game.description = "";
-      game.type = "mixed";
-
-      game.icon = "";
-      game.iconW = 0;
-      game.iconH = 0;
-
-      game.title = "";
-      game.titleW = 0;
-      game.titleH = 0;
-
-      game.bin = "game.bin";
-      game.save = "sauv.json";
-
-      String metaPath = "/games" + folderName + "/meta.json";
-
-      Serial.print("[SD] dossier jeu: ");
-      Serial.println(folderName);
-
-      Serial.print("[SD] ouverture meta: ");
-      Serial.println(metaPath);
-
-      File meta = SD.open(metaPath, FILE_READ);
-      if (meta) {
-        String jsonText;
-        while (meta.available()) {
-          jsonText += (char)meta.read();
-        }
-        meta.close();
-
-        JsonDocument doc;
-        DeserializationError err = deserializeJson(doc, jsonText);
-
-        if (err) {
-          Serial.print("[JSON] erreur: ");
-          Serial.println(err.c_str());
-        } else {
-          game.name        = doc["name"]        | game.name;
-          game.author      = doc["author"]      | "";
-          game.description = doc["description"] | "";
-          game.type        = doc["type"]        | "mixed";
-
-          game.icon        = doc["icon"]        | "";
-          game.iconW       = doc["icon_w"]      | 0;
-          game.iconH       = doc["icon_h"]      | 0;
-
-          game.title       = doc["title"]       | "";
-          game.titleW      = doc["title_w"]     | 0;
-          game.titleH      = doc["title_h"]     | 0;
-
-          game.bin         = doc["bin"]         | "game.bin";
-          game.save        = doc["save"]        | "sauv.json";
-
-          Serial.print("[JSON] name = ");
-          Serial.println(game.name);
-
-          Serial.print("[JSON] icon = ");
-          Serial.println(game.icon);
-
-          Serial.print("[JSON] icon_w = ");
-          Serial.println(game.iconW);
-
-          Serial.print("[JSON] icon_h = ");
-          Serial.println(game.iconH);
-
-          Serial.print("[JSON] title = ");
-          Serial.println(game.title);
-
-          Serial.print("[JSON] title_w = ");
-          Serial.println(game.titleW);
-
-          Serial.print("[JSON] title_h = ");
-          Serial.println(game.titleH);
-
-          Serial.print("[JSON] bin = ");
-          Serial.println(game.bin);
-
-          Serial.print("[JSON] save = ");
-          Serial.println(game.save);
-        }
-      } else {
-        Serial.println("[SD] meta.json absent ou impossible a ouvrir");
-      }
-
-      list.push_back(game);
-    }
-
-    file = root.openNextFile();
-  }
-
-  root.close();
   return list;
 }

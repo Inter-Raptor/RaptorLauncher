@@ -10,6 +10,7 @@
 #include "led_manager.h"
 #include "mcp23017_manager.h"
 #include "game_boot_manager.h"
+#include "gb_launch_config.h"
 #include "config.h"
 #include "types.h"
 
@@ -210,6 +211,12 @@ static int clampValue(int v, int minV, int maxV) {
   if (v < minV) return minV;
   if (v > maxV) return maxV;
   return v;
+}
+
+static String resolveGamePath(const GameInfo& game, const String& path) {
+  if (path.length() == 0) return "";
+  if (path.startsWith("/")) return path;
+  return String(SD_MOUNT_POINT) + game.folder + "/" + path;
 }
 
 enum TextKey {
@@ -426,7 +433,7 @@ static void showGameTitleScreen(const GameInfo& game) {
   bool titleOk = false;
 
   if (game.title.length() > 0 && game.titleW > 0 && game.titleH > 0) {
-    String path = "/games" + game.folder + "/" + game.title;
+    String path = resolveGamePath(game, game.title);
 
     if (game.title.endsWith(".raw")) {
       titleOk = displayDrawRAW(path.c_str(), 0, 0, game.titleW, game.titleH);
@@ -448,7 +455,26 @@ static void launchGameFromIndex(int index) {
   const GameInfo& game = gameList[index];
   showGameTitleScreen(game);
 
-  String binPath = String(SD_MOUNT_POINT) + "/" + game.folder + "/" + game.bin;
+  if (game.type == "emulationGB") {
+    if (game.rom.length() == 0) {
+      Serial.println("[GB] rom manquante dans meta.json");
+      gSaveStatusText = "ROM manquante";
+      currentScreen = SCREEN_HOME;
+      gNeedsRedraw = true;
+      return;
+    }
+
+    String romPath = resolveGamePath(game, game.rom);
+    if (!gbLaunchSavePendingRom(romPath, game.name)) {
+      Serial.println("[GB] impossible d'ecrire .gb_launch.json");
+      gSaveStatusText = "Config GB KO";
+      currentScreen = SCREEN_HOME;
+      gNeedsRedraw = true;
+      return;
+    }
+  }
+
+  String binPath = resolveGamePath(game, game.bin);
   bool ok = gameBootLaunchFromPath(binPath);
   if (!ok) {
     gSaveStatusText = "Launch KO";
@@ -484,7 +510,7 @@ static void drawHomeScreen() {
     const GameInfo& game = gameList[gameIndex];
 
     if (game.icon.length() > 0 && game.iconW > 0 && game.iconH > 0) {
-      String path = "/games" + game.folder + "/" + game.icon;
+      String path = resolveGamePath(game, game.icon);
 
       if (game.icon.endsWith(".raw")) {
         imageOk = displayDrawRAW(path.c_str(), x, y, game.iconW, game.iconH);

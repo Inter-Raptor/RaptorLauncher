@@ -9,6 +9,7 @@
 #include "wifi_manager.h"
 #include "led_manager.h"
 #include "mcp23017_manager.h"
+#include "gb_launch_config.h"
 #include "types.h"
 
 static bool gNeedsRedraw = true;
@@ -208,6 +209,12 @@ static int clampValue(int v, int minV, int maxV) {
   if (v < minV) return minV;
   if (v > maxV) return maxV;
   return v;
+}
+
+static String resolveAssetPath(const GameInfo& game, const String& relativeOrAbsolutePath) {
+  if (relativeOrAbsolutePath.length() == 0) return "";
+  if (relativeOrAbsolutePath.startsWith("/")) return relativeOrAbsolutePath;
+  return game.rootPath + game.folder + "/" + relativeOrAbsolutePath;
 }
 
 enum TextKey {
@@ -424,7 +431,7 @@ static void showGameTitleScreen(const GameInfo& game) {
   bool titleOk = false;
 
   if (game.title.length() > 0 && game.titleW > 0 && game.titleH > 0) {
-    String path = "/games" + game.folder + "/" + game.title;
+    String path = resolveAssetPath(game, game.title);
 
     if (game.title.endsWith(".raw")) {
       titleOk = displayDrawRAW(path.c_str(), 0, 0, game.titleW, game.titleH);
@@ -443,7 +450,21 @@ static void showGameTitleScreen(const GameInfo& game) {
 
 static void launchGameFromIndex(int index) {
   if (index < 0 || index >= (int)gameList.size()) return;
-  showGameTitleScreen(gameList[index]);
+  const GameInfo& game = gameList[index];
+
+  if (game.type == "emulationGB") {
+    if (!gbLaunchSavePendingRom(game.rom, game.name)) {
+      Serial.println("[GB] impossible de sauvegarder le chemin ROM");
+      return;
+    }
+
+    Serial.print("[GB] ROM selectionnee: ");
+    Serial.println(game.rom);
+    Serial.print("[GB] binaire runner cible: ");
+    Serial.println(game.bin);
+  }
+
+  showGameTitleScreen(game);
 }
 
 // --------------------------------------------------
@@ -473,7 +494,7 @@ static void drawHomeScreen() {
     const GameInfo& game = gameList[gameIndex];
 
     if (game.icon.length() > 0 && game.iconW > 0 && game.iconH > 0) {
-      String path = "/games" + game.folder + "/" + game.icon;
+      String path = resolveAssetPath(game, game.icon);
 
       if (game.icon.endsWith(".raw")) {
         imageOk = displayDrawRAW(path.c_str(), x, y, game.iconW, game.iconH);

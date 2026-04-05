@@ -71,6 +71,7 @@ std::vector<GameInfo> storageListGames() {
 
       game.bin = "game.bin";
       game.save = "sauv.json";
+      game.rom = "";
 
       String metaPath = "/games" + folderName + "/meta.json";
 
@@ -110,6 +111,7 @@ std::vector<GameInfo> storageListGames() {
 
           game.bin         = doc["bin"]         | "game.bin";
           game.save        = doc["save"]        | "sauv.json";
+          game.rom         = doc["rom"]         | "";
 
           Serial.print("[JSON] name = ");
           Serial.println(game.name);
@@ -137,6 +139,10 @@ std::vector<GameInfo> storageListGames() {
 
           Serial.print("[JSON] save = ");
           Serial.println(game.save);
+          if (game.rom.length() > 0) {
+            Serial.print("[JSON] rom = ");
+            Serial.println(game.rom);
+          }
         }
       } else {
         Serial.println("[SD] meta.json absent ou impossible a ouvrir");
