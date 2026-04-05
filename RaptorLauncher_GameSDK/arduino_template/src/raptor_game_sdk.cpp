@@ -64,12 +64,14 @@ void RaptorGameSDK::begin() {
   ledcAttach(SDK_PIN_SPEAKER, 2000, 8);
   ledcWrite(SDK_PIN_SPEAKER, 0);
 
-  pinMode(SDK_PIN_LED_R, OUTPUT);
-  pinMode(SDK_PIN_LED_G, OUTPUT);
-  pinMode(SDK_PIN_LED_B, OUTPUT);
-  digitalWrite(SDK_PIN_LED_R, HIGH);
-  digitalWrite(SDK_PIN_LED_G, HIGH);
-  digitalWrite(SDK_PIN_LED_B, HIGH);
+  ledcAttach(SDK_PIN_LED_R, 5000, 8);
+  ledcAttach(SDK_PIN_LED_G, 5000, 8);
+  ledcAttach(SDK_PIN_LED_B, 5000, 8);
+  ledcWrite(SDK_PIN_LED_R, 255);
+  ledcWrite(SDK_PIN_LED_G, 255);
+  ledcWrite(SDK_PIN_LED_B, 255);
+
+  analogReadResolution(12);
 
   // Important: des le debut du jeu, on arme le retour auto au launcher
   // en cas de reboot/reset inattendu.
@@ -329,7 +331,68 @@ String RaptorGameSDK::sdkHealthReport() const {
   out += "SD=" + String(sdReady ? "OK" : "KO");
   out += " | MCP=" + String(mcpReady ? "OK" : "KO");
   out += " | TouchCal=" + String(touchCalLoadedFromSettings ? "settings.json" : "defaults");
+  out += " | WiFi=" + String(wifiIsConnected() ? "ON" : "OFF");
+  out += " | LDR=" + String(readLightPercent()) + "%";
   return out;
+}
+
+
+void RaptorGameSDK::setLedRgb(uint8_t r, uint8_t g, uint8_t b) {
+  // LED commune anode (actif low) sur CYD: 0 = allume, 255 = eteint
+  uint8_t rr = 255 - r;
+  uint8_t gg = 255 - g;
+  uint8_t bb = 255 - b;
+  ledcWrite(SDK_PIN_LED_R, rr);
+  ledcWrite(SDK_PIN_LED_G, gg);
+  ledcWrite(SDK_PIN_LED_B, bb);
+}
+
+void RaptorGameSDK::ledOff() {
+  ledcWrite(SDK_PIN_LED_R, 255);
+  ledcWrite(SDK_PIN_LED_G, 255);
+  ledcWrite(SDK_PIN_LED_B, 255);
+}
+
+int RaptorGameSDK::readLightRaw() const {
+  return analogRead(SDK_PIN_LIGHT_SENSOR);
+}
+
+int RaptorGameSDK::readLightPercent() const {
+  int v = readLightRaw();
+  int pct = map(v, 0, 4095, 0, 100);
+  if (pct < 0) pct = 0;
+  if (pct > 100) pct = 100;
+  return pct;
+}
+
+bool RaptorGameSDK::wifiConnectFromSettings() {
+  JsonDocument doc;
+  if (!loadLauncherSettings(doc)) return false;
+
+  bool enabled = doc["wifi_enabled"] | false;
+  String ssid = doc["wifi_ssid"] | "";
+  String pass = doc["wifi_pass"] | "";
+
+  if (!enabled || ssid.length() == 0) return false;
+
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid.c_str(), pass.c_str());
+
+  unsigned long t0 = millis();
+  while (WiFi.status() != WL_CONNECTED && (millis() - t0) < SDK_WIFI_CONNECT_TIMEOUT_MS) {
+    delay(150);
+  }
+
+  return WiFi.status() == WL_CONNECTED;
+}
+
+void RaptorGameSDK::wifiDisconnect() {
+  WiFi.disconnect(true);
+  WiFi.mode(WIFI_OFF);
+}
+
+bool RaptorGameSDK::wifiIsConnected() const {
+  return WiFi.status() == WL_CONNECTED;
 }
 
 bool RaptorGameSDK::armReturnToLauncherOnNextBoot() {

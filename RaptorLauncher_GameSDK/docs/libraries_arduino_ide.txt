@@ -11,7 +11,9 @@ Obligatoires:
 Utilisees par le template/SDK:
 - Preferences (incluse avec ESP32 core)
 - esp_ota_ops / esp_partition (incluses avec ESP32 core)
+- WiFi (incluse avec ESP32 core)
 
 Optionnelles selon jeu:
-- WiFi
-- HTTPClient
+- PNGdec (si PNG decode custom)
+- JPEGDEC (si JPEG decode custom)
+- ESP8266Audio (si audio WAV/MP3 avance)

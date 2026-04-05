@@ -65,3 +65,9 @@
 #define SDK_COLOR_OK       0x07E0
 #define SDK_COLOR_WARN     0xFFE0
 #define SDK_COLOR_ERROR    0xF800
+
+// Luminosite (optionnel, selon revision carte)
+#define SDK_PIN_LIGHT_SENSOR 34
+
+// Wi-Fi optionnel
+#define SDK_WIFI_CONNECT_TIMEOUT_MS 12000

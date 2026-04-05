@@ -7,6 +7,7 @@
 #include <Adafruit_MCP23X17.h>
 #include <LovyanGFX.hpp>
 #include <ArduinoJson.h>
+#include <WiFi.h>
 #include "raptor_game_config.h"
 
 enum GameButton {
@@ -75,6 +76,19 @@ public:
   bool loadLauncherSettings(JsonDocument& doc) const;
   bool validateGameMeta(const String& metaPath, String& errorOut) const;
   String sdkHealthReport() const;
+
+  // LED RGB (actif low sur la plupart des cartes CYD)
+  void setLedRgb(uint8_t r, uint8_t g, uint8_t b);
+  void ledOff();
+
+  // Capteur luminosite (si present sur la revision hardware)
+  int readLightRaw() const;
+  int readLightPercent() const;
+
+  // Wi-Fi optionnel via /settings.json
+  bool wifiConnectFromSettings();
+  void wifiDisconnect();
+  bool wifiIsConnected() const;
 
 private:
   void initDisplay();
