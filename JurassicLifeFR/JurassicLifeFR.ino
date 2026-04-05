@@ -162,6 +162,7 @@ static void eraseSavesAndRestart();
 static void prepareReturnToLauncher();
 
 // AJOUT (tactile) : prototypes pour éviter tout souci d'auto-prototypes Arduino
+struct TouchSample;
 static void uiPressAction(uint32_t now);
 static void handleTouchUI(uint32_t now);
 static bool rawToScreenLauncherMap(const TouchSample& r, int &sx, int &sy);
