@@ -15,6 +15,8 @@ Il intègre les points critiques que tu as demandés:
 
 - `docs/ASSETS_AUDIO_WIFI_POWER.md`
   - guide complet assets/audio/wifi/luminosite/batterie/sd
+- `docs/API_PUBLIC.md`
+  - liste exacte des fonctions réellement exposées dans le SDK
 - `arduino_template/`
   - `arduino_template.ino` : jeu exemple prêt à compiler
   - `src/raptor_game_config.h` : pins + conventions meta/save
@@ -129,3 +131,6 @@ Si le fichier est absent/invalide, le SDK retombe sur les macros de `raptor_game
 - [ ] test écriture `sauv.json`
 
 Ce kit te donne une base solide pour créer vite, proprement, et garder la compatibilité launcher.
+
+
+> Note: BMP/PNG/WAV/MP3 restent des modules avancés à brancher selon bibliothèques choisies.
