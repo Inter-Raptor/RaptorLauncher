@@ -323,15 +323,6 @@ static inline uint16_t rgb565(uint8_t rr, uint8_t gg, uint8_t bb) {
   return ((uint16_t)rr << 11) | ((uint16_t)gg << 5) | bb;
 }
 
-static inline uint16_t swap16(uint16_t v) {
-  return (uint16_t)((v << 8) | (v >> 8));
-}
-
-static inline uint16_t readAsset565(const uint16_t* p) {
-  // Les assets générés sont stockés en octets inversés.
-  return swap16(pgm_read_word(p));
-}
-
 uint16_t tint565(uint16_t src, uint16_t tint) {
   uint8_t sr = r5(src);
   uint8_t sg = g6(src);
@@ -577,7 +568,7 @@ void drawFullBackground() {
 
   for (int y = 0; y < SCREEN_H; y++) {
     for (int x = 0; x < SCREEN_W; x++) {
-      line[x] = readAsset565(&bg[y * SCREEN_W + x]);
+      line[x] = pgm_read_word(&bg[y * SCREEN_W + x]);
     }
     tft.pushImage(0, y, SCREEN_W, 1, line);
   }
@@ -597,7 +588,7 @@ void restoreBgRect(int x, int y, int w, int h) {
   for (int yy = 0; yy < h; yy++) {
     int sy = y + yy;
     for (int xx = 0; xx < w; xx++) {
-      line[xx] = readAsset565(&bg[sy * SCREEN_W + (x + xx)]);
+      line[xx] = pgm_read_word(&bg[sy * SCREEN_W + (x + xx)]);
     }
     tft.pushImage(x, sy, w, 1, line);
   }
@@ -615,7 +606,7 @@ void drawSpriteTransparentTinted(
 ) {
   if (x >= SCREEN_W || y >= SCREEN_H || x + w <= 0 || y + h <= 0) return;
 
-  const uint16_t key = readAsset565(&data[w - 1]);
+  const uint16_t key = pgm_read_word(&data[w - 1]);
 
   static uint16_t rowBuffer[64];
   if (w > 64) return;
@@ -628,7 +619,7 @@ void drawSpriteTransparentTinted(
       uint16_t p = 0;
 
       if (xx < w) {
-        p = readAsset565(&data[yy * w + xx]);
+        p = pgm_read_word(&data[yy * w + xx]);
         visible = (p != key);
       }
 
@@ -641,7 +632,7 @@ void drawSpriteTransparentTinted(
         int runW = runEnd - runStart + 1;
 
         for (int i = 0; i < runW; i++) {
-          uint16_t src = readAsset565(&data[yy * w + runStart + i]);
+          uint16_t src = pgm_read_word(&data[yy * w + runStart + i]);
           rowBuffer[i] = useTint ? tint565(src, tintColor) : src;
         }
 
