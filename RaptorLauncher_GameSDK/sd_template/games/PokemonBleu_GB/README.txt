@@ -12,6 +12,8 @@ IMPORTANT:
 Ou trouver gb_emulator.bin ?
 - Ce fichier n'est pas fourni dans le repo.
 - Compile ton projet emulateur GB pour ESP32.
+- Un template compilable est fourni ici:
+  RaptorLauncher_GameSDK/examples/GB_Emulator/gb_emulator.ino
 - Le binaire est souvent généré sous:
   <ProjetEmulateur>/build/esp32.esp32.esp32/game.bin
 - Copie ce game.bin ici en le renommant gb_emulator.bin.
