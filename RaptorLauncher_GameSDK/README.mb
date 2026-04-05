@@ -79,6 +79,10 @@ Si le fichier est absent/invalide, le SDK retombe sur les macros de `raptor_game
 - `playBeep(freq, ms)`
 - `requestReturnToLauncher()`
 - `saveJson/loadJson/saveJsonPath`
+- `isSdReady()`
+- `loadLauncherSettings(doc)`
+- `validateGameMeta(path, errorOut)`
+- `sdkHealthReport()`
 
 ---
 

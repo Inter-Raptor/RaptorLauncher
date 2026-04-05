@@ -70,6 +70,12 @@ public:
   bool saveJson(const JsonDocument& doc);
   bool loadJson(JsonDocument& doc);
 
+  // Outils SDK pour fiabiliser l'integration
+  bool isSdReady() const;
+  bool loadLauncherSettings(JsonDocument& doc) const;
+  bool validateGameMeta(const String& metaPath, String& errorOut) const;
+  String sdkHealthReport() const;
+
 private:
   void initDisplay();
   void initInput();
@@ -78,6 +84,8 @@ private:
 
   InputState input{};
   bool mcpReady = false;
+  bool sdReady = false;
+  bool touchCalLoadedFromSettings = false;
 
   bool touchHeld = false;
   bool touchPressedEdge = false;
