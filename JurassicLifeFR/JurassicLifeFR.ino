@@ -1,25 +1,20 @@
-// tamadinov4.ino - ESP32 WROOM + CYD 2432S028 (ILI9341) + LovyanGFX
+// tamadinov4.ino - ESP32 WROOM + CYD 2432S032R/2432S028 (ST7789) + LovyanGFX
 #include <stdint.h>
 
 // ================== CONFIG RAPIDE (à modifier en premier) ==================
 // --- Choix carte/écran ---
 #define DISPLAY_PROFILE_2432S022 1   // ST7789 + cap touch I2C
-#define DISPLAY_PROFILE_2432S028 2   // ILI9341 + XPT2046 (soft-SPI)
+#define DISPLAY_PROFILE_2432S028 2   // ST7789 + XPT2046 (soft-SPI)
 #define DISPLAY_PROFILE_ILI9341_320x240 3 // ILI9341 320x240 + XPT2046 (soft-SPI)
 
 // >>> Réglage simple : modifier la carte ici <<<
-#define DISPLAY_PROFILE DISPLAY_PROFILE_2432S022   // DISPLAY_PROFILE_2432S022   ou   DISPLAY_PROFILE_2432S028   ou   DISPLAY_PROFILE_ILI9341_320x240
+#define DISPLAY_PROFILE DISPLAY_PROFILE_2432S028   // ESP32-2432S032R: utiliser 2432S028 (ST7789 + XPT2046)
 
 // >>> Audio : 1 = ON, 0 = OFF <<<
 #define ENABLE_AUDIO 1
 
-// >>> Calibration tactile XPT2046 : 1 = ON, 0 = OFF <<<
-// Par défaut : 2432S022 = OFF (garde le réglage de base), autres = ON.
-#if DISPLAY_PROFILE == DISPLAY_PROFILE_2432S022
-  #define ENABLE_TOUCH_CALIBRATION 0
-#else
-  #define ENABLE_TOUCH_CALIBRATION 1
-#endif
+// Le tactile est géré/calibré par le launcher.
+#define ENABLE_TOUCH_CALIBRATION 0
 
 // --- Options entrée (2432S028 / ILI9341 uniquement - pas assez de pins sur 2432S022) ---
 // Encoder rotatif cliquable (A/B + bouton), ou 3 boutons (gauche/droite/OK).
@@ -56,7 +51,7 @@
 //   LCD parallèle 8-bit: WR=4, RD=2, RS=16, D0=15, D1=13, D2=12, D3=14, D4=27, D5=25, D6=33, D7=32
 //   LCD CS=17, RST=-1, BL=0 (PWM)
 //   Touch I2C: SDA=21, SCL=22
-// 2432S028 (ILI9341 + XPT2046)
+// 2432S028 / 2432S032R (ST7789 + XPT2046)
 //   LCD SPI: SCLK=14, MOSI=13, MISO=12, DC=2, CS=15, BL=21
 //   Touch XPT2046 (soft-SPI): CLK=25, MOSI=32, MISO=39, CS=33, IRQ=36
 // ILI9341_320x240 (TFT classique + XPT2046)
@@ -84,7 +79,13 @@ enum GamePhase : uint8_t { PHASE_EGG, PHASE_HATCHING, PHASE_ALIVE, PHASE_RESTREA
 
 enum AudioMode : uint8_t { AUDIO_OFF, AUDIO_LIMITED, AUDIO_TOTAL };
 enum AudioPriority : uint8_t { AUDIO_PRIO_LOW, AUDIO_PRIO_MED, AUDIO_PRIO_HIGH };
+enum Language : uint8_t { LANG_FR, LANG_EN, LANG_DE, LANG_IT, LANG_ES };
 struct AudioStep;
+
+// LED RGB de la carte launcher (commune anode): R=IO4, G=IO16, B=IO17
+static const int LED_PIN_R = 4;
+static const int LED_PIN_G = 16;
+static const int LED_PIN_B = 17;
 
 // ================== APP MODE (gestion vs mini-jeux) ==================
 enum AppMode : uint8_t { MODE_PET, MODE_MG_WASH, MODE_MG_PLAY };
@@ -158,6 +159,7 @@ static bool startTask(TaskKind k, uint32_t now);
 static void resetToEgg(uint32_t now);
 static void handleDeath(uint32_t now);
 static void eraseSavesAndRestart();
+static void prepareReturnToLauncher();
 
 // AJOUT (tactile) : prototypes pour éviter tout souci d'auto-prototypes Arduino
 static void uiPressAction(uint32_t now);
@@ -190,41 +192,24 @@ extern bool sdReady;
 #include <SPI.h>
 #include <SD.h>
 #include <ArduinoJson.h>
+#include <esp_ota_ops.h>
+#include <esp_partition.h>
+#include <Preferences.h>
 
 #include "DinoNames.h"
 #include "JurassicMusicRTTTL.h"
-#include "pageaccueil.h"
 
 // ================== ASSETS (namespaces rename) ==================
 #define triceratops triJ
 #include "annim_junior.h"
 #undef triceratops
 
-#define triceratops triA
-#include "annim_adul.h"
-#undef triceratops
+// Mode compact: réutilise le set JUNIOR pour ADULTE/SENIOR
+namespace triA = triJ;
+namespace triS = triJ;
 
-#define triceratops triS
-#include "annim_senior.h"
-#undef triceratops
 
-#define dino egg
-#include "annim_oeuf.h"
-#undef dino
-
-#define dino poop
-#include "annim_caca.h"
-#undef dino
-
-#include "tombe.h"
-
-// Décor
-#include "montagne.h"
-#include "sapin.h"
-#include "arbre.h"
-#include "buissonbaie.h"
-#include "buissonsansbaie.h"
-#include "flaque_eau_60x25.h"
+// Décor (mode compact: formes procédurales)
 #include "nuage.h"
 #include "ballon.h"
 
@@ -362,30 +347,13 @@ static inline uint16_t swap16(uint16_t v) { return (uint16_t)((v << 8) | (v >> 8
 static const uint16_t KEY      = 0xF81F;
 static const uint16_t KEY_SWAP = 0x1FF8;
 
-// ================== ALIAS décor ==================
-#define MONT_W    montagne_W
-#define MONT_H    montagne_H
-#define MONT_IMG  montagne
-
-#define SAPIN_W   sapin_W
-#define SAPIN_H   sapin_H
-#define SAPIN_IMG sapin
-
-#define ARBRE_W   arbre_W
-#define ARBRE_H   arbre_H
-#define ARBRE_IMG arbre
-
-#define BBAIE_W   buissonbaie_W
-#define BBAIE_H   buissonbaie_H
-#define BBAIE_IMG buissonbaie
-
-#define BSANS_W   buissonsansbaie_W
-#define BSANS_H   buissonsansbaie_H
-#define BSANS_IMG buissonsansbaie
-
-#define FLAQUE_W   flaque_eau_60x25_W
-#define FLAQUE_H   flaque_eau_60x25_H
-#define FLAQUE_IMG flaque_eau_60x25
+// ================== ALIAS décor (procédural) ==================
+static constexpr int BBAIE_W = 34;
+static constexpr int BBAIE_H = 30;
+static constexpr int BSANS_W = 30;
+static constexpr int BSANS_H = 26;
+static constexpr int FLAQUE_W = 60;
+static constexpr int FLAQUE_H = 25;
 
 // ================== ÉCRAN ==================
 #if DISPLAY_PROFILE == DISPLAY_PROFILE_2432S022
@@ -479,14 +447,15 @@ static constexpr int TOUCH_CLK  = 25;
 static constexpr int TOUCH_CS   = 33;
 
 class LGFX : public lgfx::LGFX_Device {
-  lgfx::Panel_ILI9341 _panel;
+  lgfx::Panel_ST7789 _panel;
   lgfx::Bus_SPI _bus;
+  lgfx::Light_PWM _light;
 public:
   LGFX() {
     { auto cfg = _bus.config();
       cfg.spi_host   = VSPI_HOST;
       cfg.spi_mode   = 0;
-      cfg.freq_write = 20000000;
+      cfg.freq_write = 40000000;
       cfg.freq_read  = 16000000;
       cfg.pin_sclk   = 14;
       cfg.pin_mosi   = 13;
@@ -499,27 +468,31 @@ public:
       cfg.pin_cs   = 15;
       cfg.pin_rst  = -1;
       cfg.pin_busy = -1;
-#if DISPLAY_PROFILE == DISPLAY_PROFILE_ILI9341_320x240
-      cfg.panel_width  = 320;
-      cfg.panel_height = 240;
-#else
+      cfg.memory_width  = 240;
+      cfg.memory_height = 320;
       cfg.panel_width  = 240;
       cfg.panel_height = 320;
-#endif
       cfg.offset_x = 0;
       cfg.offset_y = 0;
-      cfg.invert     = false;
+      cfg.invert     = true;
       cfg.rgb_order  = false;
       cfg.dlen_16bit = false;
       cfg.bus_shared = true;
       _panel.config(cfg);
+    }
+    { auto cfg = _light.config();
+      cfg.pin_bl = 27;
+      cfg.invert = false;
+      cfg.freq = 12000;
+      cfg.pwm_channel = 7;
+      _light.config(cfg);
+      _panel.setLight(&_light);
     }
     setPanel(&_panel);
   }
 };
 
 LGFX tft;
-static const int PIN_BL = 21;
 
 #if DISPLAY_PROFILE == DISPLAY_PROFILE_ILI9341_320x240
 static constexpr int RAW_W = 320;
@@ -1066,7 +1039,8 @@ static const int AUDIO_PWM_CHANNEL = 6;
 static const int AUDIO_PWM_BITS = 10;
 static const uint16_t AUDIO_DUTY_NORMAL = 320;
 static const uint16_t AUDIO_DUTY_QUIET  = 150;
-static uint8_t audioVolumePercent = 1; // 0-100 pour reduire le volume global
+static uint8_t launcherVolumePercent = 80; // relu depuis /settings.json
+static uint8_t launcherLedBrightnessPercent = 40; // relu depuis /settings.json
 
 struct AudioStep {
   uint16_t freq = 0;
@@ -1100,8 +1074,8 @@ static void audioWriteDuty(uint16_t duty) {
 }
 
 static uint16_t audioDutyScaled(uint16_t duty) {
-  if (audioVolumePercent >= 100) return duty;
-  uint32_t scaled = (uint32_t)duty * (uint32_t)audioVolumePercent;
+  if (launcherVolumePercent >= 100) return duty;
+  uint32_t scaled = (uint32_t)duty * (uint32_t)launcherVolumePercent;
   return (uint16_t)(scaled / 100U);
 }
 
@@ -1121,6 +1095,7 @@ static bool audioActive = false;
 static AudioStep audioDynSeq[128];
 static const char* audioLoopRtttl = nullptr;
 static AudioPriority audioLoopPriority = AUDIO_PRIO_LOW;
+static TriState state = ST_SIT;
 
 static void audioSetTone(uint16_t freq, uint16_t duty) {
   if (freq == 0 || duty == 0) {
@@ -1342,6 +1317,41 @@ static inline bool criticalBlinkOn(uint32_t now) {
   return ((now / 500UL) % 2U) == 0U;
 }
 
+static inline uint8_t scaleLedWithBrightness(uint8_t c) {
+  uint16_t scaled = ((uint16_t)c * (uint16_t)launcherLedBrightnessPercent) / 100U;
+  return (uint8_t)scaled;
+}
+
+// commune anode: 0 = ON, 255 = OFF
+static void setRgbLed(uint8_t r, uint8_t g, uint8_t b) {
+  uint8_t rr = 255U - scaleLedWithBrightness(r);
+  uint8_t gg = 255U - scaleLedWithBrightness(g);
+  uint8_t bb = 255U - scaleLedWithBrightness(b);
+  analogWrite(LED_PIN_R, rr);
+  analogWrite(LED_PIN_G, gg);
+  analogWrite(LED_PIN_B, bb);
+}
+
+static void updateMoodLed(uint32_t now) {
+  if (launcherLedBrightnessPercent == 0 || phase != PHASE_ALIVE || !pet.vivant) {
+    setRgbLed(0, 0, 0);
+    return;
+  }
+  if (healthCriticalCount() > 0) {
+    bool on = ((now / 250UL) % 2U) == 0U;
+    uint8_t r = on ? 255 : 0;
+    setRgbLed(r, 0, 0);
+    return;
+  }
+  if (state == ST_SLEEP) {
+    float wave = 0.5f + 0.5f * sinf((float)now * 0.004f);
+    uint8_t b = (uint8_t)(wave * 180.0f);
+    setRgbLed(0, 0, b);
+    return;
+  }
+  setRgbLed(0, 0, 0);
+}
+
 static void audioTickAlerts(uint32_t now) {
   if (audioMode == AUDIO_OFF) return;
   uint32_t interval = (audioMode == AUDIO_TOTAL) ? 10000UL : 20000UL;
@@ -1360,6 +1370,44 @@ static char petName[20] = "???";
 
 // ================== UI ==================
 static uint8_t uiSel = 0;
+static Language uiLanguage = LANG_FR;
+static const char* LAUNCHER_SETTINGS_FILE = "/settings.json";
+static uint32_t nextLauncherSyncAt = 0;
+
+static void syncLauncherSettings(uint32_t now) {
+  if (!sdReady) return;
+  if (nextLauncherSyncAt != 0 && (int32_t)(now - nextLauncherSyncAt) < 0) return;
+  nextLauncherSyncAt = now + 5000UL;
+
+  if (!SD.exists(LAUNCHER_SETTINGS_FILE)) return;
+  File f = SD.open(LAUNCHER_SETTINGS_FILE, FILE_READ);
+  if (!f) return;
+
+  StaticJsonDocument<512> doc;
+  DeserializationError err = deserializeJson(doc, f);
+  f.close();
+  if (err) return;
+
+  int vol = doc["volume"] | (int)launcherVolumePercent;
+  if (vol < 0) vol = 0;
+  if (vol > 100) vol = 100;
+  launcherVolumePercent = (uint8_t)vol;
+  int ledBright = doc["led_brightness"] | (doc["brightness"] | (int)launcherLedBrightnessPercent);
+  if (ledBright < 0) ledBright = 0;
+  if (ledBright > 100) ledBright = 100;
+  launcherLedBrightnessPercent = (uint8_t)ledBright;
+
+  const char* lang = doc["language"] | nullptr;
+  if (!lang || !lang[0]) lang = doc["lang"] | nullptr;
+  if (!lang || !lang[0]) lang = doc["locale"] | "fr";
+  char c0 = (char)tolower((unsigned char)lang[0]);
+  char c1 = (char)tolower((unsigned char)lang[1]);
+  if (c0 == 'e' && c1 == 'n') uiLanguage = LANG_EN;
+  else if (c0 == 'd' && c1 == 'e') uiLanguage = LANG_DE;
+  else if (c0 == 'i' && c1 == 't') uiLanguage = LANG_IT;
+  else if (c0 == 'e' && c1 == 's') uiLanguage = LANG_ES;
+  else uiLanguage = LANG_FR;
+}
 
 static const uint16_t COL_FAIM    = 0xFD20;
 static const uint16_t COL_SOIF    = 0x03FF;
@@ -1383,24 +1431,33 @@ static inline uint16_t btnColorForAction(UiAction a) {
     default:        return TFT_WHITE;
   }
 }
+static inline const char* tr(const char* fr, const char* en, const char* de, const char* it, const char* es) {
+  switch (uiLanguage) {
+    case LANG_EN: return en;
+    case LANG_DE: return de;
+    case LANG_IT: return it;
+    case LANG_ES: return es;
+    default:      return fr;
+  }
+}
 static inline const char* btnLabel(UiAction a) {
   switch (a) {
-    case UI_REPOS:  return "Repos";
-    case UI_MANGER: return "Manger";
-    case UI_BOIRE:  return "Boire";
-    case UI_LAVER:  return "Laver";
-    case UI_JOUER:  return "Jouer";
-    case UI_CACA:   return "Caca";
-    case UI_CALIN:  return "Calin";
-    case UI_AUDIO:  return "Son";
+    case UI_REPOS:  return tr("Repos", "Rest", "Ruhe", "Riposo", "Descanso");
+    case UI_MANGER: return tr("Manger", "Eat", "Essen", "Mangia", "Comer");
+    case UI_BOIRE:  return tr("Boire", "Drink", "Trinken", "Bevi", "Beber");
+    case UI_LAVER:  return tr("Laver", "Wash", "Waschen", "Lava", "Lavar");
+    case UI_JOUER:  return tr("Jouer", "Play", "Spielen", "Gioca", "Jugar");
+    case UI_CACA:   return tr("Caca", "Poop", "Kaka", "Cacca", "Caca");
+    case UI_CALIN:  return tr("Calin", "Hug", "Umarmung", "Abbraccio", "Abrazo");
+    case UI_AUDIO:  return tr("Son", "Sound", "Ton", "Suono", "Sonido");
     default:        return "?";
   }
 }
 static inline const char* stageLabel(AgeStage s) {
   switch (s) {
-    case AGE_JUNIOR: return "Junior";
-    case AGE_ADULTE: return "Adulte";
-    case AGE_SENIOR: return "Senior";
+    case AGE_JUNIOR: return tr("Junior", "Junior", "Jung", "Giovane", "Joven");
+    case AGE_ADULTE: return tr("Adulte", "Adult", "Erwachsen", "Adulto", "Adulto");
+    case AGE_SENIOR: return tr("Senior", "Senior", "Senior", "Senior", "Senior");
     default:         return "?";
   }
 }
@@ -1524,7 +1581,6 @@ static inline bool flipForMovingRight(bool right) {
 }
 
 // ================== STATE / ANIM ==================
-static TriState state = ST_SIT;
 
 static uint8_t animIdx = 0;
 static uint32_t nextAnimTick = 0;
@@ -1627,19 +1683,19 @@ static inline uint8_t animIdForState(AgeStage stg, TriState st) {
     }
   } else if (stg == AGE_ADULTE) {
     switch (st) {
-      case ST_SIT:   return (uint8_t)triA::ANIM_ADULTE_ASSIE;
-      case ST_BLINK: return (uint8_t)triA::ANIM_ADULTE_CLIGNE;
-      case ST_EAT:   return (uint8_t)triA::ANIM_ADULTE_MANGE;
-      case ST_SLEEP: return (uint8_t)triA::ANIM_ADULTE_DODO;
-      default:       return (uint8_t)triA::ANIM_ADULTE_MARCHE;
+      case ST_SIT:   return (uint8_t)triJ::ANIM_JUNIOR_ASSIE;
+      case ST_BLINK: return (uint8_t)triJ::ANIM_JUNIOR_CLIGNE;
+      case ST_EAT:   return (uint8_t)triJ::ANIM_JUNIOR_MANGE;
+      case ST_SLEEP: return (uint8_t)triJ::ANIM_JUNIOR_DODO;
+      default:       return (uint8_t)triJ::ANIM_JUNIOR_MARCHE;
     }
   } else {
     switch (st) {
-      case ST_SIT:   return (uint8_t)triS::ANIM_SENIOR_ASSIE;
-      case ST_BLINK: return (uint8_t)triS::ANIM_SENIOR_CLIGNE;
-      case ST_EAT:   return (uint8_t)triS::ANIM_SENIOR_MANGE;
-      case ST_SLEEP: return (uint8_t)triS::ANIM_SENIOR_DODO;
-      default:       return (uint8_t)triS::ANIM_SENIOR_MARCHE;
+      case ST_SIT:   return (uint8_t)triJ::ANIM_JUNIOR_ASSIE;
+      case ST_BLINK: return (uint8_t)triJ::ANIM_JUNIOR_CLIGNE;
+      case ST_EAT:   return (uint8_t)triJ::ANIM_JUNIOR_MANGE;
+      case ST_SLEEP: return (uint8_t)triJ::ANIM_JUNIOR_DODO;
+      default:       return (uint8_t)triJ::ANIM_JUNIOR_MARCHE;
     }
   }
 }
@@ -1942,7 +1998,7 @@ static void activityShowProgress(uint32_t now, const char* text, uint32_t durMs)
   activityText[sizeof(activityText)-1] = 0;
 }
 
-// ================== SAVE SYSTEM (microSD JSON A/B) ==================
+// ================== SAVE SYSTEM (microSD JSON) ==================
 static const int SD_SCK  = 18;
 static const int SD_MISO = 19;
 static const int SD_MOSI = 23;
@@ -1952,17 +2008,13 @@ static const int SD_CS   = 5;
 static SPIClass sdSPI(HSPI);
 bool sdReady = false;
 
-static const char* SAVE_A  = "/saveA.json";
-static const char* SAVE_B  = "/saveB.json";
-static const char* TMP_A   = "/saveA.tmp";
-static const char* TMP_B   = "/saveB.tmp";
+static const char* SAVE_FILE = "/games/DinoLife/sauv.json";
+static const char* TMP_FILE  = "/games/DinoLife/sauv.tmp";
 
 static const uint32_t SAVE_EVERY_MS = 60000UL;
 
 static uint32_t saveSeq = 0;
 static uint32_t lastSaveAt = 0;
-static bool nextSlotIsA = true;  // alterne A/B
-
 static inline int iClamp(int v, int lo, int hi){ if(v<lo) return lo; if(v>hi) return hi; return v; }
 static inline int fToI100(float f){ return iClamp((int)lroundf(f), 0, 100); }
 
@@ -1973,6 +2025,8 @@ static bool sdInit() {
     Serial.println("[SD] init FAIL");
     return false;
   }
+  if (!SD.exists("/games")) SD.mkdir("/games");
+  if (!SD.exists("/games/DinoLife")) SD.mkdir("/games/DinoLife");
   Serial.println("[SD] init OK");
   return true;
 }
@@ -2043,22 +2097,11 @@ static void applyLoadedToRuntime(uint32_t now) {
 static bool loadLatestSave(uint32_t now) {
   if (!sdReady) return false;
 
-  StaticJsonDocument<768> dA, dB;
-  uint32_t sA=0, sB=0;
-  bool okA = readJsonFile(SAVE_A, dA, sA);
-  bool okB = readJsonFile(SAVE_B, dB, sB);
+  StaticJsonDocument<768> doc;
+  uint32_t seq = 0;
+  if (!readJsonFile(SAVE_FILE, doc, seq)) return false;
 
-  if (!okA && !okB) return false;
-
-  StaticJsonDocument<768>* bestDoc = nullptr;
-  bool bestIsA = true;
-
-  if (okA && (!okB || sA >= sB)) { bestDoc = &dA; bestIsA = true; }
-  else                           { bestDoc = &dB; bestIsA = false; }
-
-  auto& doc = *bestDoc;
-
-  saveSeq = doc["seq"] | 0UL;
+  saveSeq = seq;
 
   int p  = doc["phase"] | (int)PHASE_EGG;
   int st = doc["stage"] | (int)AGE_JUNIOR;
@@ -2089,7 +2132,6 @@ static bool loadLatestSave(uint32_t now) {
 
 #if ENABLE_AUDIO
   audioMode = (AudioMode)iClamp(doc["audioMode"] | (int)AUDIO_TOTAL, (int)AUDIO_OFF, (int)AUDIO_TOTAL);
-  audioVolumePercent = (uint8_t)iClamp(doc["audioVol"] | (int)audioVolumePercent, 1, 100);
 #else
   audioMode = AUDIO_OFF;
 #endif
@@ -2099,12 +2141,10 @@ static bool loadLatestSave(uint32_t now) {
     phase = PHASE_TOMB;
   }
 
-  nextSlotIsA = !bestIsA;
-
   applyLoadedToRuntime(now);
   Serial.printf("[SAVE] Loaded seq=%lu from %s\n",
                 (unsigned long)saveSeq,
-                bestIsA ? "A" : "B");
+                SAVE_FILE);
   return true;
 }
 
@@ -2123,7 +2163,6 @@ static bool writeSlotFile(const char* tmpPath, const char* finalPath, const char
 
 #if ENABLE_AUDIO
   doc["audioMode"] = (int)audioMode;
-  doc["audioVol"] = (int)audioVolumePercent;
 #endif
 
   JsonObject ps = doc.createNestedObject("pet");
@@ -2157,13 +2196,7 @@ static bool saveNow(uint32_t now, const char* why) {
   if (!sdReady) return false;
 
   saveSeq++;
-  const bool useA = nextSlotIsA;
-  nextSlotIsA = !nextSlotIsA;
-
-  const char* tmp  = useA ? TMP_A  : TMP_B;
-  const char* fin  = useA ? SAVE_A : SAVE_B;
-
-  bool ok = writeSlotFile(tmp, fin, why);
+  bool ok = writeSlotFile(TMP_FILE, SAVE_FILE, why);
   if (ok) {
     lastSaveAt = now;
   } else {
@@ -2327,16 +2360,16 @@ if (phase == PHASE_ALIVE) {
     int y2 = 50;
 
     int x = pad;
-    drawBarRound(uiTop, x, y1, w, h, pet.faim,    "Faim",    COL_FAIM);    x += w + pad;
-    drawBarRound(uiTop, x, y1, w, h, pet.soif,    "Soif",    COL_SOIF);    x += w + pad;
-    drawBarRound(uiTop, x, y1, w, h, pet.hygiene, "Hygiene", COL_HYGIENE); x += w + pad;
-    drawBarRound(uiTop, x, y1, w, h, pet.humeur,  "Bonheur",  COL_HUMEUR);
+    drawBarRound(uiTop, x, y1, w, h, pet.faim,    tr("Faim", "Hunger", "Hunger", "Fame", "Hambre"),    COL_FAIM);    x += w + pad;
+    drawBarRound(uiTop, x, y1, w, h, pet.soif,    tr("Soif", "Thirst", "Durst", "Sete", "Sed"),    COL_SOIF);    x += w + pad;
+    drawBarRound(uiTop, x, y1, w, h, pet.hygiene, tr("Hygiene", "Hygiene", "Hygiene", "Igiene", "Higiene"), COL_HYGIENE); x += w + pad;
+    drawBarRound(uiTop, x, y1, w, h, pet.humeur,  tr("Bonheur", "Mood", "Stimmung", "Umore", "Ánimo"),  COL_HUMEUR);
 
     x = pad;
-    drawBarRound(uiTop, x, y2, w, h, pet.energie, "Energie", COL_ENERGIE); x += w + pad;
-    drawBarRound(uiTop, x, y2, w, h, (100.0f - pet.fatigue), "Fatigue", COL_FATIGUE); x += w + pad;
-    drawBarRound(uiTop, x, y2, w, h, pet.amour,   "Amour",   COL_AMOUR2);  x += w + pad;
-    drawBarRound(uiTop, x, y2, w, h, pet.caca,    "Caca",    COL_CACA);
+    drawBarRound(uiTop, x, y2, w, h, pet.energie, tr("Energie", "Energy", "Energie", "Energia", "Energía"), COL_ENERGIE); x += w + pad;
+    drawBarRound(uiTop, x, y2, w, h, (100.0f - pet.fatigue), tr("Fatigue", "Fatigue", "Müdigkeit", "Fatica", "Fatiga"), COL_FATIGUE); x += w + pad;
+    drawBarRound(uiTop, x, y2, w, h, pet.amour,   tr("Amour", "Love", "Liebe", "Amore", "Amor"),   COL_AMOUR2);  x += w + pad;
+    drawBarRound(uiTop, x, y2, w, h, pet.caca,    tr("Caca", "Poop", "Kaka", "Cacca", "Caca"),    COL_CACA);
   }
 
   // Zone sous les barres (à la place de l'activity bar quand on est libre)
@@ -2513,8 +2546,8 @@ static void overlayUIIntoBand(int bandY, int bh) {
 
 // ================== DECOR ==================
 static void drawMountainImagesBand(float camX, int bandY) {
-  const int w = (int)MONT_W;
-  const int h = (int)MONT_H;
+  const int w = 90;
+  const int h = 60;
   const int yOnGround = GROUND_Y - h;
 
   float px = camX * 0.25f;
@@ -2529,7 +2562,8 @@ static void drawMountainImagesBand(float camX, int bandY) {
     int x = i * spacing - (int)px + jitter;
     int yLocal = yOnGround - bandY;
     if (yLocal >= band.height() || yLocal + h <= 0) continue;
-    drawImageKeyedOnBand(MONT_IMG, w, h, x, yLocal);
+    band.fillTriangle(x + w / 2, yLocal, x, yLocal + h, x + w, yLocal + h, 0x9CD3);
+    band.drawTriangle(x + w / 2, yLocal, x, yLocal + h, x + w, yLocal + h, 0x7BD0);
   }
 }
 static void drawGroundBand(float camX, int bandY) {
@@ -2558,49 +2592,57 @@ static void drawTreesMixedBand(float camX, int bandY) {
     int x = i * spacing - (int)px + jitter;
 
     bool useArbre = ((hh % 3) == 0);
-    const uint16_t* img = useArbre ? ARBRE_IMG : SAPIN_IMG;
-    int w = useArbre ? (int)ARBRE_W : (int)SAPIN_W;
-    int h = useArbre ? (int)ARBRE_H : (int)SAPIN_H;
-
+    int w = useArbre ? 24 : 20;
+    int h = useArbre ? 44 : 38;
     int yOnGround = GROUND_Y - h;
     int yLocal = yOnGround - bandY;
     if (yLocal >= band.height() || yLocal + h <= 0) continue;
-    drawImageKeyedOnBand(img, w, h, x, yLocal);
+    band.fillRect(x + w / 2 - 2, yLocal + h - 12, 4, 12, 0x8A22);
+    if (useArbre) {
+      band.fillCircle(x + w / 2, yLocal + 12, 10, 0x2BC8);
+      band.fillCircle(x + w / 2 - 7, yLocal + 18, 8, 0x2BC8);
+      band.fillCircle(x + w / 2 + 7, yLocal + 18, 8, 0x2BC8);
+    } else {
+      band.fillTriangle(x + w / 2, yLocal + 2, x + 1, yLocal + h - 12, x + w - 1, yLocal + h - 12, 0x1B66);
+    }
   }
 }
 
 static void drawFixedObjectsBand(float camX, int bandY) {
   {
-    const uint16_t* img = berriesLeftAvailable ? BBAIE_IMG : BSANS_IMG;
     int w = berriesLeftAvailable ? (int)BBAIE_W : (int)BSANS_W;
     int h = berriesLeftAvailable ? (int)BBAIE_H : (int)BSANS_H;
     int x = (int)roundf(bushLeftX - camX);
     int yOnGround = GROUND_Y - h + BUSH_Y_OFFSET;
     int yLocal = yOnGround - bandY;
     if (!(yLocal >= band.height() || yLocal + h <= 0) && !(x > SW || x + w < 0)) {
-      drawImageKeyedOnBand(img, w, h, x, yLocal);
+      band.fillRoundRect(x, yLocal + 6, w, h - 6, 8, 0x2BC8);
+      if (berriesLeftAvailable) {
+        band.fillCircle(x + 8, yLocal + h - 8, 2, 0xF800);
+        band.fillCircle(x + w - 10, yLocal + h - 10, 2, 0xF800);
+      }
     }
   }
 
   if (puddleVisible) {
-    const uint16_t* img = FLAQUE_IMG;
     int w = (int)FLAQUE_W, h = (int)FLAQUE_H;
     int x = (int)roundf(puddleX - camX);
     int yOnGround = GROUND_Y - h + PUDDLE_Y_OFFSET;
     int yLocal = yOnGround - bandY;
     if (!(yLocal >= band.height() || yLocal + h <= 0) && !(x > SW || x + w < 0)) {
-      drawImageKeyedOnBand(img, w, h, x, yLocal);
+      band.fillEllipse(x + w / 2, yLocal + h / 2, w / 2, h / 2, 0x5DDF);
+      band.drawEllipse(x + w / 2, yLocal + h / 2, w / 2, h / 2, 0x3D7B);
     }
   }
 
   if (poopVisible) {
-    int w = (int)poop::W;
-    int h = (int)poop::H;
+    int w = 14;
+    int h = 10;
     int x = (int)roundf(poopWorldX - camX);
     int yOnGround = GROUND_Y - h + 18;
     int yLocal = yOnGround - bandY;
     if (!(yLocal >= band.height() || yLocal + h <= 0) && !(x > SW || x + w < 0)) {
-      drawImageKeyedOnBand(poop::dino_caca_003, w, h, x, yLocal);
+      band.fillRoundRect(x, yLocal, w, h, 3, 0x6180);
     }
   }
 }
@@ -2634,25 +2676,33 @@ static inline void renderOneBand(int y0, int bh, int dinoX, int dinoY, const uin
       drawImageKeyedOnBand(frame, DW, DH, dinoX, dinoY - y0, flipX, shade);
     }
   } else if (phase == PHASE_EGG || phase == PHASE_HATCHING) {
-    const uint16_t* eggFrame = egg::dino_oeuf_001;
-    if (phase == PHASE_HATCHING) {
-      if (hatchIdx == 0) eggFrame = egg::dino_oeuf_001;
-      else if (hatchIdx == 1) eggFrame = egg::dino_oeuf_002;
-      else if (hatchIdx == 2) eggFrame = egg::dino_oeuf_003;
-      else eggFrame = egg::dino_oeuf_004;
-    }
-    int w = (int)egg::W, h = (int)egg::H;
+    int w = 34, h = 42;
     float t = (float)millis() * 0.008f;
     int bob = (int)roundf(sinf(t) * 2.0f);
     int ex = dinoX;
     int ey = (GROUND_Y - 40) + bob;
-    if (ey < y0 + bh && ey + h > y0) drawImageKeyedOnBand(eggFrame, w, h, ex, ey - y0);
+    if (ey < y0 + bh && ey + h > y0) {
+      int ly = ey - y0;
+      band.fillEllipse(ex + w / 2, ly + h / 2, w / 2, h / 2, 0xFFFF);
+      band.drawEllipse(ex + w / 2, ly + h / 2, w / 2, h / 2, 0x7BCF);
+      if (phase == PHASE_HATCHING) {
+        band.drawLine(ex + 10, ly + 16, ex + 17, ly + 22, 0x94B2);
+        band.drawLine(ex + 17, ly + 22, ex + 14, ly + 30, 0x94B2);
+        band.drawLine(ex + 20, ly + 15, ex + 26, ly + 24, 0x94B2);
+      }
+    }
   } else if (phase == PHASE_TOMB || phase == PHASE_RESTREADY) {
-    int w = (int)tombe_W;
-    int h = (int)tombe_H;
+    int w = 62;
+    int h = 86;
     int tx = (SW - w) / 2;
     int ty = (GROUND_Y - h + 10);
-    if (ty < y0 + bh && ty + h > y0) drawImageKeyedOnBand(tombe, w, h, tx, ty - y0);
+    if (ty < y0 + bh && ty + h > y0) {
+      int ly = ty - y0;
+      band.fillRoundRect(tx, ly, w, h, 8, 0x8C71);
+      band.drawRoundRect(tx, ly, w, h, 8, 0x632C);
+      band.drawFastVLine(tx + w / 2, ly + 18, 32, 0xFFFF);
+      band.drawFastHLine(tx + 20, ly + 30, 22, 0xFFFF);
+    }
   }
 
   overlayUIIntoBand(y0, bh);
@@ -2662,7 +2712,7 @@ static inline void renderOneBand(int y0, int bh, int dinoX, int dinoY, const uin
 static void renderFrameOptimized(int dinoX, int dinoY, const uint16_t* frame, bool flipX, uint8_t shade) {
   bool camMoved = (fabsf(camX - lastCamX) > 0.001f);
   int DH = (phase == PHASE_ALIVE) ? triH(pet.stage)
-           : (phase == PHASE_TOMB || phase == PHASE_RESTREADY) ? (int)tombe_H
+           : (phase == PHASE_TOMB || phase == PHASE_RESTREADY) ? 86
            : 60;
 
   if (camMoved) {
@@ -3082,10 +3132,8 @@ static void handleDeath(uint32_t now) {
 
 static void eraseSavesAndRestart() {
   if (sdReady) {
-    if (SD.exists(SAVE_A)) SD.remove(SAVE_A);
-    if (SD.exists(SAVE_B)) SD.remove(SAVE_B);
-    if (SD.exists(TMP_A)) SD.remove(TMP_A);
-    if (SD.exists(TMP_B)) SD.remove(TMP_B);
+    if (SD.exists(SAVE_FILE)) SD.remove(SAVE_FILE);
+    if (SD.exists(TMP_FILE)) SD.remove(TMP_FILE);
   }
   delay(50);
   ESP.restart();
@@ -3207,8 +3255,6 @@ struct TouchDeb {
 };
 static TouchDeb touch;
 static const uint32_t TOUCH_DEBOUNCE_MS = 25;
-static const uint32_t AUDIO_LONG_PRESS_MS = 650;
-
 static inline bool readTouchRaw(int16_t &x, int16_t &y) {
   return readTouchScreen(x, y);
 }
@@ -3490,20 +3536,6 @@ if (touch.stableDown) {
     touch.pressBtn = touch.lastBtn;
     touch.pressStart = now;
     touch.longPressFired = false;
-  }
-
-  if (!touch.longPressFired && touch.lastBtn >= 0 && uiButtonCount() == uiAliveCount()) {
-    UiAction heldAction = uiAliveActionAt((uint8_t)touch.lastBtn);
-    if (heldAction == UI_AUDIO && (int32_t)(now - touch.pressStart) >= (int32_t)AUDIO_LONG_PRESS_MS) {
-      audioVolumePercent = (audioVolumePercent >= 10) ? 1 : 10;
-      char tmp[32];
-      snprintf(tmp, sizeof(tmp), "Volume %u%%", audioVolumePercent);
-      setMsg(tmp, now, 1500);
-      uiSpriteDirty = true;
-      uiForceBands  = true;
-      if (sdReady) saveNow(now, "audio_vol");
-      touch.longPressFired = true;
-    }
   }
 }
 
@@ -3955,26 +3987,29 @@ static void resetToEgg(uint32_t now) {
   audioNextAlertAt = 0;
 }
 
-static void showHomeIntro(uint32_t now) {
-  tft.fillScreen(TFT_BLACK);
-
-  int imgW = (int)pageaccueil_W;
-  int imgH = (int)pageaccueil_H;
-  int x = (SW - imgW) / 2;
-  int y = (SH - imgH) / 2;
-  tft.pushImage(x, y, imgW, imgH, pageaccueil);
-
-#if ENABLE_AUDIO
-  if (audioMode != AUDIO_OFF) {
-    playRTTTLOnce(RTTTL_HOME_INTRO, AUDIO_PRIO_MED);
+static void prepareReturnToLauncher() {
+  Preferences prefs;
+  if (!prefs.begin("raptor_boot", false)) {
+    Serial.println("[BOOT] prefs open KO");
+    return;
   }
-#endif
-
-  uint32_t endAt = now + 3000;
-  while ((int32_t)(millis() - endAt) < 0) {
-    audioUpdate(millis());
-    delay(10);
+  String label = prefs.getString("launcher", "");
+  prefs.end();
+  if (label.length() == 0) {
+    Serial.println("[BOOT] label launcher absent");
+    return;
   }
+  const esp_partition_t* launcher = esp_partition_find_first(
+    ESP_PARTITION_TYPE_APP,
+    ESP_PARTITION_SUBTYPE_ANY,
+    label.c_str()
+  );
+  if (!launcher) {
+    Serial.printf("[BOOT] partition launcher '%s' introuvable\n", label.c_str());
+    return;
+  }
+  esp_err_t err = esp_ota_set_boot_partition(launcher);
+  Serial.printf("[BOOT] retour launcher programme (%s), err=%d\n", launcher->label, (int)err);
 }
 
 // ================== SETUP/LOOP ==================
@@ -3982,8 +4017,11 @@ void setup() {
   Serial.begin(115200);
   delay(200);
 
+  prepareReturnToLauncher();
+
   // init SD (HSPI)
   sdInit();
+  syncLauncherSettings(millis());
 
   audioPwmSetup();
   audioSetTone(0, 0);
@@ -3996,8 +4034,7 @@ Wire.setClock(400000);
 g_touch.init(TOUCH_SDA, TOUCH_SCL, -1, -1);
 tft.setBrightness(255);
 #else
-pinMode(PIN_BL, OUTPUT);
-digitalWrite(PIN_BL, HIGH);
+tft.setBrightness(255);
 softSPIBeginTouch();
 #endif
 
@@ -4012,6 +4049,10 @@ SH = tft.height();
   if (BTN_LEFT >= 0) pinMode(BTN_LEFT, INPUT_PULLUP);
   if (BTN_RIGHT >= 0) pinMode(BTN_RIGHT, INPUT_PULLUP);
   if (BTN_OK >= 0) pinMode(BTN_OK, INPUT_PULLUP);
+  pinMode(LED_PIN_R, OUTPUT);
+  pinMode(LED_PIN_G, OUTPUT);
+  pinMode(LED_PIN_B, OUTPUT);
+  setRgbLed(0, 0, 0);
 
 #if DISPLAY_PROFILE != DISPLAY_PROFILE_2432S022
 #if ENABLE_TOUCH_CALIBRATION
@@ -4154,8 +4195,6 @@ SH = tft.height();
     resetToEgg(now);
     if (sdReady) saveNow(now, "boot_new");
   }
-
-  showHomeIntro(now);
 
   lastPetTick = now;
 
@@ -4313,6 +4352,7 @@ if (ENC_BTN >= 0) raw = (digitalRead(ENC_BTN) == LOW);
   if (!task.active && phase == PHASE_ALIVE) idleUpdate(now);
 
   audioTickMusic(now);
+  syncLauncherSettings(now);
 
   // barre activité: si juste message, elle disparaît
   if (!task.active && activityVisible && (int32_t)(now - activityEnd) >= 0) {
@@ -4340,6 +4380,7 @@ if (ENC_BTN >= 0) raw = (digitalRead(ENC_BTN) == LOW);
     lastCritical = critical;
     lastBlinkOn = blinkOn;
   }
+  updateMoodLed(now);
 
   // rebuild UI
   if (uiSpriteDirty) {
@@ -4356,9 +4397,7 @@ if (ENC_BTN >= 0) raw = (digitalRead(ENC_BTN) == LOW);
     bool forceFace = false;
     bool faceRight = false;
     if (task.active && task.kind == TASK_HUG && task.ph == PH_DO) {
-      if (pet.stage == AGE_JUNIOR) animId = (uint8_t)triJ::ANIM_JUNIOR_AMOUR;
-      else if (pet.stage == AGE_ADULTE) animId = (uint8_t)triA::ANIM_ADULTE_AMOUR;
-      else animId = (uint8_t)triS::ANIM_SENIOR_AMOUR;
+      animId = (uint8_t)triJ::ANIM_JUNIOR_AMOUR;
     }
 
     if (task.active && task.ph == PH_DO) {
