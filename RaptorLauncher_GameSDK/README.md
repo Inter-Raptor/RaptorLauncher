@@ -26,6 +26,8 @@ Il intègre les points critiques que tu as demandés:
   - `assets/` pour tes ressources
 - `docs/libraries_arduino_ide.txt`
   - liste des bibliothèques IDE Arduino
+- `dependencies/README.md`
+  - stratégie recommandée pour gérer les dépendances sans alourdir le repo
 
 ---
 
