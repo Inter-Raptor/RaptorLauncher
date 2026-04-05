@@ -1,5 +1,0 @@
---flash-mode dio --flash-freq 80m --flash-size 16MB  
-0x1000 JurassicLifeFR.ino.bootloader.bin  
-0x8000 JurassicLifeFR.ino.partitions.bin  
-0xe000 boot_app0.bin  
-0x10000 JurassicLifeFR.ino.bin 
