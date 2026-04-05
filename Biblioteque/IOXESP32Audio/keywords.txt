@@ -1,0 +1,27 @@
+#######################################
+# Syntax Coloring Map For Ultrasound
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+Audio	KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+begin	KEYWORD2
+play	KEYWORD2
+pause	KEYWORD2
+resume	KEYWORD2
+stop	KEYWORD2
+isPlaying	KEYWORD2
+setVolume	KEYWORD2
+getVolume	KEYWORD2
+
+
+#######################################
+# Constants (LITERAL1)
+#######################################
