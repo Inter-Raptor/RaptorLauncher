@@ -16,6 +16,10 @@ Avantages:
 Inconvénients:
 - firmware plus gros
 
+Helpers SDK disponibles:
+- `assetPath("sprite.raw")`
+- `drawRaw565(path, x, y, width, height)`
+
 ### B. BMP depuis SD
 - Utiliser des BMP si tu veux de la simplicité.
 - Stocker dans `/games/<NomJeu>/assets/`.
@@ -81,6 +85,11 @@ Règle pratique:
 
 Le comportement charge batterie dépend de la révision exacte de carte et du PMIC monté.
 Toujours vérifier le schéma ou la fiche de ta révision matérielle.
+
+Helpers SDK disponibles (si pin batterie configurée):
+- `hasBatterySense()`
+- `batteryMilliVolts()`
+- `batteryPercent()`
 
 ## 7) Politique SD (sandbox jeu)
 

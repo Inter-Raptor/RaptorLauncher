@@ -226,6 +226,37 @@ void RaptorGameSDK::drawCenteredText(int y, const char* text, uint16_t fg, uint1
   gLcd.print(text);
 }
 
+bool RaptorGameSDK::drawRaw565(const String& path, int x, int y, int width, int height) {
+  if (!sdReady) return false;
+  if (width <= 0 || height <= 0) return false;
+
+  File f = SD.open(path, FILE_READ);
+  if (!f) return false;
+
+  uint16_t* line = (uint16_t*)malloc((size_t)width * sizeof(uint16_t));
+  if (!line) {
+    f.close();
+    return false;
+  }
+
+  gLcd.setSwapBytes(true);
+  for (int row = 0; row < height; ++row) {
+    size_t need = (size_t)width * 2;
+    if (f.read((uint8_t*)line, need) != (int)need) {
+      gLcd.setSwapBytes(false);
+      free(line);
+      f.close();
+      return false;
+    }
+    gLcd.pushImage(x, y + row, width, 1, line);
+  }
+  gLcd.setSwapBytes(false);
+
+  free(line);
+  f.close();
+  return true;
+}
+
 void RaptorGameSDK::playBeep(int freq, int durationMs) {
   ledcWriteTone(SDK_PIN_SPEAKER, freq);
   ledcWrite(SDK_PIN_SPEAKER, 120);
@@ -240,6 +271,12 @@ String RaptorGameSDK::gameRootPath() const {
 
 String RaptorGameSDK::saveJsonPath() const {
   return gameRootPath() + "/" + String(SDK_META_SAVE_FILENAME);
+}
+
+String RaptorGameSDK::assetPath(const String& filename) const {
+  String clean = filename;
+  while (clean.startsWith("/")) clean.remove(0, 1);
+  return gameRootPath() + "/assets/" + clean;
 }
 
 bool RaptorGameSDK::saveJson(const JsonDocument& doc) {
@@ -333,6 +370,8 @@ String RaptorGameSDK::sdkHealthReport() const {
   out += " | TouchCal=" + String(touchCalLoadedFromSettings ? "settings.json" : "defaults");
   out += " | WiFi=" + String(wifiIsConnected() ? "ON" : "OFF");
   out += " | LDR=" + String(readLightPercent()) + "%";
+  int batt = batteryPercent();
+  if (batt >= 0) out += " | BAT=" + String(batt) + "%";
   return out;
 }
 
@@ -360,6 +399,27 @@ int RaptorGameSDK::readLightRaw() const {
 int RaptorGameSDK::readLightPercent() const {
   int v = readLightRaw();
   int pct = map(v, 0, 4095, 0, 100);
+  if (pct < 0) pct = 0;
+  if (pct > 100) pct = 100;
+  return pct;
+}
+
+bool RaptorGameSDK::hasBatterySense() const {
+  return SDK_PIN_BATTERY_ADC >= 0;
+}
+
+int RaptorGameSDK::batteryMilliVolts() const {
+  if (!hasBatterySense()) return -1;
+  int raw = analogRead(SDK_PIN_BATTERY_ADC);
+  float mvPin = (raw / 4095.0f) * 3300.0f;
+  float mvBat = mvPin * SDK_BATTERY_ADC_DIVIDER;
+  return (int)mvBat;
+}
+
+int RaptorGameSDK::batteryPercent() const {
+  int mv = batteryMilliVolts();
+  if (mv < 0) return -1;
+  int pct = map(mv, SDK_BATTERY_MV_MIN, SDK_BATTERY_MV_MAX, 0, 100);
   if (pct < 0) pct = 0;
   if (pct > 100) pct = 100;
   return pct;
