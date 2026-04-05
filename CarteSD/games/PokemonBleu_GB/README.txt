@@ -8,3 +8,10 @@ Fichiers a copier manuellement:
 
 Le launcher charge gb_emulator.bin (champ "bin" de meta.json).
 Le binaire emulateur lit ensuite boot.json pour trouver rom_path/save_path.
+
+Ou trouver gb_emulator.bin ?
+- Il n'est pas fourni dans ce depot.
+- Tu dois compiler le projet emulateur GB avec Arduino IDE (ou arduino-cli).
+- Dans ce depot, les jeux compiles sortent en general dans:
+  <ProjetEmulateur>/build/esp32.esp32.esp32/game.bin
+- Prends ce game.bin et renomme-le en gb_emulator.bin dans ce dossier.
