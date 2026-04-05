@@ -32,6 +32,12 @@ void gameInit() {
   sdk.drawSmallText(10, 50, "A: +1 point  B: reset");
   sdk.drawSmallText(10, 62, "SELECT: sauver  START: quitter");
   sdk.drawSmallText(10, 74, "Touch: deplace le carre");
+
+  String err;
+  if (!sdk.validateGameMeta("/games/MonJeu/meta.json", err)) {
+    String msg = String("Meta KO: ") + err;
+    sdk.drawSmallText(10, 86, msg.c_str());
+  }
   sdk.playBeep(1200, 90);
 
   loadSave();
@@ -81,6 +87,8 @@ void gameUpdate() {
   snprintf(line, sizeof(line), "Touch: %s (%d,%d)", sdk.isTouchHeld() ? "ON" : "OFF", sdk.touchX(), sdk.touchY());
   sdk.drawSmallText(10, 38, line);
 
+  String health = sdk.sdkHealthReport();
+  sdk.drawSmallText(10, sdk.height() - 26, health.c_str());
   sdk.drawSmallText(10, sdk.height() - 14, "START = retour launcher");
 
   if (sdk.isPressed(BTN_START)) {

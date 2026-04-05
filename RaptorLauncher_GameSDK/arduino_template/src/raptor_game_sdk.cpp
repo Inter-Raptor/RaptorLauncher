@@ -55,18 +55,23 @@ void RaptorGameSDK::begin() {
   initInput();
 
   sdSPI.begin(SDK_PIN_SD_SCK, SDK_PIN_SD_MISO, SDK_PIN_SD_MOSI, SDK_PIN_SD_CS);
-  SD.begin(SDK_PIN_SD_CS, sdSPI);
+  sdReady = SD.begin(SDK_PIN_SD_CS, sdSPI);
+  if (!sdReady) {
+    Serial.println("[SDK] SD init KO");
+  }
   loadTouchCalibrationFromSettings();
 
   ledcAttach(SDK_PIN_SPEAKER, 2000, 8);
   ledcWrite(SDK_PIN_SPEAKER, 0);
 
-  pinMode(SDK_PIN_LED_R, OUTPUT);
-  pinMode(SDK_PIN_LED_G, OUTPUT);
-  pinMode(SDK_PIN_LED_B, OUTPUT);
-  digitalWrite(SDK_PIN_LED_R, HIGH);
-  digitalWrite(SDK_PIN_LED_G, HIGH);
-  digitalWrite(SDK_PIN_LED_B, HIGH);
+  ledcAttach(SDK_PIN_LED_R, 5000, 8);
+  ledcAttach(SDK_PIN_LED_G, 5000, 8);
+  ledcAttach(SDK_PIN_LED_B, 5000, 8);
+  ledcWrite(SDK_PIN_LED_R, 255);
+  ledcWrite(SDK_PIN_LED_G, 255);
+  ledcWrite(SDK_PIN_LED_B, 255);
+
+  analogReadResolution(12);
 
   // Important: des le debut du jeu, on arme le retour auto au launcher
   // en cas de reboot/reset inattendu.
@@ -119,6 +124,9 @@ void RaptorGameSDK::mapButtonsFromMcp(uint8_t gpioA, uint8_t gpioB) {
 }
 
 void RaptorGameSDK::loadTouchCalibrationFromSettings() {
+  touchCalLoadedFromSettings = false;
+  if (!sdReady) return;
+
   const char* settingsPath = "/settings.json";
   File f = SD.open(settingsPath, FILE_READ);
   if (!f) {
@@ -151,6 +159,7 @@ void RaptorGameSDK::loadTouchCalibrationFromSettings() {
     touchCalYMax = SDK_TOUCH_Y_MAX;
   }
 
+  touchCalLoadedFromSettings = true;
   Serial.printf("[SDK] touch calib x:%d..%d y:%d..%d off:%d,%d\n", touchCalXMin, touchCalXMax, touchCalYMin, touchCalYMax, touchOffsetX, touchOffsetY);
 }
 
@@ -234,6 +243,7 @@ String RaptorGameSDK::saveJsonPath() const {
 }
 
 bool RaptorGameSDK::saveJson(const JsonDocument& doc) {
+  if (!sdReady) return false;
   String path = saveJsonPath();
   SD.remove(path);
   File f = SD.open(path, FILE_WRITE);
@@ -245,6 +255,7 @@ bool RaptorGameSDK::saveJson(const JsonDocument& doc) {
 }
 
 bool RaptorGameSDK::loadJson(JsonDocument& doc) {
+  if (!sdReady) return false;
   String path = saveJsonPath();
   File f = SD.open(path, FILE_READ);
   if (!f) return false;
@@ -252,6 +263,136 @@ bool RaptorGameSDK::loadJson(JsonDocument& doc) {
   DeserializationError err = deserializeJson(doc, f);
   f.close();
   return !err;
+}
+
+bool RaptorGameSDK::isSdReady() const {
+  return sdReady;
+}
+
+bool RaptorGameSDK::loadLauncherSettings(JsonDocument& doc) const {
+  if (!sdReady) return false;
+  File f = SD.open("/settings.json", FILE_READ);
+  if (!f) return false;
+  DeserializationError err = deserializeJson(doc, f);
+  f.close();
+  return !err;
+}
+
+bool RaptorGameSDK::validateGameMeta(const String& metaPath, String& errorOut) const {
+  if (!sdReady) {
+    errorOut = "SD non initialisee";
+    return false;
+  }
+
+  File f = SD.open(metaPath, FILE_READ);
+  if (!f) {
+    errorOut = "meta.json introuvable";
+    return false;
+  }
+
+  JsonDocument doc;
+  DeserializationError err = deserializeJson(doc, f);
+  f.close();
+
+  if (err) {
+    errorOut = String("meta.json invalide: ") + err.c_str();
+    return false;
+  }
+
+  if (!doc["name"].is<const char*>()) { errorOut = "champ name manquant"; return false; }
+  if (!doc["bin"].is<const char*>()) { errorOut = "champ bin manquant"; return false; }
+  if (!doc["save"].is<const char*>()) { errorOut = "champ save manquant"; return false; }
+
+  int iw = doc["icon_w"] | -1;
+  int ih = doc["icon_h"] | -1;
+  int tw = doc["title_w"] | -1;
+  int th = doc["title_h"] | -1;
+
+  if (iw != SDK_META_ICON_W || ih != SDK_META_ICON_H) {
+    errorOut = "icon_w/icon_h non conformes";
+    return false;
+  }
+  if (tw != SDK_META_TITLE_W || th != SDK_META_TITLE_H) {
+    errorOut = "title_w/title_h non conformes";
+    return false;
+  }
+
+  if (String((const char*)doc["save"]) != String(SDK_META_SAVE_FILENAME)) {
+    errorOut = "save doit etre sauv.json";
+    return false;
+  }
+
+  errorOut = "OK";
+  return true;
+}
+
+String RaptorGameSDK::sdkHealthReport() const {
+  String out;
+  out += "SD=" + String(sdReady ? "OK" : "KO");
+  out += " | MCP=" + String(mcpReady ? "OK" : "KO");
+  out += " | TouchCal=" + String(touchCalLoadedFromSettings ? "settings.json" : "defaults");
+  out += " | WiFi=" + String(wifiIsConnected() ? "ON" : "OFF");
+  out += " | LDR=" + String(readLightPercent()) + "%";
+  return out;
+}
+
+
+void RaptorGameSDK::setLedRgb(uint8_t r, uint8_t g, uint8_t b) {
+  // LED commune anode (actif low) sur CYD: 0 = allume, 255 = eteint
+  uint8_t rr = 255 - r;
+  uint8_t gg = 255 - g;
+  uint8_t bb = 255 - b;
+  ledcWrite(SDK_PIN_LED_R, rr);
+  ledcWrite(SDK_PIN_LED_G, gg);
+  ledcWrite(SDK_PIN_LED_B, bb);
+}
+
+void RaptorGameSDK::ledOff() {
+  ledcWrite(SDK_PIN_LED_R, 255);
+  ledcWrite(SDK_PIN_LED_G, 255);
+  ledcWrite(SDK_PIN_LED_B, 255);
+}
+
+int RaptorGameSDK::readLightRaw() const {
+  return analogRead(SDK_PIN_LIGHT_SENSOR);
+}
+
+int RaptorGameSDK::readLightPercent() const {
+  int v = readLightRaw();
+  int pct = map(v, 0, 4095, 0, 100);
+  if (pct < 0) pct = 0;
+  if (pct > 100) pct = 100;
+  return pct;
+}
+
+bool RaptorGameSDK::wifiConnectFromSettings() {
+  JsonDocument doc;
+  if (!loadLauncherSettings(doc)) return false;
+
+  bool enabled = doc["wifi_enabled"] | false;
+  String ssid = doc["wifi_ssid"] | "";
+  String pass = doc["wifi_pass"] | "";
+
+  if (!enabled || ssid.length() == 0) return false;
+
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid.c_str(), pass.c_str());
+
+  unsigned long t0 = millis();
+  while (WiFi.status() != WL_CONNECTED && (millis() - t0) < SDK_WIFI_CONNECT_TIMEOUT_MS) {
+    delay(150);
+  }
+
+  return WiFi.status() == WL_CONNECTED;
+}
+
+void RaptorGameSDK::wifiDisconnect() {
+  WiFi.disconnect(true);
+  WiFi.mode(WIFI_OFF);
+}
+
+bool RaptorGameSDK::wifiIsConnected() const {
+  return WiFi.status() == WL_CONNECTED;
 }
 
 bool RaptorGameSDK::armReturnToLauncherOnNextBoot() {
