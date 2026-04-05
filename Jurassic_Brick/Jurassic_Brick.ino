@@ -323,10 +323,6 @@ static inline uint16_t rgb565(uint8_t rr, uint8_t gg, uint8_t bb) {
   return ((uint16_t)rr << 11) | ((uint16_t)gg << 5) | bb;
 }
 
-static inline uint16_t swap16(uint16_t v) {
-  return (uint16_t)((v << 8) | (v >> 8));
-}
-
 uint16_t tint565(uint16_t src, uint16_t tint) {
   uint8_t sr = r5(src);
   uint8_t sg = g6(src);
@@ -605,12 +601,11 @@ void restoreBgRect(int x, int y, int w, int h) {
 void drawSpriteTransparentTinted(
   int x, int y,
   const uint16_t* data, int w, int h,
+  uint16_t key,
   uint16_t tintColor,
   bool useTint
 ) {
   if (x >= SCREEN_W || y >= SCREEN_H || x + w <= 0 || y + h <= 0) return;
-
-  const uint16_t key = pgm_read_word(&data[w - 1]);
 
   static uint16_t rowBuffer[64];
   if (w > 64) return;
@@ -637,13 +632,7 @@ void drawSpriteTransparentTinted(
 
         for (int i = 0; i < runW; i++) {
           uint16_t src = pgm_read_word(&data[yy * w + runStart + i]);
-          if (useTint) {
-            // setSwapBytes(true) est actif : les couleurs calculées doivent
-            // être pré-swappées pour conserver la teinte réelle à l'écran.
-            rowBuffer[i] = swap16(tint565(src, tintColor));
-          } else {
-            rowBuffer[i] = src;
-          }
+          rowBuffer[i] = useTint ? tint565(src, tintColor) : src;
         }
 
         int drawX = x + runStart;
@@ -658,8 +647,8 @@ void drawSpriteTransparentTinted(
   }
 }
 
-void drawSpriteTransparentRaw(int x, int y, const uint16_t* data, int w, int h) {
-  drawSpriteTransparentTinted(x, y, data, w, h, 0, false);
+void drawSpriteTransparentRaw(int x, int y, const uint16_t* data, int w, int h, uint16_t key) {
+  drawSpriteTransparentTinted(x, y, data, w, h, key, 0, false);
 }
 
 // =====================================================
@@ -671,7 +660,7 @@ void drawLivesHud() {
                 HUD_LIVES_Y2 - HUD_LIVES_Y1 + 1);
 
   for (int i = 0; i < gHearts; i++) {
-    drawSpriteTransparentRaw(2 + i * 22, 2, coeur, coeur_W, coeur_H);
+    drawSpriteTransparentRaw(2 + i * 22, 2, coeur, coeur_W, coeur_H, coeur_KEY);
   }
 }
 
@@ -723,16 +712,16 @@ void drawBrick(uint8_t row, uint8_t col) {
   uint16_t tint = bbGetBrickColor(gLevel, row, col);
 
   if (b.type == BRICK_BASE) {
-    drawSpriteTransparentTinted(x, y, briquebase, briquebase_W, briquebase_H, tint, true);
+    drawSpriteTransparentTinted(x, y, briquebase, briquebase_W, briquebase_H, briquebase_KEY, tint, true);
   } else if (b.type == BRICK_BONUS) {
-    drawSpriteTransparentTinted(x, y, briquebonus, briquebonus_W, briquebonus_H, tint, true);
+    drawSpriteTransparentTinted(x, y, briquebonus, briquebonus_W, briquebonus_H, briquebonus_KEY, tint, true);
   } else if (b.type == BRICK_HARD) {
     if (b.hp >= 3) {
-      drawSpriteTransparentTinted(x, y, briquedur, briquedur_W, briquedur_H, tint, true);
+      drawSpriteTransparentTinted(x, y, briquedur, briquedur_W, briquedur_H, briquedur_KEY, tint, true);
     } else if (b.hp == 2) {
-      drawSpriteTransparentTinted(x, y, briquetaper1fois, briquetaper1fois_W, briquetaper1fois_H, tint, true);
+      drawSpriteTransparentTinted(x, y, briquetaper1fois, briquetaper1fois_W, briquetaper1fois_H, briquetaper1fois_KEY, tint, true);
     } else {
-      drawSpriteTransparentTinted(x, y, briquebase, briquebase_W, briquebase_H, tint, true);
+      drawSpriteTransparentTinted(x, y, briquebase, briquebase_W, briquebase_H, briquebase_KEY, tint, true);
     }
   }
 }
@@ -752,6 +741,7 @@ void drawPaddle() {
   drawSpriteTransparentTinted(
     gPaddleX, PADDLE_Y,
     platforme, platforme_W, platforme_H,
+    platforme_KEY,
     bbGetPaddleColor(gLevel), true
   );
 }
@@ -760,6 +750,7 @@ void drawBall() {
   drawSpriteTransparentTinted(
     (int)gBallX, (int)gBallY,
     bille, bille_W, bille_H,
+    bille_KEY,
     bbGetBallColor(gLevel), true
   );
 }
@@ -1135,9 +1126,7 @@ void setup() {
 
   tft.init();
   tft.setRotation(3);
-  // Les assets RGB565 du jeu doivent être envoyés avec swap d'octets
-  // pour correspondre au format attendu par pushImage() sur cet écran.
-  tft.setSwapBytes(true);
+  tft.setSwapBytes(false);
   tft.fillScreen(C_BLACK);
 
   touch.begin();
