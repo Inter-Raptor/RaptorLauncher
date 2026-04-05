@@ -335,16 +335,21 @@ uint16_t tint565(uint16_t src, uint16_t tint) {
   uint8_t sg = g6(src);
   uint8_t sb = b5(src);
 
-  uint8_t lum = (uint8_t)((sr * 2 + sg + sb * 2) / 2);
-  if (lum > 63) lum = 63;
+  // Luminance plus fidèle pour éviter les dérives de teinte
+  // (ex: brun qui vire rose / jaune).
+  uint8_t sr8 = (uint8_t)((sr * 255) / 31);
+  uint8_t sg8 = (uint8_t)((sg * 255) / 63);
+  uint8_t sb8 = (uint8_t)((sb * 255) / 31);
+
+  uint8_t lum8 = (uint8_t)((30 * sr8 + 59 * sg8 + 11 * sb8) / 100);
 
   uint8_t tr = r5(tint);
   uint8_t tg = g6(tint);
   uint8_t tb = b5(tint);
 
-  uint8_t rr = (tr * lum) / 63;
-  uint8_t gg = (tg * lum) / 63;
-  uint8_t bb = (tb * lum) / 63;
+  uint8_t rr = (uint8_t)((tr * lum8) / 255);
+  uint8_t gg = (uint8_t)((tg * lum8) / 255);
+  uint8_t bb = (uint8_t)((tb * lum8) / 255);
 
   return rgb565(rr, gg, bb);
 }
