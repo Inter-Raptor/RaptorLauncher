@@ -58,6 +58,7 @@ public:
 
   // Assets image
   bool drawRaw565(const String& path, int x, int y, int width, int height);
+  void drawPixels565(int x, int y, int width, int height, const uint16_t* pixels);
   bool drawBmp(const String& path, int x = 0, int y = 0);
   bool drawJpg(const String& path, int x = 0, int y = 0);
   bool drawPng(const String& path, int x = 0, int y = 0);

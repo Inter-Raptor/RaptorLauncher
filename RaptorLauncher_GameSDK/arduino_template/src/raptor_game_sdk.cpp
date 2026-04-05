@@ -267,6 +267,11 @@ bool RaptorGameSDK::drawRaw565(const String& path, int x, int y, int width, int 
   return true;
 }
 
+void RaptorGameSDK::drawPixels565(int x, int y, int width, int height, const uint16_t* pixels) {
+  if (!pixels || width <= 0 || height <= 0) return;
+  gLcd.pushImage(x, y, width, height, const_cast<uint16_t*>(pixels));
+}
+
 bool RaptorGameSDK::drawBmp(const String& path, int x, int y) {
   if (!sdReady) return false;
   File f = SD.open(path, FILE_READ);

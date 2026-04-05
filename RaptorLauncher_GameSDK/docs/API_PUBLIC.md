@@ -25,6 +25,7 @@ Ce fichier sert de référence pour éviter tout décalage entre doc et code.
 - `drawSmallText(...)`
 - `drawCenteredText(...)`
 - `drawRaw565(path, x, y, w, h)`
+- `drawPixels565(x, y, w, h, pixels)`
 
 ### Audio de base
 - `playBeep(freq, ms)`

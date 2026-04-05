@@ -38,6 +38,7 @@ Si une fonction n'est pas déclarée dans ce fichier, elle ne doit pas être pr�
 - boutons (MCP23017)
 - tactile (`touchX/touchY`, pressed/released)
 - `drawRaw565(...)`
+- `drawPixels565(...)`
 - `playBeep(...)`
 - JSON save/load (`saveJson/loadJson`)
 - LED RGB
