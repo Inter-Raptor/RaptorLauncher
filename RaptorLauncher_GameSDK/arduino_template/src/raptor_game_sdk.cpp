@@ -56,6 +56,7 @@ void RaptorGameSDK::begin() {
 
   sdSPI.begin(SDK_PIN_SD_SCK, SDK_PIN_SD_MISO, SDK_PIN_SD_MOSI, SDK_PIN_SD_CS);
   SD.begin(SDK_PIN_SD_CS, sdSPI);
+  loadTouchCalibrationFromSettings();
 
   ledcAttach(SDK_PIN_SPEAKER, 2000, 8);
   ledcWrite(SDK_PIN_SPEAKER, 0);
@@ -117,6 +118,42 @@ void RaptorGameSDK::mapButtonsFromMcp(uint8_t gpioA, uint8_t gpioB) {
   }
 }
 
+void RaptorGameSDK::loadTouchCalibrationFromSettings() {
+  const char* settingsPath = "/settings.json";
+  File f = SD.open(settingsPath, FILE_READ);
+  if (!f) {
+    Serial.println("[SDK] settings.json absent -> calibration tactile par defaut");
+    return;
+  }
+
+  JsonDocument doc;
+  DeserializationError err = deserializeJson(doc, f);
+  f.close();
+
+  if (err) {
+    Serial.println("[SDK] settings.json invalide -> calibration tactile par defaut");
+    return;
+  }
+
+  touchCalXMin = doc["touch_x_min"] | SDK_TOUCH_X_MIN;
+  touchCalXMax = doc["touch_x_max"] | SDK_TOUCH_X_MAX;
+  touchCalYMin = doc["touch_y_min"] | SDK_TOUCH_Y_MIN;
+  touchCalYMax = doc["touch_y_max"] | SDK_TOUCH_Y_MAX;
+  touchOffsetX = doc["touch_offset_x"] | 0;
+  touchOffsetY = doc["touch_offset_y"] | 0;
+
+  if (touchCalXMin >= touchCalXMax) {
+    touchCalXMin = SDK_TOUCH_X_MIN;
+    touchCalXMax = SDK_TOUCH_X_MAX;
+  }
+  if (touchCalYMin >= touchCalYMax) {
+    touchCalYMin = SDK_TOUCH_Y_MIN;
+    touchCalYMax = SDK_TOUCH_Y_MAX;
+  }
+
+  Serial.printf("[SDK] touch calib x:%d..%d y:%d..%d off:%d,%d\n", touchCalXMin, touchCalXMax, touchCalYMin, touchCalYMax, touchOffsetX, touchOffsetY);
+}
+
 void RaptorGameSDK::updateInputs() {
   for (int i = 0; i < BTN_COUNT; i++) {
     input.pressed[i] = false;
@@ -130,8 +167,10 @@ void RaptorGameSDK::updateInputs() {
 
   if (touchHeld) {
     TS_Point p = touch.getPoint();
-    int x = map(p.x, SDK_TOUCH_X_MIN, SDK_TOUCH_X_MAX, 0, SDK_SCREEN_WIDTH - 1);
-    int y = map(p.y, SDK_TOUCH_Y_MIN, SDK_TOUCH_Y_MAX, SDK_SCREEN_HEIGHT - 1, 0);
+    int x = map(p.x, touchCalXMin, touchCalXMax, 0, SDK_SCREEN_WIDTH - 1);
+    int y = map(p.y, touchCalYMin, touchCalYMax, SDK_SCREEN_HEIGHT - 1, 0);
+    x += touchOffsetX;
+    y += touchOffsetY;
     touchPx = constrain(x, 0, SDK_SCREEN_WIDTH - 1);
     touchPy = constrain(y, 0, SDK_SCREEN_HEIGHT - 1);
   }

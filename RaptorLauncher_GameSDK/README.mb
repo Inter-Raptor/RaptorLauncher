@@ -48,6 +48,13 @@ Par convention de ce kit:
 - `save = "sauv.json"`
 - `bin = "game.bin"`
 
+### D. Calibration tactile depuis le launcher
+Le SDK lit automatiquement `/settings.json` (même fichier que le launcher) pour récupérer:
+- `touch_x_min`, `touch_x_max`, `touch_y_min`, `touch_y_max`
+- `touch_offset_x`, `touch_offset_y`
+
+Si le fichier est absent/invalide, le SDK retombe sur les macros de `raptor_game_config.h`.
+
 ---
 
 ## 3) Installation rapide
@@ -104,6 +111,7 @@ Par convention de ce kit:
 - [ ] `icon.raw` en **50x50**
 - [ ] `title.raw` en **320x240**
 - [ ] nom de dossier aligné avec `SDK_GAME_FOLDER_NAME`
+- [ ] `settings.json` launcher présent (optionnel mais recommandé)
 - [ ] test bouton START (retour launcher)
 - [ ] test tactile (coordonnées et déplacement)
 - [ ] test écriture `sauv.json`
