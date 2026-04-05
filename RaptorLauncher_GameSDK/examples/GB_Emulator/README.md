@@ -10,11 +10,13 @@ Ce sketch embarque un vrai coeur d'emulation Game Boy DMG via **Peanut-GB**.
 - Charge/sauvegarde la SRAM cartouche vers `save_path`
 
 ## Build (Arduino IDE)
-1. Ouvrir `gb_emulator.ino`.
-2. Verifier que `GB_GAME_FOLDER` correspond au dossier SD cible.
-3. Compiler pour ESP32.
-4. Recuperer `game.bin` genere (souvent sous `build/esp32.esp32.esp32/game.bin`).
-5. Copier et renommer en `/games/PokemonBleu_GB/gb_emulator.bin`.
+1. Copier le dossier `GB_Emulator/` complet (avec son sous-dossier `src/`).
+2. Ouvrir `gb_emulator.ino`.
+3. Le sketch est autonome: `src/` contient deja `raptor_game_sdk.*`, `raptor_game_config.h` et `peanut_gb.h`.
+4. Verifier que `GB_GAME_FOLDER` correspond au dossier SD cible.
+5. Compiler pour ESP32.
+6. Recuperer `game.bin` genere (souvent sous `build/esp32.esp32.esp32/game.bin`).
+7. Copier et renommer en `/games/PokemonBleu_GB/gb_emulator.bin`.
 
 ## Controles
 - D-pad, A, B, START, SELECT mappes vers la manette GB

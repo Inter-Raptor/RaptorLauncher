@@ -1,8 +1,8 @@
-#include "../../arduino_template/src/raptor_game_sdk.h"
+#include "src/raptor_game_sdk.h"
 #include <cstring>
 
 #define ENABLE_SOUND 0
-#include "../../third_party/Peanut-GB/peanut_gb.h"
+#include "src/peanut_gb.h"
 
 RaptorGameSDK sdk;
 
