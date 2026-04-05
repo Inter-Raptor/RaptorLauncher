@@ -32,6 +32,7 @@ void gameInit() {
   sdk.drawSmallText(10, 50, "A: +1 point  B: reset");
   sdk.drawSmallText(10, 62, "SELECT: sauver  START: quitter");
   sdk.drawSmallText(10, 74, "Touch: deplace le carre");
+  sdk.drawSmallText(10, 98, "AUDIO/BMP/PNG wrappers actifs");
 
   String err;
   if (!sdk.validateGameMeta("/games/MonJeu/meta.json", err)) {
@@ -42,7 +43,17 @@ void gameInit() {
   if (sdk.wifiConnectFromSettings()) {
     sdk.playBeep(1800, 60);
   }
-  sdk.playBeep(1200, 90);
+
+  // Exemples wrappers avances (optionnels selon libs/format)
+  (void)sdk.drawBmp(sdk.assetPath("splash.bmp"), 0, 0);
+  if (sdk.hasPngDecoder()) {
+    (void)sdk.drawPng(sdk.assetPath("overlay.png"), 0, 0);
+  }
+  if (sdk.hasAdvancedAudio()) {
+    (void)sdk.playWav(sdk.assetPath("sfx/start.wav"));
+  } else {
+    sdk.playBeep(1200, 90);
+  }
 
   loadSave();
 }
@@ -57,7 +68,11 @@ void gameUpdate() {
 
   if (sdk.isPressed(BTN_A)) {
     score++;
-    sdk.playBeep(2000, 50);
+    if (sdk.hasAdvancedAudio()) {
+      (void)sdk.playMp3(sdk.assetPath("music/click.mp3"));
+    } else {
+      sdk.playBeep(2000, 50);
+    }
   }
 
   if (sdk.isPressed(BTN_B)) {
@@ -92,7 +107,7 @@ void gameUpdate() {
   sdk.drawSmallText(10, 38, line);
 
   int ldr = sdk.readLightPercent();
-  snprintf(line, sizeof(line), "LDR: %d%%  SD:%s", ldr, sdk.isSdReady() ? "OK" : "KO");
+  snprintf(line, sizeof(line), "LDR:%d%% SD:%s PNG:%s AUD:%s", ldr, sdk.isSdReady() ? "OK" : "KO", sdk.hasPngDecoder()?"Y":"N", sdk.hasAdvancedAudio()?"Y":"N");
   sdk.drawSmallText(10, 52, line);
 
   String health = sdk.sdkHealthReport();

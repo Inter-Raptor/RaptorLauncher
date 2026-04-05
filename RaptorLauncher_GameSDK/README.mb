@@ -141,6 +141,7 @@ Ce kit te donne une base solide pour créer vite, proprement, et garder la compa
 
 > Note: `drawBmp/drawPng/playWav/playMp3` sont exposes dans le SDK.
 > Leur execution depend des capacites compilees (`hasPngDecoder()`, `hasAdvancedAudio()`).
+> Le template montre aussi leur usage conditionnel.
 
 
 ### Batterie
