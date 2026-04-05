@@ -1,14 +1,14 @@
-// tamadinov4.ino - ESP32 WROOM + CYD 2432S028 (ILI9341) + LovyanGFX
+// tamadinov4.ino - ESP32 WROOM + CYD 2432S032R/2432S028 (ST7789) + LovyanGFX
 #include <stdint.h>
 
 // ================== CONFIG RAPIDE (à modifier en premier) ==================
 // --- Choix carte/écran ---
 #define DISPLAY_PROFILE_2432S022 1   // ST7789 + cap touch I2C
-#define DISPLAY_PROFILE_2432S028 2   // ILI9341 + XPT2046 (soft-SPI)
+#define DISPLAY_PROFILE_2432S028 2   // ST7789 + XPT2046 (soft-SPI)
 #define DISPLAY_PROFILE_ILI9341_320x240 3 // ILI9341 320x240 + XPT2046 (soft-SPI)
 
 // >>> Réglage simple : modifier la carte ici <<<
-#define DISPLAY_PROFILE DISPLAY_PROFILE_2432S028   // ESP32-2432S032R: utiliser 2432S028 (ILI9341 + XPT2046)
+#define DISPLAY_PROFILE DISPLAY_PROFILE_2432S028   // ESP32-2432S032R: utiliser 2432S028 (ST7789 + XPT2046)
 
 // >>> Audio : 1 = ON, 0 = OFF <<<
 #define ENABLE_AUDIO 1
@@ -51,7 +51,7 @@
 //   LCD parallèle 8-bit: WR=4, RD=2, RS=16, D0=15, D1=13, D2=12, D3=14, D4=27, D5=25, D6=33, D7=32
 //   LCD CS=17, RST=-1, BL=0 (PWM)
 //   Touch I2C: SDA=21, SCL=22
-// 2432S028 (ILI9341 + XPT2046)
+// 2432S028 / 2432S032R (ST7789 + XPT2046)
 //   LCD SPI: SCLK=14, MOSI=13, MISO=12, DC=2, CS=15, BL=21
 //   Touch XPT2046 (soft-SPI): CLK=25, MOSI=32, MISO=39, CS=33, IRQ=36
 // ILI9341_320x240 (TFT classique + XPT2046)
@@ -443,14 +443,15 @@ static constexpr int TOUCH_CLK  = 25;
 static constexpr int TOUCH_CS   = 33;
 
 class LGFX : public lgfx::LGFX_Device {
-  lgfx::Panel_ILI9341 _panel;
+  lgfx::Panel_ST7789 _panel;
   lgfx::Bus_SPI _bus;
+  lgfx::Light_PWM _light;
 public:
   LGFX() {
     { auto cfg = _bus.config();
       cfg.spi_host   = VSPI_HOST;
       cfg.spi_mode   = 0;
-      cfg.freq_write = 20000000;
+      cfg.freq_write = 40000000;
       cfg.freq_read  = 16000000;
       cfg.pin_sclk   = 14;
       cfg.pin_mosi   = 13;
@@ -463,27 +464,31 @@ public:
       cfg.pin_cs   = 15;
       cfg.pin_rst  = -1;
       cfg.pin_busy = -1;
-#if DISPLAY_PROFILE == DISPLAY_PROFILE_ILI9341_320x240
-      cfg.panel_width  = 320;
-      cfg.panel_height = 240;
-#else
+      cfg.memory_width  = 240;
+      cfg.memory_height = 320;
       cfg.panel_width  = 240;
       cfg.panel_height = 320;
-#endif
       cfg.offset_x = 0;
       cfg.offset_y = 0;
-      cfg.invert     = false;
+      cfg.invert     = true;
       cfg.rgb_order  = false;
       cfg.dlen_16bit = false;
       cfg.bus_shared = true;
       _panel.config(cfg);
+    }
+    { auto cfg = _light.config();
+      cfg.pin_bl = 27;
+      cfg.invert = false;
+      cfg.freq = 12000;
+      cfg.pwm_channel = 7;
+      _light.config(cfg);
+      _panel.setLight(&_light);
     }
     setPanel(&_panel);
   }
 };
 
 LGFX tft;
-static const int PIN_BL = 21;
 
 #if DISPLAY_PROFILE == DISPLAY_PROFILE_ILI9341_320x240
 static constexpr int RAW_W = 320;
@@ -3998,8 +4003,7 @@ Wire.setClock(400000);
 g_touch.init(TOUCH_SDA, TOUCH_SCL, -1, -1);
 tft.setBrightness(255);
 #else
-pinMode(PIN_BL, OUTPUT);
-digitalWrite(PIN_BL, HIGH);
+tft.setBrightness(255);
 softSPIBeginTouch();
 #endif
 
