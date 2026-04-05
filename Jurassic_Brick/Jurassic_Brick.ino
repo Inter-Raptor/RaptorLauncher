@@ -313,6 +313,30 @@ bool gTouchPressed = false;
 bool gTouchJustPressed = false;
 
 // =====================================================
+// Calibration couleur écran (profil sélectionnable)
+// =====================================================
+struct DisplayProfile {
+  const char* name;
+  bool invert;
+  bool swapBytes;
+  bool swapRB;
+};
+
+static const DisplayProfile DISPLAY_PROFILES[] = {
+  { "P0 inv1 swap0 rb0", true,  false, false },
+  { "P1 inv0 swap0 rb0", false, false, false },
+  { "P2 inv1 swap1 rb0", true,  true,  false },
+  { "P3 inv0 swap1 rb0", false, true,  false },
+  { "P4 inv1 swap0 rb1", true,  false, true  },
+  { "P5 inv0 swap0 rb1", false, false, true  },
+  { "P6 inv1 swap1 rb1", true,  true,  true  },
+  { "P7 inv0 swap1 rb1", false, true,  true  },
+};
+static constexpr uint8_t DISPLAY_PROFILE_COUNT =
+  (uint8_t)(sizeof(DISPLAY_PROFILES) / sizeof(DISPLAY_PROFILES[0]));
+uint8_t gDisplayProfile = 0;
+
+// =====================================================
 // Helpers couleur
 // =====================================================
 static inline uint8_t r5(uint16_t c) { return (c >> 11) & 0x1F; }
@@ -321,6 +345,34 @@ static inline uint8_t b5(uint16_t c) { return c & 0x1F; }
 
 static inline uint16_t rgb565(uint8_t rr, uint8_t gg, uint8_t bb) {
   return ((uint16_t)rr << 11) | ((uint16_t)gg << 5) | bb;
+}
+
+static inline uint16_t swapRB565(uint16_t c) {
+  uint16_t r = (c >> 11) & 0x1F;
+  uint16_t g = (c >> 5) & 0x3F;
+  uint16_t b = c & 0x1F;
+  return (uint16_t)((b << 11) | (g << 5) | r);
+}
+
+uint16_t applyDisplayPixelMap(uint16_t c) {
+  const DisplayProfile& p = DISPLAY_PROFILES[gDisplayProfile];
+  if (p.swapRB) c = swapRB565(c);
+  return c;
+}
+
+void applyDisplayProfile(uint8_t idx) {
+  gDisplayProfile = (uint8_t)(idx % DISPLAY_PROFILE_COUNT);
+  const DisplayProfile& p = DISPLAY_PROFILES[gDisplayProfile];
+  tft.setSwapBytes(p.swapBytes);
+  tft.invertDisplay(p.invert);
+  Serial.printf("[DISPLAY] Profile #%u => %s\n",
+                (unsigned)gDisplayProfile, p.name);
+}
+
+void nextDisplayProfile() {
+  applyDisplayProfile((uint8_t)(gDisplayProfile + 1));
+  gNeedFullRedraw = true;
+  gHudDirty = true;
 }
 
 uint16_t tint565(uint16_t src, uint16_t tint) {
@@ -569,6 +621,7 @@ void drawFullBackground() {
   for (int y = 0; y < SCREEN_H; y++) {
     for (int x = 0; x < SCREEN_W; x++) {
       line[x] = pgm_read_word(&bg[y * SCREEN_W + x]);
+      line[x] = applyDisplayPixelMap(line[x]);
     }
     tft.pushImage(0, y, SCREEN_W, 1, line);
   }
@@ -589,6 +642,7 @@ void restoreBgRect(int x, int y, int w, int h) {
     int sy = y + yy;
     for (int xx = 0; xx < w; xx++) {
       line[xx] = pgm_read_word(&bg[sy * SCREEN_W + (x + xx)]);
+      line[xx] = applyDisplayPixelMap(line[xx]);
     }
     tft.pushImage(x, sy, w, 1, line);
   }
@@ -596,7 +650,7 @@ void restoreBgRect(int x, int y, int w, int h) {
 
 // =====================================================
 // Sprites transparents
-// Transparence = pixel en haut à droite
+// Transparence = clé explicite passée en paramètre
 // =====================================================
 void drawSpriteTransparentTinted(
   int x, int y,
@@ -632,7 +686,7 @@ void drawSpriteTransparentTinted(
 
         for (int i = 0; i < runW; i++) {
           uint16_t src = pgm_read_word(&data[yy * w + runStart + i]);
-          rowBuffer[i] = useTint ? tint565(src, tintColor) : src;
+          rowBuffer[i] = applyDisplayPixelMap(useTint ? tint565(src, tintColor) : src);
         }
 
         int drawX = x + runStart;
@@ -1126,8 +1180,9 @@ void setup() {
 
   tft.init();
   tft.setRotation(3);
-  tft.setSwapBytes(false);
+  applyDisplayProfile(0);
   tft.fillScreen(C_BLACK);
+  Serial.println("[DISPLAY] Boot calibration: tap top-left (0..80,0..40) to switch profile.");
 
   touch.begin();
 
@@ -1166,6 +1221,12 @@ void loop() {
   switch (gState) {
     case GS_BOOT:
       if (gTouchJustPressed) {
+        // Zone calibration écran (coin haut gauche) : profile suivant.
+        if (gTouchX >= 0 && gTouchX <= 80 && gTouchY >= 0 && gTouchY <= 40) {
+          nextDisplayProfile();
+          drawBootScreen();
+          break;
+        }
         // Si on touche la zone score au boot => launcher
         if (gTouchX >= HUD_SCORE_X1 && gTouchX <= HUD_SCORE_X2 &&
             gTouchY >= HUD_SCORE_Y1 && gTouchY <= HUD_SCORE_Y2) {
