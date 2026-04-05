@@ -2,6 +2,16 @@
 #include <Preferences.h>
 #include <esp_partition.h>
 #include <esp_ota_ops.h>
+#if __has_include(<ESP8266Audio.h>) && __has_include(<AudioFileSourceSD.h>) && __has_include(<AudioGeneratorWAV.h>) && __has_include(<AudioGeneratorMP3.h>) && __has_include(<AudioOutputI2SNoDAC.h>)
+  #include <AudioFileSourceSD.h>
+  #include <AudioGeneratorWAV.h>
+  #include <AudioGeneratorMP3.h>
+  #include <AudioOutputI2SNoDAC.h>
+  #define SDK_HAS_ADV_AUDIO 1
+#else
+  #define SDK_HAS_ADV_AUDIO 0
+#endif
+
 
 class SDKDisplay : public lgfx::LGFX_Device {
   lgfx::Panel_ST7789 panel;
@@ -257,6 +267,71 @@ bool RaptorGameSDK::drawRaw565(const String& path, int x, int y, int width, int 
   return true;
 }
 
+bool RaptorGameSDK::drawBmp(const String& path, int x, int y) {
+  if (!sdReady) return false;
+  File f = SD.open(path, FILE_READ);
+  if (!f) return false;
+  f.close();
+  // LovyanGFX: drawBmpFile(fs, path, x, y)
+  gLcd.drawBmpFile(SD, path.c_str(), x, y);
+  return true;
+}
+
+bool RaptorGameSDK::drawPng(const String& path, int x, int y) {
+  if (!sdReady) return false;
+  File f = SD.open(path, FILE_READ);
+  if (!f) return false;
+  f.close();
+  // Selon version LovyanGFX, drawPngFile peut ne pas etre dispo.
+  #ifdef LGFX_HAS_PNG_DECODER
+    gLcd.drawPngFile(SD, path.c_str(), x, y);
+    return true;
+  #else
+    (void)x; (void)y;
+    return false;
+  #endif
+}
+
+bool RaptorGameSDK::playWav(const String& path) {
+  #if SDK_HAS_ADV_AUDIO
+    if (!sdReady) return false;
+    auto* file = new AudioFileSourceSD(path.c_str());
+    auto* out = new AudioOutputI2SNoDAC();
+    auto* wav = new AudioGeneratorWAV();
+    if (!wav->begin(file, out)) {
+      delete wav; delete out; delete file;
+      return false;
+    }
+    while (wav->isRunning()) wav->loop();
+    wav->stop();
+    delete wav; delete out; delete file;
+    return true;
+  #else
+    (void)path;
+    return false;
+  #endif
+}
+
+bool RaptorGameSDK::playMp3(const String& path) {
+  #if SDK_HAS_ADV_AUDIO
+    if (!sdReady) return false;
+    auto* file = new AudioFileSourceSD(path.c_str());
+    auto* out = new AudioOutputI2SNoDAC();
+    auto* mp3 = new AudioGeneratorMP3();
+    if (!mp3->begin(file, out)) {
+      delete mp3; delete out; delete file;
+      return false;
+    }
+    while (mp3->isRunning()) mp3->loop();
+    mp3->stop();
+    delete mp3; delete out; delete file;
+    return true;
+  #else
+    (void)path;
+    return false;
+  #endif
+}
+
 void RaptorGameSDK::playBeep(int freq, int durationMs) {
   ledcWriteTone(SDK_PIN_SPEAKER, freq);
   ledcWrite(SDK_PIN_SPEAKER, 120);
@@ -423,6 +498,18 @@ int RaptorGameSDK::batteryPercent() const {
   if (pct < 0) pct = 0;
   if (pct > 100) pct = 100;
   return pct;
+}
+
+bool RaptorGameSDK::hasPngDecoder() const {
+  #ifdef LGFX_HAS_PNG_DECODER
+    return true;
+  #else
+    return false;
+  #endif
+}
+
+bool RaptorGameSDK::hasAdvancedAudio() const {
+  return SDK_HAS_ADV_AUDIO == 1;
 }
 
 bool RaptorGameSDK::wifiConnectFromSettings() {

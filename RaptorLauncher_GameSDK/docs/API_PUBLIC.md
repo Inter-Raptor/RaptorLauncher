@@ -19,9 +19,13 @@ Ce fichier sert de référence rapide pour éviter tout décalage entre doc et c
 - `drawSmallText(...)`
 - `drawCenteredText(...)`
 - `drawRaw565(path, x, y, w, h)`
+- `drawBmp(path, x, y)`
+- `drawPng(path, x, y)`
 
 ## Audio
 - `playBeep(freq, ms)`
+- `playWav(path)`
+- `playMp3(path)`
 
 ## Boot/launcher
 - `armReturnToLauncherOnNextBoot()`
@@ -46,6 +50,8 @@ Ce fichier sert de référence rapide pour éviter tout décalage entre doc et c
 - `hasBatterySense()`
 - `batteryMilliVolts()`
 - `batteryPercent()`
+- `hasPngDecoder()`
+- `hasAdvancedAudio()`
 - `wifiConnectFromSettings()`
 - `wifiDisconnect()`
 - `wifiIsConnected()`

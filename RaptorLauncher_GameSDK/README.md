@@ -83,7 +83,10 @@ Si le fichier est absent/invalide, le SDK retombe sur les macros de `raptor_game
 - `touchX()/touchY()`
 - `clear/drawRect/fillRect/drawSmallText/drawCenteredText`
 - `drawRaw565(path, x, y, w, h)`
+- `drawBmp(path, x, y)`
+- `drawPng(path, x, y)`
 - `playBeep(freq, ms)`
+- `playWav(path)` / `playMp3(path)` (si libs audio avancées installées)
 - `requestReturnToLauncher()`
 - `saveJson/loadJson/saveJsonPath`
 - `assetPath(filename)`
@@ -94,6 +97,7 @@ Si le fichier est absent/invalide, le SDK retombe sur les macros de `raptor_game
 - `setLedRgb(r,g,b)` / `ledOff()`
 - `readLightRaw()` / `readLightPercent()`
 - `hasBatterySense()` / `batteryMilliVolts()` / `batteryPercent()`
+- `hasPngDecoder()` / `hasAdvancedAudio()`
 - `wifiConnectFromSettings()` / `wifiIsConnected()` / `wifiDisconnect()`
 
 ---
