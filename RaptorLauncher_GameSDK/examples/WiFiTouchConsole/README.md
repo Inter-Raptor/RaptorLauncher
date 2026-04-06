@@ -67,8 +67,11 @@ Lors d'un tap sur **Se connecter**, le jeu lit `wifi_ssid`/`wifi_pass` et force 
 - **Bandeau rouge en bas** (quand visible): annuler une connexion ou un scan réseau en cours
 
 ## Note sur la découverte d'appareils
-La détection est faite par tentative TCP (ports 80/443) sur le `/24` local.
-Donc certains appareils peuvent ne pas apparaître s'ils n'écoutent pas ces ports.
+La détection est faite par tentatives TCP multi-ports sur le `/24` local
+(80, 443, 53, 22, 445, 139, 1883, 554, 8008).
+
+Important: ce n'est toujours **pas** une liste absolue de tous les clients connectés au routeur.
+Un appareil peut etre present sur le reseau sans ecouter de port TCP, et ne pas apparaitre.
 
 ## Anti-scintillement
 Le rendu est maintenant **événementiel**: l'écran se redessine seulement quand quelque chose change (tap, scroll, nouveaux résultats), au lieu d'un refresh permanent.

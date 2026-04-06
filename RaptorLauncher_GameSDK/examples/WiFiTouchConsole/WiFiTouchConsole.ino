@@ -30,6 +30,7 @@ struct Rect {
 
 static const int MAX_SCAN_ENTRIES = 40;
 static const int MAX_DEVICE_ENTRIES = 128;
+static const uint16_t PROBE_PORTS[] = {80, 443, 53, 22, 445, 139, 1883, 554, 8008};
 static const uint32_t WIFI_SCAN_REFRESH_MS = 10000;
 static const uint32_t UI_THROTTLE_MS = 33;
 static const uint32_t TOUCH_GUARD_MS = 1200;
@@ -228,16 +229,21 @@ void updateDeviceScanStep() {
   scanProgress = lanHost;
   IPAddress target(localIp[0], localIp[1], localIp[2], lanHost);
   bool alive = false;
-  if (lanClient.connect(target, 80, 60)) {
-    alive = true;
-    lanClient.stop();
-  } else if (lanClient.connect(target, 443, 60)) {
-    alive = true;
-    lanClient.stop();
+  uint16_t hitPort = 0;
+  for (size_t pi = 0; pi < (sizeof(PROBE_PORTS) / sizeof(PROBE_PORTS[0])); ++pi) {
+    uint16_t port = PROBE_PORTS[pi];
+    if (lanClient.connect(target, port, 30)) {
+      alive = true;
+      hitPort = port;
+      lanClient.stop();
+      break;
+    }
   }
 
   if (alive) {
-    pushDevice(target.toString(), "Actif (TCP)");
+    char status[28];
+    snprintf(status, sizeof(status), "Actif (TCP:%u)", (unsigned)hitPort);
+    pushDevice(target.toString(), String(status));
   }
 
   lanHost++;
