@@ -9,6 +9,10 @@ Un template prêt à copier est maintenant fourni ici:
 
 `RaptorLauncher_GameSDK/sd_template/games/WiFiTouchConsole/`
 
+Un template de `settings.json` est fourni dans:
+
+`RaptorLauncher_GameSDK/sd_template/settings.json`
+
 ## Arborescence SD complète (attendue)
 
 ```text
@@ -34,22 +38,25 @@ Tu peux donc ouvrir ce dossier tel quel dans Arduino IDE et compiler sans copier
 
 ## Fonctionnalités
 - **Menu 1**: scanner tous les Wi-Fi à portée (SSID, puissance RSSI, canal, chiffrement).
-- **Menu 2**: se connecter au réseau perso via `config.json` puis lister les appareils détectés sur le sous-réseau local.
+- **Menu 2**: se connecter au réseau perso via `/settings.json` (racine SD) puis lister les appareils détectés sur le sous-réseau local.
 - Scroll **tactile vertical** (glisser haut/bas) pour parcourir de longues listes.
 
-## config.json
-Place ce fichier sur la SD dans le dossier du jeu:
+## Wi-Fi depuis /settings.json (racine SD)
+Le menu 2 lit d'abord les identifiants dans le fichier global du launcher:
 
-`/games/<SDK_GAME_FOLDER_NAME>/config.json`
+`/settings.json`
 
-Exemple:
+Champs attendus:
 
 ```json
 {
-  "ssid": "MonWifi",
-  "password": "MonMotDePasse"
+  "wifi_ssid": "MonWifi",
+  "wifi_pass": "MonMotDePasse"
 }
 ```
+
+Compatibilité: si `/settings.json` est absent/invalide, l'exemple tente encore
+`/games/<SDK_GAME_FOLDER_NAME>/config.json` avec `ssid` / `password`.
 
 ## Contrôles (100% tactile)
 - **Onglet haut gauche**: Menu Wi‑Fi autour

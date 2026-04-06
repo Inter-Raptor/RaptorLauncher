@@ -187,6 +187,41 @@ bool loadCredentialsFromConfig(String& ssid, String& password) {
   return true;
 }
 
+bool loadCredentialsFromSettingsRoot(String& ssid, String& password) {
+  if (!sdk.isSdReady()) {
+    myNetError = "SD indisponible";
+    return false;
+  }
+
+  File f = SD.open("/settings.json", FILE_READ);
+  if (!f) {
+    myNetError = "settings.json manquant";
+    return false;
+  }
+
+  JsonDocument doc;
+  DeserializationError err = deserializeJson(doc, f);
+  f.close();
+  if (err) {
+    myNetError = "settings.json invalide";
+    return false;
+  }
+
+  ssid = String((const char*)doc["wifi_ssid"]);
+  password = String((const char*)doc["wifi_pass"]);
+  if (ssid.isEmpty()) {
+    // compatibilite avec anciens formats eventuels
+    ssid = String((const char*)doc["ssid"]);
+    password = String((const char*)doc["password"]);
+  }
+
+  if (ssid.isEmpty()) {
+    myNetError = "wifi_ssid vide";
+    return false;
+  }
+  return true;
+}
+
 void discoverDevicesOnSubnet() {
   deviceCount = 0;
   scanningDevices = true;
@@ -261,10 +296,13 @@ void discoverDevicesOnSubnet() {
 void connectToMyNetwork() {
   String ssid;
   String password;
-  if (!loadCredentialsFromConfig(ssid, password)) {
-    myNetConnected = false;
-    uiDirty = true;
-    return;
+  if (!loadCredentialsFromSettingsRoot(ssid, password)) {
+    // fallback: accepte encore /games/<jeu>/config.json pour anciens setups.
+    if (!loadCredentialsFromConfig(ssid, password)) {
+      myNetConnected = false;
+      uiDirty = true;
+      return;
+    }
   }
 
   myNetSsid = ssid;

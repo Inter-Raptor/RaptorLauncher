@@ -13,3 +13,9 @@ Important:
 - Le dossier sur SD doit correspondre au nom compile dans SDK_GAME_FOLDER_NAME.
 - Si tu gardes SDK_GAME_FOLDER_NAME = "MonJeu", renomme le dossier en /games/MonJeu/
   ou adapte la macro avant compilation.
+
+
+Wi-Fi (menu 2):
+- Le jeu lit en priorite /settings.json (racine SD) avec wifi_ssid / wifi_pass.
+- Un exemple est fourni dans RaptorLauncher_GameSDK/sd_template/settings.json
+- /games/WiFiTouchConsole/config.json est seulement un fallback compatibilite.
