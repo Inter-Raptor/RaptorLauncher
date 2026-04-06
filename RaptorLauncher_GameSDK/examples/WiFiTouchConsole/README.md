@@ -69,12 +69,13 @@ Lors d'un tap sur **Se connecter**, le jeu lit `wifi_ssid`/`wifi_pass` et force 
 - **Bandeau rouge en bas** (quand visible): annuler une connexion ou un scan réseau en cours
 
 ## Note sur la découverte d'appareils
-La détection est faite par tentatives TCP multi-ports sur le `/24` local
-(80, 443, 53, 22, 445, 139, 1883, 554, 8008).
+La détection est faite en 2 etapes sur le `/24` local:
+1) sonde ARP indirecte (emission UDP pour forcer la resolution ARP),
+2) fallback par tentatives TCP multi-ports (80, 443, 53, 22, 445, 139, 1883, 554, 8008).
 
 Important: ce n'est toujours **pas** une liste absolue de tous les clients connectés au routeur.
-Le scan marque aussi un hote comme probable actif si la connexion echoue tres vite (heuristique RST/ICMP),
-mais certains appareils peuvent encore ne pas apparaitre.
+Le scan marque aussi un hote comme probable actif si la connexion echoue tres vite (heuristique RST/ICMP).
+Malgre ca, certains appareils peuvent encore ne pas apparaitre (isolation AP, VLAN, pare-feu, etc.).
 
 ## Anti-scintillement
 Le rendu est maintenant **événementiel**: l'écran se redessine seulement quand quelque chose change (tap, scroll, nouveaux résultats), au lieu d'un refresh permanent.

@@ -1,6 +1,13 @@
 #include "raptor_game_sdk.h"
 #include <ArduinoJson.h>
 #include <WiFi.h>
+#include <WiFiUdp.h>
+#if defined(ESP32)
+extern "C" {
+  #include "lwip/etharp.h"
+  #include "lwip/ip4_addr.h"
+}
+#endif
 
 RaptorGameSDK sdk;
 
@@ -70,6 +77,7 @@ bool scanningDevices = false;
 int scanProgress = 0;
 int lanHost = 1;
 WiFiClient lanClient;
+WiFiUDP lanUdp;
 
 bool pointInRect(int x, int y, const Rect& r) {
   return x >= r.x && x < (r.x + r.w) && y >= r.y && y < (r.y + r.h);
@@ -197,6 +205,7 @@ void beginDeviceScan() {
   scanProgress = 0;
   lanHost = 1;
   lanClient.setTimeout(70);
+  lanUdp.begin(54000);
   uiDirty = true;
 }
 
@@ -244,7 +253,38 @@ void updateDeviceScanStep() {
   IPAddress target(localIp[0], localIp[1], localIp[2], lanHost);
   bool alive = false;
   bool repliedClosed = false;
+  bool arpAlive = false;
   uint16_t hitPort = 0;
+
+  // 1) Sonde ARP indirecte via emission UDP (la pile doit resoudre l'ARP d'abord).
+  lanUdp.beginPacket(target, 9);
+  lanUdp.write((uint8_t)0x00);
+  lanUdp.endPacket();
+  delay(1);
+
+#if defined(ESP32)
+  ip4_addr_t targetIp;
+  IP4_ADDR(&targetIp, target[0], target[1], target[2], target[3]);
+  for (int i = 0; i < ARP_TABLE_SIZE; ++i) {
+    ip4_addr_t* ipaddr = nullptr;
+    struct netif* netif = nullptr;
+    struct eth_addr* mac = nullptr;
+    if (etharp_get_entry(i, &ipaddr, &netif, &mac) && ipaddr != nullptr) {
+      if (ip4_addr_cmp(ipaddr, &targetIp)) {
+        arpAlive = true;
+        break;
+      }
+    }
+  }
+#endif
+
+  if (arpAlive) {
+    alive = true;
+    hitPort = 0;
+  }
+
+  // 2) Fallback TCP si ARP non concluant.
+  if (!alive) {
   for (size_t pi = 0; pi < (sizeof(PROBE_PORTS) / sizeof(PROBE_PORTS[0])); ++pi) {
     uint16_t port = PROBE_PORTS[pi];
     uint32_t t0 = micros();
@@ -262,10 +302,13 @@ void updateDeviceScanStep() {
       break;
     }
   }
+  }
 
   if (alive || repliedClosed) {
     char status[28];
-    if (alive) {
+    if (alive && hitPort == 0) {
+      snprintf(status, sizeof(status), "Actif (ARP)");
+    } else if (alive) {
       snprintf(status, sizeof(status), "Actif (TCP:%u)", (unsigned)hitPort);
     } else {
       snprintf(status, sizeof(status), "Actif (RST:%u)", (unsigned)hitPort);
