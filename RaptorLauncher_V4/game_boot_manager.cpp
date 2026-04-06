@@ -32,18 +32,46 @@ bool gameBootLaunchFromPath(const String& binPath) {
   const esp_partition_t* target = nullptr;
   if (!selectTargetOta(running, target)) return false;
 
-  const int maxAttempts = 2;
+  const uint32_t candidateOffsets[] = {0, 0x10000, 0x1000};
+  const int maxAttemptsPerOffset = 2;
   esp_err_t err = ESP_FAIL;
-  for (int attempt = 1; attempt <= maxAttempts; ++attempt) {
+
+  for (size_t oi = 0; oi < (sizeof(candidateOffsets) / sizeof(candidateOffsets[0])); ++oi) {
+    uint32_t offset = candidateOffsets[oi];
+    for (int attempt = 1; attempt <= maxAttemptsPerOffset; ++attempt) {
     File f = SD.open(binPath, FILE_READ);
     if (!f) {
       Serial.printf("[BOOT] impossible d'ouvrir %s\n", binPath.c_str());
       return false;
     }
 
-    size_t expectedSize = f.size();
+      size_t fileSize = f.size();
+      if (offset >= fileSize) {
+        f.close();
+        continue;
+      }
+
+      if (!f.seek(offset)) {
+        Serial.printf("[BOOT] seek KO sur offset 0x%lX\n", (unsigned long)offset);
+        f.close();
+        continue;
+      }
+
+      int magic = f.read();
+      if (magic != 0xE9) {
+        f.close();
+        continue;
+      }
+
+      if (!f.seek(offset)) {
+        f.close();
+        continue;
+      }
+
+    size_t expectedSize = fileSize - offset;
     size_t totalWritten = 0;
-    Serial.printf("[BOOT] tentative %d/%d, taille=%u octets\n", attempt, maxAttempts, (unsigned)expectedSize);
+      Serial.printf("[BOOT] offset=0x%lX tentative %d/%d, taille=%u octets\n",
+                    (unsigned long)offset, attempt, maxAttemptsPerOffset, (unsigned)expectedSize);
 
     esp_ota_handle_t otaHandle = 0;
     err = esp_ota_begin(target, OTA_SIZE_UNKNOWN, &otaHandle);
@@ -95,9 +123,11 @@ bool gameBootLaunchFromPath(const String& binPath) {
     Serial.printf("[BOOT] esp_ota_end KO (tentative %d): %d\n", attempt, (int)err);
     delay(50);
   }
+    if (err == ESP_OK) break;
+  }
 
   if (err != ESP_OK) {
-    Serial.printf("[BOOT] validation image KO apres %d tentative(s)\n", maxAttempts);
+    Serial.printf("[BOOT] validation image KO (offsets testes: 0x0,0x10000,0x1000)\n");
     return false;
   }
 
