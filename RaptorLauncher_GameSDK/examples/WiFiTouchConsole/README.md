@@ -51,13 +51,17 @@ Exemple:
 }
 ```
 
-## Contrôles
-- `X`: Menu Wi-Fi autour
-- `Y`: Menu réseau perso
-- `A`: action (scan ou connexion + découverte appareils)
-- `B`: annuler pendant certains scans/connexions
-- `START`: retour launcher
+## Contrôles (100% tactile)
+- **Onglet haut gauche**: Menu Wi‑Fi autour
+- **Onglet haut centre**: Menu réseau perso
+- **Bouton haut droite `Quitter`**: retour launcher
+- **Barre action (ligne 2)**: lancer scan Wi‑Fi, se connecter, ou rescanner le LAN
+- **Glisser verticalement** dans la zone de contenu: scroll longues listes
+- **Bandeau rouge en bas** (quand visible): annuler une connexion ou un scan réseau en cours
 
 ## Note sur la découverte d'appareils
 La détection est faite par tentative TCP (ports 80/443) sur le `/24` local.
 Donc certains appareils peuvent ne pas apparaître s'ils n'écoutent pas ces ports.
+
+## Anti-scintillement
+Le rendu est maintenant **événementiel**: l'écran se redessine seulement quand quelque chose change (tap, scroll, nouveaux résultats), au lieu d'un refresh permanent.

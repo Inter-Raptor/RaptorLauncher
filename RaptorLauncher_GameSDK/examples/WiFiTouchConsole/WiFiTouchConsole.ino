@@ -21,10 +21,21 @@ struct DeviceEntry {
   String status;
 };
 
+struct Rect {
+  int x;
+  int y;
+  int w;
+  int h;
+};
+
 static const int MAX_SCAN_ENTRIES = 40;
 static const int MAX_DEVICE_ENTRIES = 128;
 static const uint32_t WIFI_SCAN_REFRESH_MS = 10000;
-static const uint32_t UI_REFRESH_MS = 120;
+static const uint32_t UI_THROTTLE_MS = 33;
+
+static const int TOP_BAR_H = 24;
+static const int ACTION_BAR_H = 26;
+static const int CONTENT_START_Y = TOP_BAR_H + ACTION_BAR_H + 4;
 
 ScanEntry scanResults[MAX_SCAN_ENTRIES];
 int scanCount = 0;
@@ -39,12 +50,43 @@ int lastTouchY = 0;
 bool dragging = false;
 
 uint32_t lastUiMs = 0;
+uint32_t lastDrawMs = 0;
+bool uiDirty = true;
+
 bool myNetConnected = false;
 String myNetIp = "-";
 String myNetSsid = "-";
 String myNetError = "Pas connecte";
 bool scanningDevices = false;
 int scanProgress = 0;
+
+bool pointInRect(int x, int y, const Rect& r) {
+  return x >= r.x && x < (r.x + r.w) && y >= r.y && y < (r.y + r.h);
+}
+
+Rect tabWifiRect() {
+  return {0, 0, sdk.width() / 2, TOP_BAR_H};
+}
+
+Rect tabMyNetRect() {
+  return {sdk.width() / 2, 0, sdk.width() / 2 - 64, TOP_BAR_H};
+}
+
+Rect quitRect() {
+  return {sdk.width() - 64, 0, 64, TOP_BAR_H};
+}
+
+Rect primaryActionRect() {
+  return {0, TOP_BAR_H, sdk.width() / 2, ACTION_BAR_H};
+}
+
+Rect secondaryActionRect() {
+  return {sdk.width() / 2, TOP_BAR_H, sdk.width() / 2, ACTION_BAR_H};
+}
+
+Rect cancelScanRect() {
+  return {0, sdk.height() - 24, sdk.width(), 24};
+}
 
 String authToText(wifi_auth_mode_t auth) {
   switch (auth) {
@@ -62,14 +104,16 @@ String authToText(wifi_auth_mode_t auth) {
 
 int maxScrollForContent(int contentRows) {
   int contentHeight = contentRows * 14 + 8;
-  int viewportHeight = sdk.height() - 56;
+  int viewportHeight = sdk.height() - CONTENT_START_Y;
   int maxScroll = contentHeight - viewportHeight;
   if (maxScroll < 0) maxScroll = 0;
   return maxScroll;
 }
 
-void handleTouchScroll(int maxScroll) {
-  if (sdk.isTouchPressed()) {
+bool handleTouchScroll(int maxScroll) {
+  bool changed = false;
+
+  if (sdk.isTouchPressed() && sdk.touchY() >= CONTENT_START_Y) {
     dragging = true;
     lastTouchY = sdk.touchY();
   }
@@ -78,14 +122,18 @@ void handleTouchScroll(int maxScroll) {
     int y = sdk.touchY();
     int dy = y - lastTouchY;
     lastTouchY = y;
+    int oldScroll = scrollY;
     scrollY -= dy;
     if (scrollY < 0) scrollY = 0;
     if (scrollY > maxScroll) scrollY = maxScroll;
+    changed = (oldScroll != scrollY);
   }
 
   if (sdk.isTouchReleased()) {
     dragging = false;
   }
+
+  return changed;
 }
 
 void runWifiScan() {
@@ -140,6 +188,7 @@ void discoverDevicesOnSubnet() {
   deviceCount = 0;
   scanningDevices = true;
   scanProgress = 0;
+  uiDirty = true;
 
   if (!myNetConnected) {
     scanningDevices = false;
@@ -180,15 +229,30 @@ void discoverDevicesOnSubnet() {
 
     if (alive) {
       pushDevice(target.toString(), "Actif (TCP)");
+      uiDirty = true;
+    }
+
+    if ((host % 8) == 0) {
+      uiDirty = true;
+      lastDrawMs = 0;
     }
 
     sdk.updateInputs();
-    if (sdk.isPressed(BTN_B)) {
-      break;
+    if (sdk.isTouchPressed()) {
+      if (pointInRect(sdk.touchX(), sdk.touchY(), cancelScanRect())) {
+        myNetError = "Scan annule";
+        break;
+      }
+    }
+
+    if (uiDirty && millis() - lastDrawMs > UI_THROTTLE_MS) {
+      // rendu intermediaire limite pour eviter scintillement/perf faible.
+      lastDrawMs = millis();
     }
   }
 
   scanningDevices = false;
+  uiDirty = true;
 }
 
 void connectToMyNetwork() {
@@ -196,11 +260,14 @@ void connectToMyNetwork() {
   String password;
   if (!loadCredentialsFromConfig(ssid, password)) {
     myNetConnected = false;
+    uiDirty = true;
     return;
   }
 
   myNetSsid = ssid;
   myNetError = "Connexion...";
+  uiDirty = true;
+
   WiFi.mode(WIFI_STA);
   WiFi.disconnect(true);
   delay(150);
@@ -209,11 +276,14 @@ void connectToMyNetwork() {
   uint32_t start = millis();
   while (WiFi.status() != WL_CONNECTED && millis() - start < 12000) {
     sdk.updateInputs();
-    if (sdk.isPressed(BTN_B)) {
-      myNetError = "Connexion annulee";
-      myNetConnected = false;
-      WiFi.disconnect(true);
-      return;
+    if (sdk.isTouchPressed()) {
+      if (pointInRect(sdk.touchX(), sdk.touchY(), cancelScanRect())) {
+        myNetError = "Connexion annulee";
+        myNetConnected = false;
+        WiFi.disconnect(true);
+        uiDirty = true;
+        return;
+      }
     }
     delay(25);
   }
@@ -228,32 +298,57 @@ void connectToMyNetwork() {
     myNetIp = "-";
     myNetError = "Echec connexion";
   }
+  uiDirty = true;
 }
 
-void drawTopBar() {
-  sdk.fillRect(0, 0, sdk.width(), 24, SDK_COLOR_ACCENT);
-  sdk.drawSmallText(6, 6, mode == SCREEN_WIFI_SCAN ? "Menu 1: WiFi autour" : "Menu 2: Mon reseau", SDK_COLOR_BG, SDK_COLOR_ACCENT);
+void drawTopBars() {
+  Rect wifiR = tabWifiRect();
+  Rect netR = tabMyNetRect();
+  Rect quitR = quitRect();
 
-  sdk.fillRect(0, 24, sdk.width(), 26, SDK_COLOR_BG);
-  sdk.drawSmallText(4, 28, "A: scan/refresh  B: retour  X: menu1  Y: menu2");
+  sdk.fillRect(0, 0, sdk.width(), TOP_BAR_H, SDK_COLOR_BG);
+
+  sdk.fillRect(wifiR.x, wifiR.y, wifiR.w, wifiR.h, mode == SCREEN_WIFI_SCAN ? SDK_COLOR_ACCENT : SDK_COLOR_WARN);
+  sdk.drawSmallText(wifiR.x + 6, wifiR.y + 7, "Menu 1 WiFi", mode == SCREEN_WIFI_SCAN ? SDK_COLOR_BG : SDK_COLOR_TEXT, mode == SCREEN_WIFI_SCAN ? SDK_COLOR_ACCENT : SDK_COLOR_WARN);
+
+  sdk.fillRect(netR.x, netR.y, netR.w, netR.h, mode == SCREEN_MY_NETWORK ? SDK_COLOR_ACCENT : SDK_COLOR_WARN);
+  sdk.drawSmallText(netR.x + 6, netR.y + 7, "Menu 2 Reseau", mode == SCREEN_MY_NETWORK ? SDK_COLOR_BG : SDK_COLOR_TEXT, mode == SCREEN_MY_NETWORK ? SDK_COLOR_ACCENT : SDK_COLOR_WARN);
+
+  sdk.fillRect(quitR.x, quitR.y, quitR.w, quitR.h, SDK_COLOR_ERROR);
+  sdk.drawSmallText(quitR.x + 14, quitR.y + 7, "Quitter", SDK_COLOR_BG, SDK_COLOR_ERROR);
+
+  Rect p = primaryActionRect();
+  Rect s = secondaryActionRect();
+  sdk.fillRect(p.x, p.y, p.w, p.h, SDK_COLOR_BG);
+  sdk.fillRect(s.x, s.y, s.w, s.h, SDK_COLOR_BG);
+
+  if (mode == SCREEN_WIFI_SCAN) {
+    sdk.drawSmallText(p.x + 6, p.y + 8, "Scanner WiFi", SDK_COLOR_OK, SDK_COLOR_BG);
+    sdk.drawSmallText(s.x + 6, s.y + 8, "Auto 10s", SDK_COLOR_TEXT, SDK_COLOR_BG);
+  } else {
+    sdk.drawSmallText(p.x + 6, p.y + 8, "Se connecter", SDK_COLOR_OK, SDK_COLOR_BG);
+    sdk.drawSmallText(s.x + 6, s.y + 8, scanningDevices ? "Scan en cours..." : "Rescanner LAN", SDK_COLOR_TEXT, SDK_COLOR_BG);
+  }
+
+  sdk.fillRect(0, TOP_BAR_H - 1, sdk.width(), 1, SDK_COLOR_WARN);
+  sdk.fillRect(0, TOP_BAR_H + ACTION_BAR_H - 1, sdk.width(), 1, SDK_COLOR_WARN);
 }
 
 void drawWifiScanScreen() {
-  int startY = 54;
   int rows = (scanCount > 0) ? scanCount : 1;
   int maxScroll = maxScrollForContent(rows);
-  handleTouchScroll(maxScroll);
+  if (handleTouchScroll(maxScroll)) uiDirty = true;
 
-  sdk.fillRect(0, startY, sdk.width(), sdk.height() - startY, SDK_COLOR_BG);
+  sdk.fillRect(0, CONTENT_START_Y, sdk.width(), sdk.height() - CONTENT_START_Y, SDK_COLOR_BG);
 
   char header[64];
   snprintf(header, sizeof(header), "Reseaux detectes: %d", scanCount);
-  sdk.drawSmallText(6, startY + 2, header, SDK_COLOR_OK, SDK_COLOR_BG);
+  sdk.drawSmallText(6, CONTENT_START_Y + 2, header, SDK_COLOR_OK, SDK_COLOR_BG);
 
-  int yBase = startY + 18 - scrollY;
+  int yBase = CONTENT_START_Y + 18 - scrollY;
   for (int i = 0; i < scanCount; ++i) {
     int y = yBase + i * 14;
-    if (y < startY || y > sdk.height() - 12) continue;
+    if (y < CONTENT_START_Y || y > sdk.height() - 12) continue;
 
     char line[128];
     const String ssid = scanResults[i].ssid.isEmpty() ? String("<SSID cache>") : scanResults[i].ssid;
@@ -268,57 +363,109 @@ void drawWifiScanScreen() {
 }
 
 void drawMyNetworkScreen() {
-  int startY = 54;
   int baseRows = 4 + deviceCount;
   int rows = (baseRows > 6) ? baseRows : 6;
   int maxScroll = maxScrollForContent(rows);
-  handleTouchScroll(maxScroll);
+  if (handleTouchScroll(maxScroll)) uiDirty = true;
 
-  sdk.fillRect(0, startY, sdk.width(), sdk.height() - startY, SDK_COLOR_BG);
+  sdk.fillRect(0, CONTENT_START_Y, sdk.width(), sdk.height() - CONTENT_START_Y, SDK_COLOR_BG);
 
-  int y = startY + 2 - scrollY;
+  int y = CONTENT_START_Y + 2 - scrollY;
   char line[128];
 
   snprintf(line, sizeof(line), "SSID: %s", myNetSsid.c_str());
-  if (y >= startY && y <= sdk.height() - 10) sdk.drawSmallText(6, y, line);
+  if (y >= CONTENT_START_Y && y <= sdk.height() - 10) sdk.drawSmallText(6, y, line);
   y += 14;
 
   snprintf(line, sizeof(line), "Etat: %s", myNetError.c_str());
-  if (y >= startY && y <= sdk.height() - 10) sdk.drawSmallText(6, y, line, myNetConnected ? SDK_COLOR_OK : SDK_COLOR_WARN, SDK_COLOR_BG);
+  if (y >= CONTENT_START_Y && y <= sdk.height() - 10) sdk.drawSmallText(6, y, line, myNetConnected ? SDK_COLOR_OK : SDK_COLOR_WARN, SDK_COLOR_BG);
   y += 14;
 
   snprintf(line, sizeof(line), "IP locale: %s", myNetIp.c_str());
-  if (y >= startY && y <= sdk.height() - 10) sdk.drawSmallText(6, y, line);
+  if (y >= CONTENT_START_Y && y <= sdk.height() - 10) sdk.drawSmallText(6, y, line);
   y += 18;
 
   if (scanningDevices) {
-    snprintf(line, sizeof(line), "Scan appareils: %d/254 (B pour stop)", scanProgress);
-    if (y >= startY && y <= sdk.height() - 10) sdk.drawSmallText(6, y, line, SDK_COLOR_ACCENT, SDK_COLOR_BG);
+    snprintf(line, sizeof(line), "Scan appareils: %d/254", scanProgress);
+    if (y >= CONTENT_START_Y && y <= sdk.height() - 10) sdk.drawSmallText(6, y, line, SDK_COLOR_ACCENT, SDK_COLOR_BG);
     y += 14;
   }
 
   if (deviceCount == 0) {
-    if (y >= startY && y <= sdk.height() - 10) sdk.drawSmallText(6, y, "Aucun appareil detecte.");
+    if (y >= CONTENT_START_Y && y <= sdk.height() - 10) sdk.drawSmallText(6, y, "Aucun appareil detecte.");
+  } else {
+    if (y >= CONTENT_START_Y && y <= sdk.height() - 10) sdk.drawSmallText(6, y, "Appareils vus:", SDK_COLOR_OK, SDK_COLOR_BG);
+    y += 14;
+
+    for (int i = 0; i < deviceCount; ++i) {
+      int lineY = y + i * 14;
+      if (lineY < CONTENT_START_Y || lineY > sdk.height() - 10) continue;
+      snprintf(line, sizeof(line), "%02d %s - %s", i + 1, devices[i].ip.c_str(), devices[i].status.c_str());
+      sdk.drawSmallText(6, lineY, line);
+    }
+  }
+
+  if (scanningDevices || myNetError == "Connexion...") {
+    Rect c = cancelScanRect();
+    sdk.fillRect(c.x, c.y, c.w, c.h, SDK_COLOR_ERROR);
+    sdk.drawSmallText(8, c.y + 7, "Touchez ici pour annuler", SDK_COLOR_BG, SDK_COLOR_ERROR);
+  }
+}
+
+void drawScreen() {
+  drawTopBars();
+  if (mode == SCREEN_WIFI_SCAN) {
+    drawWifiScanScreen();
+  } else {
+    drawMyNetworkScreen();
+  }
+}
+
+void handleTapActions() {
+  if (!sdk.isTouchPressed()) return;
+
+  int tx = sdk.touchX();
+  int ty = sdk.touchY();
+
+  if (pointInRect(tx, ty, quitRect())) {
+    sdk.requestReturnToLauncher();
     return;
   }
 
-  if (y >= startY && y <= sdk.height() - 10) sdk.drawSmallText(6, y, "Appareils vus:", SDK_COLOR_OK, SDK_COLOR_BG);
-  y += 14;
+  if (pointInRect(tx, ty, tabWifiRect())) {
+    mode = SCREEN_WIFI_SCAN;
+    scrollY = 0;
+    uiDirty = true;
+    return;
+  }
 
-  for (int i = 0; i < deviceCount; ++i) {
-    int lineY = y + i * 14;
-    if (lineY < startY || lineY > sdk.height() - 10) continue;
-    snprintf(line, sizeof(line), "%02d %s - %s", i + 1, devices[i].ip.c_str(), devices[i].status.c_str());
-    sdk.drawSmallText(6, lineY, line);
+  if (pointInRect(tx, ty, tabMyNetRect())) {
+    mode = SCREEN_MY_NETWORK;
+    scrollY = 0;
+    uiDirty = true;
+    return;
+  }
+
+  if (pointInRect(tx, ty, primaryActionRect())) {
+    if (mode == SCREEN_WIFI_SCAN) {
+      runWifiScan();
+      lastScanMs = millis();
+    } else {
+      connectToMyNetwork();
+    }
+    uiDirty = true;
+    return;
+  }
+
+  if (pointInRect(tx, ty, secondaryActionRect()) && mode == SCREEN_MY_NETWORK && myNetConnected && !scanningDevices) {
+    discoverDevicesOnSubnet();
+    uiDirty = true;
   }
 }
 
 void setup() {
   sdk.begin();
   sdk.clear();
-  sdk.drawCenteredText(6, "WiFi Touch Console");
-  sdk.drawSmallText(4, 28, "Menu tactile: scan WiFi + reseau local");
-  sdk.drawSmallText(4, 42, "X/Y changent de menu, glisser pour scroll");
 
   WiFi.mode(WIFI_STA);
   WiFi.disconnect(true);
@@ -326,45 +473,28 @@ void setup() {
 
   runWifiScan();
   lastScanMs = millis();
+  uiDirty = true;
 }
 
 void loop() {
   sdk.updateInputs();
 
-  if (sdk.isPressed(BTN_START)) {
-    sdk.requestReturnToLauncher();
-    return;
+  handleTapActions();
+
+  if (mode == SCREEN_WIFI_SCAN && (millis() - lastScanMs > WIFI_SCAN_REFRESH_MS)) {
+    runWifiScan();
+    lastScanMs = millis();
+    uiDirty = true;
   }
 
-  if (sdk.isPressed(BTN_X)) {
-    mode = SCREEN_WIFI_SCAN;
-    scrollY = 0;
-    sdk.playBeep(1450, 25);
+  if (uiDirty && (millis() - lastDrawMs >= UI_THROTTLE_MS)) {
+    drawScreen();
+    uiDirty = false;
+    lastDrawMs = millis();
   }
 
-  if (sdk.isPressed(BTN_Y)) {
-    mode = SCREEN_MY_NETWORK;
-    scrollY = 0;
-    sdk.playBeep(1600, 25);
-  }
-
-  if (mode == SCREEN_WIFI_SCAN) {
-    if (sdk.isPressed(BTN_A) || millis() - lastScanMs > WIFI_SCAN_REFRESH_MS) {
-      runWifiScan();
-      lastScanMs = millis();
-    }
-    drawTopBar();
-    drawWifiScanScreen();
-  } else {
-    if (sdk.isPressed(BTN_A)) {
-      connectToMyNetwork();
-    }
-    drawTopBar();
-    drawMyNetworkScreen();
-  }
-
-  if (millis() - lastUiMs < UI_REFRESH_MS) {
-    delay(6);
+  if (millis() - lastUiMs < 8) {
+    delay(4);
   }
   lastUiMs = millis();
 }
