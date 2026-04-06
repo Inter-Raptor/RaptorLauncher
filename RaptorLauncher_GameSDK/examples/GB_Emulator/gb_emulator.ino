@@ -29,15 +29,16 @@ struct RomBankCacheSlot {
   uint32_t age;
   size_t len;
   bool valid;
-  uint8_t data[0x4000];
+  uint8_t* data;
 };
 static RomBankCacheSlot gRomBankCache[ROM_BANK_CACHE_SLOTS];
 static uint32_t gRomBankAgeCounter = 1;
+static uint8_t* gRomCachePool = nullptr;
 
 static uint8_t* gCartRam = nullptr;
 static size_t gCartRamSize = 0;
 
-static uint16_t gFrame565[LCD_WIDTH * LCD_HEIGHT];
+static uint16_t* gFrame565 = nullptr;
 static bool gEmuReady = false;
 static String gStatus = "init";
 static bool gFrameHasContent = false;
@@ -59,6 +60,7 @@ static bool readRomBankToBuffer(uint32_t bankIndex, uint8_t* buffer, size_t& out
 }
 
 static RomBankCacheSlot* getRomBankSlot(uint32_t bankIndex) {
+  if (!gRomCachePool) return nullptr;
   RomBankCacheSlot* oldest = &gRomBankCache[0];
   for (int i = 0; i < ROM_BANK_CACHE_SLOTS; ++i) {
     RomBankCacheSlot* slot = &gRomBankCache[i];
@@ -71,6 +73,7 @@ static RomBankCacheSlot* getRomBankSlot(uint32_t bankIndex) {
   }
 
   size_t n = 0;
+  if (!oldest->data) return nullptr;
   if (!readRomBankToBuffer(bankIndex, oldest->data, n)) return nullptr;
   oldest->bankIndex = bankIndex;
   oldest->len = n;
@@ -117,6 +120,7 @@ static void gbLcdDrawLine(struct gb_s* /*gb*/, const uint8_t* pixels, const uint
     0x0000  // noir
   };
 
+  if (!gFrame565) return;
   uint16_t* dst = &gFrame565[(size_t)line * LCD_WIDTH];
   for (int x = 0; x < LCD_WIDTH; ++x) {
     uint8_t shade = pixels[x] & 0x03;
@@ -192,6 +196,14 @@ static void drawErrorScreen(const char* title, const String& detail) {
 }
 
 static bool initEmulator() {
+  if (!gFrame565) {
+    gFrame565 = (uint16_t*)malloc((size_t)LCD_WIDTH * (size_t)LCD_HEIGHT * sizeof(uint16_t));
+    if (!gFrame565) {
+      drawErrorScreen("RAM KO", "Framebuffer allocation impossible");
+      return false;
+    }
+  }
+
   if (!sdk.isSdReady()) {
     drawErrorScreen("SD non prete", "Verifie la carte SD.");
     return false;
@@ -231,6 +243,20 @@ static bool initEmulator() {
   } else {
     gRomLoadedInMemory = false;
     gStatus = "ROM stream SD: cache 8 banques";
+    if (!gRomCachePool) {
+      gRomCachePool = (uint8_t*)malloc((size_t)ROM_BANK_CACHE_SLOTS * 0x4000u);
+      if (!gRomCachePool) {
+        drawErrorScreen("RAM KO", "Cache ROM impossible (reduis ROM/carte)");
+        return false;
+      }
+      for (int i = 0; i < ROM_BANK_CACHE_SLOTS; ++i) {
+        gRomBankCache[i].valid = false;
+        gRomBankCache[i].age = 0;
+        gRomBankCache[i].len = 0;
+        gRomBankCache[i].bankIndex = 0xFFFFFFFFu;
+        gRomBankCache[i].data = gRomCachePool + ((size_t)i * 0x4000u);
+      }
+    }
   }
 
   enum gb_init_error_e err = gb_init(&gGb, gbRomRead, gbCartRamRead, gbCartRamWrite, gbError, nullptr);
@@ -286,7 +312,7 @@ void loop() {
   gFrameHasContent = false;
   gb_run_frame(&gGb);
 
-  sdk.drawPixels565(x, y, LCD_WIDTH, LCD_HEIGHT, gFrame565);
+  if (gFrame565) sdk.drawPixels565(x, y, LCD_WIDTH, LCD_HEIGHT, gFrame565);
   if ((++gUiTick & 31u) == 0u) {
     sdk.drawSmallText(4, 4, gStatus.c_str(), SDK_COLOR_TEXT, SDK_COLOR_BG);
   }
