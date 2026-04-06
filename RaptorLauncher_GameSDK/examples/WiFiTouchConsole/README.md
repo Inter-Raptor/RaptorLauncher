@@ -39,8 +39,8 @@ Tu peux donc ouvrir ce dossier tel quel dans Arduino IDE et compiler sans copier
 ## Fonctionnalités
 - **Menu 1 (M1 WiFi)**: scanner tous les Wi-Fi à portée (SSID, puissance RSSI, canal, chiffrement).
 - **Menu 2 (M2 LAN)**: se connecter au réseau perso via `/settings.json` puis lister les appareils détectés sur le sous-réseau local.
-- **Menu 3 (M3 CH)**: graphique d'occupation des canaux 2.4GHz.
-- **Menu 4 (M4 Info)**: informations utiles (nombre de réseaux, ouverts, plus fort signal, IP/GW/DNS).
+- **Menu 3 (M3 WiFiH)**: historique des reseaux Wi-Fi vus (meme apres disparition).
+- **Menu 4 (M4 DevH)**: historique des appareils vus sur ton reseau perso.
 - Scroll **tactile vertical** (glisser haut/bas) pour parcourir de longues listes.
 
 ## Wi-Fi depuis /settings.json (racine SD)
@@ -61,7 +61,7 @@ Le menu 2 utilise uniquement `/settings.json` (meme format que le launcher).
 Lors d'un tap sur **Se connecter**, le jeu lit `wifi_ssid`/`wifi_pass` et force la tentative de connexion (meme si `wifi_enabled` est a `false`).
 
 ## Contrôles (100% tactile)
-- **Onglets hauts**: M1 WiFi / M2 LAN / M3 CH / M4 Info
+- **Onglets hauts**: M1 WiFi / M2 LAN / M3 WiFiH / M4 DevH
 - **Bouton haut droite `Quit`**: retour launcher
 - **Barre action (ligne 2)**: lancer scan Wi‑Fi, se connecter, ou rescanner le LAN
 - **Glisser verticalement** dans la zone de contenu: scroll longues listes
@@ -90,3 +90,11 @@ Le rendu est maintenant **événementiel**: l'écran se redessine seulement quan
 ## UX connexion
 - Quand tu tapes **Se connecter**, l'etat passe immediatement a `Connexion...` (feedback direct).
 - Le jeu reste tactile pendant l'attente et tu peux annuler via le bandeau du bas.
+
+
+## Fichiers historiques sur SD
+Le jeu enregistre automatiquement dans:
+- `/games/WiFiTouchConsole/seen_wifi.log`
+- `/games/WiFiTouchConsole/seen_devices.log`
+
+Chaque scan ajoute de nouvelles lignes. Ces historiques sont consultables dans M3 et M4.

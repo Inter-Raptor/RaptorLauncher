@@ -14,8 +14,8 @@ RaptorGameSDK sdk;
 enum ScreenMode {
   SCREEN_WIFI_SCAN = 0,
   SCREEN_MY_NETWORK = 1,
-  SCREEN_CHANNEL_GRAPH = 2,
-  SCREEN_WIFI_INFO = 3
+  SCREEN_WIFI_HISTORY = 2,
+  SCREEN_DEVICE_HISTORY = 3
 };
 
 struct ScanEntry {
@@ -39,6 +39,7 @@ struct Rect {
 
 static const int MAX_SCAN_ENTRIES = 40;
 static const int MAX_DEVICE_ENTRIES = 128;
+static const int MAX_HISTORY_LINES = 220;
 static const uint16_t PROBE_PORTS[] = {80, 443, 53, 22, 445, 139, 1883, 554, 8008};
 static const uint32_t WIFI_SCAN_REFRESH_MS = 10000;
 static const uint32_t UI_THROTTLE_MS = 33;
@@ -78,6 +79,10 @@ int scanProgress = 0;
 int lanHost = 1;
 WiFiClient lanClient;
 WiFiUDP lanUdp;
+String wifiHistory[MAX_HISTORY_LINES];
+int wifiHistoryCount = 0;
+String deviceHistory[MAX_HISTORY_LINES];
+int deviceHistoryCount = 0;
 
 bool pointInRect(int x, int y, const Rect& r) {
   return x >= r.x && x < (r.x + r.w) && y >= r.y && y < (r.y + r.h);
@@ -130,6 +135,40 @@ String authToText(wifi_auth_mode_t auth) {
     case WIFI_AUTH_WPA2_WPA3_PSK: return "WPA2/3";
     default: return "?";
   }
+}
+
+void pushHistoryLine(String* arr, int& count, const String& line) {
+  if (line.length() == 0) return;
+  if (count < MAX_HISTORY_LINES) {
+    arr[count++] = line;
+    return;
+  }
+  for (int i = 1; i < MAX_HISTORY_LINES; ++i) arr[i - 1] = arr[i];
+  arr[MAX_HISTORY_LINES - 1] = line;
+}
+
+void appendHistoryFile(const String& relName, const String& line) {
+  if (!sdk.isSdReady()) return;
+  String path = sdk.gameRootPath() + "/" + relName;
+  File f = SD.open(path, FILE_APPEND);
+  if (!f) return;
+  f.println(line);
+  f.close();
+}
+
+void loadHistoryFile(const String& relName, String* arr, int& count) {
+  count = 0;
+  if (!sdk.isSdReady()) return;
+  String path = sdk.gameRootPath() + "/" + relName;
+  File f = SD.open(path, FILE_READ);
+  if (!f) return;
+
+  while (f.available()) {
+    String line = f.readStringUntil('\n');
+    line.trim();
+    if (line.length() > 0) pushHistoryLine(arr, count, line);
+  }
+  f.close();
 }
 
 int maxScrollForContent(int contentRows) {
@@ -190,6 +229,10 @@ void updateWifiScan() {
       scanResults[i].rssi = WiFi.RSSI(i);
       scanResults[i].channel = (uint8_t)WiFi.channel(i);
       scanResults[i].encryption = WiFi.encryptionType(i);
+      String ssid = scanResults[i].ssid.length() ? scanResults[i].ssid : String("<SSID cache>");
+      String hist = ssid + " | " + String((long)scanResults[i].rssi) + "dBm | CH" + String((int)scanResults[i].channel) + " | " + authToText(scanResults[i].encryption);
+      pushHistoryLine(wifiHistory, wifiHistoryCount, hist);
+      appendHistoryFile("seen_wifi.log", hist);
     }
   }
 
@@ -313,7 +356,11 @@ void updateDeviceScanStep() {
     } else {
       snprintf(status, sizeof(status), "Actif (RST:%u)", (unsigned)hitPort);
     }
-    pushDevice(target.toString(), String(status));
+    String statusStr(status);
+    pushDevice(target.toString(), statusStr);
+    String hist = target.toString() + " | " + statusStr;
+    pushHistoryLine(deviceHistory, deviceHistoryCount, hist);
+    appendHistoryFile("seen_devices.log", hist);
   }
 
   lanHost++;
@@ -413,11 +460,11 @@ void drawTopBars() {
   sdk.fillRect(netR.x, netR.y, netR.w, netR.h, mode == SCREEN_MY_NETWORK ? SDK_COLOR_ACCENT : SDK_COLOR_WARN);
   sdk.drawSmallText(netR.x + 5, netR.y + 7, "M2 LAN", mode == SCREEN_MY_NETWORK ? SDK_COLOR_BG : SDK_COLOR_TEXT, mode == SCREEN_MY_NETWORK ? SDK_COLOR_ACCENT : SDK_COLOR_WARN);
 
-  sdk.fillRect(graphR.x, graphR.y, graphR.w, graphR.h, mode == SCREEN_CHANNEL_GRAPH ? SDK_COLOR_ACCENT : SDK_COLOR_WARN);
-  sdk.drawSmallText(graphR.x + 4, graphR.y + 7, "M3 CH", mode == SCREEN_CHANNEL_GRAPH ? SDK_COLOR_BG : SDK_COLOR_TEXT, mode == SCREEN_CHANNEL_GRAPH ? SDK_COLOR_ACCENT : SDK_COLOR_WARN);
+  sdk.fillRect(graphR.x, graphR.y, graphR.w, graphR.h, mode == SCREEN_WIFI_HISTORY ? SDK_COLOR_ACCENT : SDK_COLOR_WARN);
+  sdk.drawSmallText(graphR.x + 4, graphR.y + 7, "M3 WiFiH", mode == SCREEN_WIFI_HISTORY ? SDK_COLOR_BG : SDK_COLOR_TEXT, mode == SCREEN_WIFI_HISTORY ? SDK_COLOR_ACCENT : SDK_COLOR_WARN);
 
-  sdk.fillRect(infoR.x, infoR.y, infoR.w, infoR.h, mode == SCREEN_WIFI_INFO ? SDK_COLOR_ACCENT : SDK_COLOR_WARN);
-  sdk.drawSmallText(infoR.x + 4, infoR.y + 7, "M4 Info", mode == SCREEN_WIFI_INFO ? SDK_COLOR_BG : SDK_COLOR_TEXT, mode == SCREEN_WIFI_INFO ? SDK_COLOR_ACCENT : SDK_COLOR_WARN);
+  sdk.fillRect(infoR.x, infoR.y, infoR.w, infoR.h, mode == SCREEN_DEVICE_HISTORY ? SDK_COLOR_ACCENT : SDK_COLOR_WARN);
+  sdk.drawSmallText(infoR.x + 4, infoR.y + 7, "M4 DevH", mode == SCREEN_DEVICE_HISTORY ? SDK_COLOR_BG : SDK_COLOR_TEXT, mode == SCREEN_DEVICE_HISTORY ? SDK_COLOR_ACCENT : SDK_COLOR_WARN);
 
   sdk.fillRect(quitR.x, quitR.y, quitR.w, quitR.h, SDK_COLOR_ERROR);
   sdk.drawSmallText(quitR.x + 7, quitR.y + 7, "Quit", SDK_COLOR_BG, SDK_COLOR_ERROR);
@@ -427,7 +474,7 @@ void drawTopBars() {
   sdk.fillRect(p.x, p.y, p.w, p.h, SDK_COLOR_BG);
   sdk.fillRect(s.x, s.y, s.w, s.h, SDK_COLOR_BG);
 
-  if (mode == SCREEN_WIFI_SCAN || mode == SCREEN_CHANNEL_GRAPH || mode == SCREEN_WIFI_INFO) {
+  if (mode == SCREEN_WIFI_SCAN || mode == SCREEN_WIFI_HISTORY || mode == SCREEN_DEVICE_HISTORY) {
     sdk.drawSmallText(p.x + 6, p.y + 8, "Scanner WiFi", SDK_COLOR_OK, SDK_COLOR_BG);
     sdk.drawSmallText(s.x + 6, s.y + 8, wifiScanRunning ? "Scan..." : "Auto 10s", SDK_COLOR_TEXT, SDK_COLOR_BG);
   } else {
@@ -439,69 +486,40 @@ void drawTopBars() {
   sdk.fillRect(0, TOP_BAR_H + ACTION_BAR_H - 1, sdk.width(), 1, SDK_COLOR_WARN);
 }
 
-void drawChannelGraphScreen() {
+void drawWifiHistoryScreen() {
   sdk.fillRect(0, CONTENT_START_Y, sdk.width(), sdk.height() - CONTENT_START_Y, SDK_COLOR_BG);
-  sdk.drawSmallText(6, CONTENT_START_Y + 2, "Occupation canaux 2.4GHz", SDK_COLOR_OK, SDK_COLOR_BG);
-
-  int counts[15] = {0};
-  for (int i = 0; i < scanCount; ++i) {
-    int ch = (int)scanResults[i].channel;
-    if (ch >= 1 && ch <= 14) counts[ch]++;
+  int rows = (wifiHistoryCount > 0) ? wifiHistoryCount : 1;
+  int maxScroll = maxScrollForContent(rows);
+  if (handleTouchScroll(maxScroll)) uiDirty = true;
+  sdk.drawSmallText(6, CONTENT_START_Y + 2, "Historique reseaux vus", SDK_COLOR_OK, SDK_COLOR_BG);
+  int yBase = CONTENT_START_Y + 18 - scrollY;
+  if (wifiHistoryCount == 0) {
+    sdk.drawSmallText(6, yBase, "Aucune entree.");
+    return;
   }
-  int maxCount = 1;
-  for (int ch = 1; ch <= 14; ++ch) if (counts[ch] > maxCount) maxCount = counts[ch];
-
-  int graphX = 6;
-  int graphY = CONTENT_START_Y + 18;
-  int graphW = sdk.width() - 12;
-  int graphH = sdk.height() - graphY - 30;
-  int barW = graphW / 14;
-
-  for (int ch = 1; ch <= 14; ++ch) {
-    int h = (counts[ch] * (graphH - 12)) / maxCount;
-    int x = graphX + (ch - 1) * barW;
-    int y = graphY + (graphH - h);
-    sdk.fillRect(x + 1, y, barW - 3, h, counts[ch] == maxCount ? SDK_COLOR_ERROR : SDK_COLOR_ACCENT);
-    if ((ch % 2) == 1) {
-      char c[4];
-      snprintf(c, sizeof(c), "%d", ch);
-      sdk.drawSmallText(x, graphY + graphH + 2, c, SDK_COLOR_TEXT, SDK_COLOR_BG);
-    }
+  for (int i = 0; i < wifiHistoryCount; ++i) {
+    int y = yBase + i * 14;
+    if (y < CONTENT_START_Y || y > sdk.height() - 12) continue;
+    sdk.drawSmallText(6, y, wifiHistory[i].substring(0, 52).c_str());
   }
 }
 
-void drawWifiInfoScreen() {
+void drawDeviceHistoryScreen() {
   sdk.fillRect(0, CONTENT_START_Y, sdk.width(), sdk.height() - CONTENT_START_Y, SDK_COLOR_BG);
-  int y = CONTENT_START_Y + 2;
-  char line[128];
-
-  int openCount = 0;
-  int strong = -999;
-  int strongCh = -1;
-  String strongSsid = "-";
-  for (int i = 0; i < scanCount; ++i) {
-    if (scanResults[i].encryption == WIFI_AUTH_OPEN) openCount++;
-    if ((int)scanResults[i].rssi > strong) {
-      strong = (int)scanResults[i].rssi;
-      strongCh = (int)scanResults[i].channel;
-      strongSsid = scanResults[i].ssid;
-    }
+  int rows = (deviceHistoryCount > 0) ? deviceHistoryCount : 1;
+  int maxScroll = maxScrollForContent(rows);
+  if (handleTouchScroll(maxScroll)) uiDirty = true;
+  sdk.drawSmallText(6, CONTENT_START_Y + 2, "Historique appareils vus", SDK_COLOR_OK, SDK_COLOR_BG);
+  int yBase = CONTENT_START_Y + 18 - scrollY;
+  if (deviceHistoryCount == 0) {
+    sdk.drawSmallText(6, yBase, "Aucune entree.");
+    return;
   }
-
-  snprintf(line, sizeof(line), "Reseaux detectes: %d", scanCount);
-  sdk.drawSmallText(6, y, line, SDK_COLOR_OK, SDK_COLOR_BG); y += 14;
-  snprintf(line, sizeof(line), "Reseaux ouverts: %d", openCount);
-  sdk.drawSmallText(6, y, line); y += 14;
-  snprintf(line, sizeof(line), "Plus fort: %s (%ddBm CH%d)", strongSsid.substring(0, 12).c_str(), strong, strongCh);
-  sdk.drawSmallText(6, y, line); y += 14;
-  snprintf(line, sizeof(line), "WiFi connecte: %s", WiFi.status() == WL_CONNECTED ? "oui" : "non");
-  sdk.drawSmallText(6, y, line, WiFi.status() == WL_CONNECTED ? SDK_COLOR_OK : SDK_COLOR_WARN, SDK_COLOR_BG); y += 14;
-  snprintf(line, sizeof(line), "IP: %s", WiFi.localIP().toString().c_str());
-  sdk.drawSmallText(6, y, line); y += 14;
-  snprintf(line, sizeof(line), "GW: %s", WiFi.gatewayIP().toString().c_str());
-  sdk.drawSmallText(6, y, line); y += 14;
-  snprintf(line, sizeof(line), "DNS: %s", WiFi.dnsIP().toString().c_str());
-  sdk.drawSmallText(6, y, line);
+  for (int i = 0; i < deviceHistoryCount; ++i) {
+    int y = yBase + i * 14;
+    if (y < CONTENT_START_Y || y > sdk.height() - 12) continue;
+    sdk.drawSmallText(6, y, deviceHistory[i].substring(0, 52).c_str());
+  }
 }
 
 void drawWifiScanScreen() {
@@ -635,10 +653,10 @@ void drawScreen() {
     drawWifiScanScreen();
   } else if (mode == SCREEN_MY_NETWORK) {
     drawMyNetworkScreen();
-  } else if (mode == SCREEN_CHANNEL_GRAPH) {
-    drawChannelGraphScreen();
+  } else if (mode == SCREEN_WIFI_HISTORY) {
+    drawWifiHistoryScreen();
   } else {
-    drawWifiInfoScreen();
+    drawDeviceHistoryScreen();
   }
 }
 
@@ -678,21 +696,21 @@ void handleTapActions() {
   }
 
   if (pointInRect(tx, ty, tabGraphRect())) {
-    mode = SCREEN_CHANNEL_GRAPH;
+    mode = SCREEN_WIFI_HISTORY;
     scrollY = 0;
     uiDirty = true;
     return;
   }
 
   if (pointInRect(tx, ty, tabInfoRect())) {
-    mode = SCREEN_WIFI_INFO;
+    mode = SCREEN_DEVICE_HISTORY;
     scrollY = 0;
     uiDirty = true;
     return;
   }
 
   if (pointInRect(tx, ty, primaryActionRect())) {
-    if (mode == SCREEN_WIFI_SCAN || mode == SCREEN_CHANNEL_GRAPH || mode == SCREEN_WIFI_INFO) {
+    if (mode == SCREEN_WIFI_SCAN || mode == SCREEN_WIFI_HISTORY || mode == SCREEN_DEVICE_HISTORY) {
       startWifiScan();
     } else {
       connectToMyNetwork();
@@ -719,6 +737,8 @@ void setup() {
   WiFi.mode(WIFI_STA);
   WiFi.disconnect(false, false);
   scanCount = 0;
+  loadHistoryFile("seen_wifi.log", wifiHistory, wifiHistoryCount);
+  loadHistoryFile("seen_devices.log", deviceHistory, deviceHistoryCount);
   initialScanPending = true;
   uiDirty = true;
 }
