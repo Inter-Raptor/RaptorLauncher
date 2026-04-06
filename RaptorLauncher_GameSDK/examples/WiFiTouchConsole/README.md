@@ -24,6 +24,14 @@ Un template prêt à copier est maintenant fourni ici:
 
 > Important: le nom du dossier SD doit correspondre à `SDK_GAME_FOLDER_NAME` au moment de la compilation.
 
+
+## Compilation Arduino IDE (important)
+Cet exemple inclut des fichiers pont (`raptor_game_sdk.cpp/.h` et `raptor_game_config.h`)
+pour éviter l'erreur de link "undefined reference to `RaptorGameSDK::...`"
+quand tu compiles directement `WiFiTouchConsole.ino`.
+
+Tu peux donc ouvrir ce dossier tel quel dans Arduino IDE et compiler sans copier manuellement le SDK.
+
 ## Fonctionnalités
 - **Menu 1**: scanner tous les Wi-Fi à portée (SSID, puissance RSSI, canal, chiffrement).
 - **Menu 2**: se connecter au réseau perso via `config.json` puis lister les appareils détectés sur le sous-réseau local.

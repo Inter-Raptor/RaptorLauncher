@@ -1,4 +1,4 @@
-#include "../../arduino_template/src/raptor_game_sdk.h"
+#include "raptor_game_sdk.h"
 #include <ArduinoJson.h>
 #include <WiFi.h>
 
