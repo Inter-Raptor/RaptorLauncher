@@ -71,3 +71,9 @@ Donc certains appareils peuvent ne pas apparaître s'ils n'écoutent pas ces por
 
 ## Anti-scintillement
 Le rendu est maintenant **événementiel**: l'écran se redessine seulement quand quelque chose change (tap, scroll, nouveaux résultats), au lieu d'un refresh permanent.
+
+
+## Stabilite launcher
+- Le premier scan Wi-Fi est lance apres le boot (pas dans `setup()`).
+- Le scan Wi-Fi est non bloquant (asynchrone).
+- Le scan LAN est progressif (par etapes dans `loop()`), pour eviter les freezes et retours launcher.

@@ -40,6 +40,8 @@ static const int CONTENT_START_Y = TOP_BAR_H + ACTION_BAR_H + 4;
 ScanEntry scanResults[MAX_SCAN_ENTRIES];
 int scanCount = 0;
 uint32_t lastScanMs = 0;
+bool initialScanPending = true;
+bool wifiScanRunning = false;
 
 DeviceEntry devices[MAX_DEVICE_ENTRIES];
 int deviceCount = 0;
@@ -61,6 +63,8 @@ String myNetSsid = "-";
 String myNetError = "Pas connecte";
 bool scanningDevices = false;
 int scanProgress = 0;
+int lanHost = 1;
+WiFiClient lanClient;
 
 bool pointInRect(int x, int y, const Rect& r) {
   return x >= r.x && x < (r.x + r.w) && y >= r.y && y < (r.y + r.h);
@@ -138,31 +142,58 @@ bool handleTouchScroll(int maxScroll) {
   return changed;
 }
 
-void runWifiScan() {
-  int found = WiFi.scanNetworks(false, true);
-  if (found < 0) {
-    scanCount = 0;
-    return;
-  }
-
-  scanCount = (found > MAX_SCAN_ENTRIES) ? MAX_SCAN_ENTRIES : found;
-  for (int i = 0; i < scanCount; ++i) {
-    scanResults[i].ssid = WiFi.SSID(i);
-    scanResults[i].rssi = WiFi.RSSI(i);
-    scanResults[i].channel = (uint8_t)WiFi.channel(i);
-    scanResults[i].encryption = WiFi.encryptionType(i);
-  }
+void startWifiScan() {
+  if (wifiScanRunning) return;
   WiFi.scanDelete();
+  // async = true pour ne pas bloquer le launcher au demarrage.
+  WiFi.scanNetworks(true, true);
+  wifiScanRunning = true;
+  uiDirty = true;
 }
 
-void discoverDevicesOnSubnet() {
+void updateWifiScan() {
+  if (!wifiScanRunning) return;
+
+  int found = WiFi.scanComplete();
+  if (found == WIFI_SCAN_RUNNING) return;
+
+  if (found < 0) {
+    scanCount = 0;
+  } else {
+    scanCount = (found > MAX_SCAN_ENTRIES) ? MAX_SCAN_ENTRIES : found;
+    for (int i = 0; i < scanCount; ++i) {
+      scanResults[i].ssid = WiFi.SSID(i);
+      scanResults[i].rssi = WiFi.RSSI(i);
+      scanResults[i].channel = (uint8_t)WiFi.channel(i);
+      scanResults[i].encryption = WiFi.encryptionType(i);
+    }
+  }
+
+  WiFi.scanDelete();
+  wifiScanRunning = false;
+  lastScanMs = millis();
+  uiDirty = true;
+}
+
+void beginDeviceScan() {
   deviceCount = 0;
   scanningDevices = true;
   scanProgress = 0;
+  lanHost = 1;
+  lanClient.setTimeout(70);
   uiDirty = true;
+}
 
+void stopDeviceScan(const char* reason = nullptr) {
+  scanningDevices = false;
+  if (reason) myNetError = reason;
+  uiDirty = true;
+}
+
+void updateDeviceScanStep() {
+  if (!scanningDevices) return;
   if (!myNetConnected) {
-    scanningDevices = false;
+    stopDeviceScan();
     return;
   }
 
@@ -176,53 +207,39 @@ void discoverDevicesOnSubnet() {
     deviceCount++;
   };
 
-  pushDevice(localIp.toString(), "Cet appareil");
-  if (gateway != INADDR_NONE) {
-    pushDevice(gateway.toString(), "Routeur");
-  }
-
-  WiFiClient client;
-  client.setTimeout(70);
-
-  for (int host = 1; host <= 254 && deviceCount < MAX_DEVICE_ENTRIES; ++host) {
-    scanProgress = host;
-    IPAddress target(localIp[0], localIp[1], localIp[2], host);
-    if (target == localIp || target == gateway) continue;
-
-    bool alive = false;
-    if (client.connect(target, 80, 60)) {
-      alive = true;
-      client.stop();
-    } else if (client.connect(target, 443, 60)) {
-      alive = true;
-      client.stop();
-    }
-
-    if (alive) {
-      pushDevice(target.toString(), "Actif (TCP)");
-      uiDirty = true;
-    }
-
-    if ((host % 8) == 0) {
-      uiDirty = true;
-      lastDrawMs = 0;
-    }
-
-    sdk.updateInputs();
-    if (sdk.isTouchPressed()) {
-      if (pointInRect(sdk.touchX(), sdk.touchY(), cancelScanRect())) {
-        myNetError = "Scan annule";
-        break;
-      }
-    }
-
-    if (uiDirty && millis() - lastDrawMs > UI_THROTTLE_MS) {
-      // rendu intermediaire limite pour eviter scintillement/perf faible.
-      lastDrawMs = millis();
+  if (deviceCount == 0) {
+    pushDevice(localIp.toString(), "Cet appareil");
+    if (gateway != INADDR_NONE) {
+      pushDevice(gateway.toString(), "Routeur");
     }
   }
 
-  scanningDevices = false;
+  while (lanHost <= 254 && (IPAddress(localIp[0], localIp[1], localIp[2], lanHost) == localIp ||
+         IPAddress(localIp[0], localIp[1], localIp[2], lanHost) == gateway)) {
+    lanHost++;
+  }
+
+  if (lanHost > 254 || deviceCount >= MAX_DEVICE_ENTRIES) {
+    stopDeviceScan();
+    return;
+  }
+
+  scanProgress = lanHost;
+  IPAddress target(localIp[0], localIp[1], localIp[2], lanHost);
+  bool alive = false;
+  if (lanClient.connect(target, 80, 60)) {
+    alive = true;
+    lanClient.stop();
+  } else if (lanClient.connect(target, 443, 60)) {
+    alive = true;
+    lanClient.stop();
+  }
+
+  if (alive) {
+    pushDevice(target.toString(), "Actif (TCP)");
+  }
+
+  lanHost++;
   uiDirty = true;
 }
 
@@ -235,7 +252,7 @@ void connectToMyNetwork() {
     myNetConnected = true;
     myNetIp = WiFi.localIP().toString();
     myNetError = "Connecte";
-    discoverDevicesOnSubnet();
+    beginDeviceScan();
   } else {
     myNetConnected = false;
     myNetIp = "-";
@@ -267,7 +284,7 @@ void drawTopBars() {
 
   if (mode == SCREEN_WIFI_SCAN) {
     sdk.drawSmallText(p.x + 6, p.y + 8, "Scanner WiFi", SDK_COLOR_OK, SDK_COLOR_BG);
-    sdk.drawSmallText(s.x + 6, s.y + 8, "Auto 10s", SDK_COLOR_TEXT, SDK_COLOR_BG);
+    sdk.drawSmallText(s.x + 6, s.y + 8, wifiScanRunning ? "Scan..." : "Auto 10s", SDK_COLOR_TEXT, SDK_COLOR_BG);
   } else {
     sdk.drawSmallText(p.x + 6, p.y + 8, "Se connecter", SDK_COLOR_OK, SDK_COLOR_BG);
     sdk.drawSmallText(s.x + 6, s.y + 8, scanningDevices ? "Scan en cours..." : "Rescanner LAN", SDK_COLOR_TEXT, SDK_COLOR_BG);
@@ -401,8 +418,7 @@ void handleTapActions() {
 
   if (pointInRect(tx, ty, primaryActionRect())) {
     if (mode == SCREEN_WIFI_SCAN) {
-      runWifiScan();
-      lastScanMs = millis();
+      startWifiScan();
     } else {
       connectToMyNetwork();
     }
@@ -411,7 +427,7 @@ void handleTapActions() {
   }
 
   if (pointInRect(tx, ty, secondaryActionRect()) && mode == SCREEN_MY_NETWORK && myNetConnected && !scanningDevices) {
-    discoverDevicesOnSubnet();
+    beginDeviceScan();
     uiDirty = true;
   }
 }
@@ -421,24 +437,32 @@ void setup() {
   sdk.clear();
   bootMs = millis();
 
+  WiFi.persistent(false);
   WiFi.mode(WIFI_STA);
-  WiFi.disconnect(true);
-  delay(120);
-
-  runWifiScan();
-  lastScanMs = millis();
+  WiFi.disconnect(false, false);
+  scanCount = 0;
+  initialScanPending = true;
   uiDirty = true;
 }
 
 void loop() {
   sdk.updateInputs();
+  updateWifiScan();
+  updateDeviceScanStep();
+
+  if (scanningDevices && sdk.isTouchPressed() && pointInRect(sdk.touchX(), sdk.touchY(), cancelScanRect())) {
+    stopDeviceScan("Scan annule");
+  }
 
   handleTapActions();
 
-  if (mode == SCREEN_WIFI_SCAN && (millis() - lastScanMs > WIFI_SCAN_REFRESH_MS)) {
-    runWifiScan();
-    lastScanMs = millis();
-    uiDirty = true;
+  if (initialScanPending && millis() - bootMs > 500) {
+    startWifiScan();
+    initialScanPending = false;
+  }
+
+  if (!initialScanPending && mode == SCREEN_WIFI_SCAN && !wifiScanRunning && (millis() - lastScanMs > WIFI_SCAN_REFRESH_MS)) {
+    startWifiScan();
   }
 
   if (uiDirty && (millis() - lastDrawMs >= UI_THROTTLE_MS)) {
@@ -447,8 +471,6 @@ void loop() {
     lastDrawMs = millis();
   }
 
-  if (millis() - lastUiMs < 8) {
-    delay(4);
-  }
+  if (millis() - lastUiMs < 4) delay(1);
   lastUiMs = millis();
 }
