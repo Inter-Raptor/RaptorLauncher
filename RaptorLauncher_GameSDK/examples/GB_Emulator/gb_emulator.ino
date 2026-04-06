@@ -292,11 +292,13 @@ static bool initEmulator() {
   if (gb_get_save_size_s(&gGb, &gCartRamSize) == 0 && gCartRamSize > 0) {
     gCartRam = (uint8_t*)malloc(gCartRamSize);
     if (!gCartRam) {
-      drawErrorScreen("RAM KO", "Allocation cart RAM impossible");
-      return false;
+      // Mode degrade: pas de sauvegarde cartouche, mais emulation autorisee.
+      gCartRamSize = 0;
+      gStatus = "RAM limitee: saves desactivees";
+    } else {
+      memset(gCartRam, 0, gCartRamSize);
+      loadSaveFromSd();
     }
-    memset(gCartRam, 0, gCartRamSize);
-    loadSaveFromSd();
   }
 
   if (gStatus == "init") gStatus = "GB init OK";
