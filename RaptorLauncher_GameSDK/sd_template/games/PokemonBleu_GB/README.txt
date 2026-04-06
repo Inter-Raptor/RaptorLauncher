@@ -17,3 +17,4 @@ Ou trouver gb_emulator.bin ?
 - Le binaire est souvent généré sous:
   <ProjetEmulateur>/build/esp32.esp32.esp32/game.bin
 - Copie ce game.bin ici en le renommant gb_emulator.bin.
+- Important: n'utilise pas merged.bin / bootloader.bin / partitions.bin.

@@ -17,3 +17,4 @@ Ou trouver gb_emulator.bin ?
 - Dans ce depot, les jeux compiles sortent en general dans:
   <ProjetEmulateur>/build/esp32.esp32.esp32/game.bin
 - Prends ce game.bin et renomme-le en gb_emulator.bin dans ce dossier.
+- Important: n'utilise pas merged.bin / bootloader.bin / partitions.bin.

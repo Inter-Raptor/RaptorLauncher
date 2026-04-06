@@ -18,6 +18,14 @@ Ce sketch embarque un vrai coeur d'emulation Game Boy DMG via **Peanut-GB**.
 6. Recuperer `game.bin` genere (souvent sous `build/esp32.esp32.esp32/game.bin`).
 7. Copier et renommer en `/games/PokemonBleu_GB/gb_emulator.bin`.
 
+## Depannage si le launcher revient immediatement
+- Verifie le nom du dossier jeu : `PokemonBleu_GB` (fallback accepte: `pokemon_gb`).
+- Verifie que `meta.json` pointe vers le bon binaire (`gb_emulator.bin` ou `game.bin` selon ton choix).
+- Utilise le **binaire applicatif** (`*.ino.bin` ou `game.bin`), pas `merged.bin`, pas `bootloader.bin`, pas `partitions.bin`.
+- Verifie `boot.json` et la ROM:
+  - `/games/<dossier>/boot.json`
+  - `/games/<dossier>/roms/PokemonBleu.gb`
+
 ## Controles
 - D-pad, A, B, START, SELECT mappes vers la manette GB
 - `START + SELECT` : sauvegarde puis retour launcher

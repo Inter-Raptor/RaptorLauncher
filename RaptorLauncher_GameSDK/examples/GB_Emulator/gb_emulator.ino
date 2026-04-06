@@ -12,9 +12,11 @@ struct GbBootConfig {
 };
 
 static const char* GB_GAME_FOLDER = "PokemonBleu_GB";
+static const char* GB_GAME_FOLDER_FALLBACK = "pokemon_gb";
 
 static struct gb_s gGb;
 static GbBootConfig gCfg;
+static String gResolvedGameFolder = GB_GAME_FOLDER;
 
 static uint8_t* gRomData = nullptr;
 static size_t gRomSize = 0;
@@ -88,17 +90,25 @@ static bool sdReadAll(const String& path, uint8_t** outData, size_t* outSize) {
 }
 
 static bool loadBootConfig(GbBootConfig& out) {
-  String path = String("/games/") + GB_GAME_FOLDER + "/boot.json";
-  File f = SD.open(path, FILE_READ);
-  if (!f) return false;
+  String primaryPath = String("/games/") + GB_GAME_FOLDER + "/boot.json";
+  String fallbackPath = String("/games/") + GB_GAME_FOLDER_FALLBACK + "/boot.json";
+
+  File f = SD.open(primaryPath, FILE_READ);
+  if (!f) {
+    f = SD.open(fallbackPath, FILE_READ);
+    if (!f) return false;
+    gResolvedGameFolder = GB_GAME_FOLDER_FALLBACK;
+  } else {
+    gResolvedGameFolder = GB_GAME_FOLDER;
+  }
 
   JsonDocument doc;
   DeserializationError err = deserializeJson(doc, f);
   f.close();
   if (err) return false;
 
-  String defaultRom = String("/games/") + GB_GAME_FOLDER + "/roms/PokemonBleu.gb";
-  String defaultSave = String("/games/") + GB_GAME_FOLDER + "/sauv.json";
+  String defaultRom = String("/games/") + gResolvedGameFolder + "/roms/PokemonBleu.gb";
+  String defaultSave = String("/games/") + gResolvedGameFolder + "/sauv.json";
   out.romPath = doc["rom_path"] | defaultRom;
   out.savePath = doc["save_path"] | defaultSave;
   return true;
