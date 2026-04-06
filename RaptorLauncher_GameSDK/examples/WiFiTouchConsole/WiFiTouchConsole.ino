@@ -102,6 +102,9 @@ WifiSeenStat wifiStats[MAX_HISTORY_LINES];
 int wifiStatsCount = 0;
 DeviceSeenStat deviceStats[MAX_HISTORY_LINES];
 int deviceStatsCount = 0;
+bool statsLoaded = false;
+bool statsDirty = false;
+uint32_t lastStatsSaveMs = 0;
 
 bool pointInRect(int x, int y, const Rect& r) {
   return x >= r.x && x < (r.x + r.w) && y >= r.y && y < (r.y + r.h);
@@ -371,7 +374,7 @@ void updateWifiScan() {
       appendHistoryFile("seen_wifi.log", hist);
       updateWifiStats(ssid, (int)scanResults[i].rssi, (int)scanResults[i].channel, enc);
     }
-    saveStatsJson();
+    statsDirty = true;
   }
 
   WiFi.scanDelete();
@@ -500,7 +503,7 @@ void updateDeviceScanStep() {
     String hist = ip + " | " + statusStr;
     appendHistoryFile("seen_devices.log", hist);
     updateDeviceStats(ip, statusStr);
-    saveStatsJson();
+    statsDirty = true;
   }
 
   lanHost++;
@@ -886,7 +889,7 @@ void setup() {
   WiFi.mode(WIFI_STA);
   WiFi.disconnect(false, false);
   scanCount = 0;
-  loadStatsJson();
+  statsLoaded = false;
   initialScanPending = true;
   uiDirty = true;
 }
@@ -905,6 +908,18 @@ void loop() {
   if (initialScanPending && millis() - bootMs > 500) {
     startWifiScan();
     initialScanPending = false;
+  }
+
+  if (!statsLoaded && millis() - bootMs > 1200) {
+    loadStatsJson();
+    statsLoaded = true;
+    uiDirty = true;
+  }
+
+  if (statsDirty && (millis() - lastStatsSaveMs > 2000)) {
+    saveStatsJson();
+    statsDirty = false;
+    lastStatsSaveMs = millis();
   }
 
   if (!initialScanPending && mode == SCREEN_WIFI_SCAN && !wifiScanRunning && (millis() - lastScanMs > WIFI_SCAN_REFRESH_MS)) {
