@@ -18,4 +18,4 @@ Important:
 Wi-Fi (menu 2):
 - Le jeu lit en priorite /settings.json (racine SD) avec wifi_ssid / wifi_pass.
 - Un exemple est fourni dans RaptorLauncher_GameSDK/sd_template/settings.json
-- /games/WiFiTouchConsole/config.json est seulement un fallback compatibilite.
+- /games/WiFiTouchConsole/config.json n'est plus utilise par cette version.

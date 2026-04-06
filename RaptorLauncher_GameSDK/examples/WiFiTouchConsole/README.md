@@ -55,8 +55,7 @@ Champs attendus:
 }
 ```
 
-Compatibilité: si `/settings.json` est absent/invalide, l'exemple tente encore
-`/games/<SDK_GAME_FOLDER_NAME>/config.json` avec `ssid` / `password`.
+Le menu 2 utilise uniquement `/settings.json` (meme format que le launcher).
 
 ## Contrôles (100% tactile)
 - **Onglet haut gauche**: Menu Wi‑Fi autour

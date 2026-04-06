@@ -1,5 +1,4 @@
 #include "raptor_game_sdk.h"
-#include <ArduinoJson.h>
 #include <WiFi.h>
 
 RaptorGameSDK sdk;
@@ -156,72 +155,6 @@ void runWifiScan() {
   WiFi.scanDelete();
 }
 
-bool loadCredentialsFromConfig(String& ssid, String& password) {
-  if (!sdk.isSdReady()) {
-    myNetError = "SD indisponible";
-    return false;
-  }
-
-  String configPath = sdk.gameRootPath() + "/config.json";
-  File f = SD.open(configPath, FILE_READ);
-  if (!f) {
-    myNetError = "config.json manquant";
-    return false;
-  }
-
-  JsonDocument doc;
-  DeserializationError err = deserializeJson(doc, f);
-  f.close();
-  if (err) {
-    myNetError = "config.json invalide";
-    return false;
-  }
-
-  ssid = String((const char*)doc["ssid"]);
-  password = String((const char*)doc["password"]);
-
-  if (ssid.isEmpty()) {
-    myNetError = "SSID vide";
-    return false;
-  }
-  return true;
-}
-
-bool loadCredentialsFromSettingsRoot(String& ssid, String& password) {
-  if (!sdk.isSdReady()) {
-    myNetError = "SD indisponible";
-    return false;
-  }
-
-  File f = SD.open("/settings.json", FILE_READ);
-  if (!f) {
-    myNetError = "settings.json manquant";
-    return false;
-  }
-
-  JsonDocument doc;
-  DeserializationError err = deserializeJson(doc, f);
-  f.close();
-  if (err) {
-    myNetError = "settings.json invalide";
-    return false;
-  }
-
-  ssid = String((const char*)doc["wifi_ssid"]);
-  password = String((const char*)doc["wifi_pass"]);
-  if (ssid.isEmpty()) {
-    // compatibilite avec anciens formats eventuels
-    ssid = String((const char*)doc["ssid"]);
-    password = String((const char*)doc["password"]);
-  }
-
-  if (ssid.isEmpty()) {
-    myNetError = "wifi_ssid vide";
-    return false;
-  }
-  return true;
-}
-
 void discoverDevicesOnSubnet() {
   deviceCount = 0;
   scanningDevices = true;
@@ -294,42 +227,11 @@ void discoverDevicesOnSubnet() {
 }
 
 void connectToMyNetwork() {
-  String ssid;
-  String password;
-  if (!loadCredentialsFromSettingsRoot(ssid, password)) {
-    // fallback: accepte encore /games/<jeu>/config.json pour anciens setups.
-    if (!loadCredentialsFromConfig(ssid, password)) {
-      myNetConnected = false;
-      uiDirty = true;
-      return;
-    }
-  }
-
-  myNetSsid = ssid;
+  myNetSsid = "settings.json";
   myNetError = "Connexion...";
   uiDirty = true;
 
-  WiFi.mode(WIFI_STA);
-  WiFi.disconnect(true);
-  delay(150);
-  WiFi.begin(ssid.c_str(), password.c_str());
-
-  uint32_t start = millis();
-  while (WiFi.status() != WL_CONNECTED && millis() - start < 12000) {
-    sdk.updateInputs();
-    if (sdk.isTouchPressed()) {
-      if (pointInRect(sdk.touchX(), sdk.touchY(), cancelScanRect())) {
-        myNetError = "Connexion annulee";
-        myNetConnected = false;
-        WiFi.disconnect(true);
-        uiDirty = true;
-        return;
-      }
-    }
-    delay(25);
-  }
-
-  if (WiFi.status() == WL_CONNECTED) {
+  if (sdk.wifiConnectFromSettings()) {
     myNetConnected = true;
     myNetIp = WiFi.localIP().toString();
     myNetError = "Connecte";
