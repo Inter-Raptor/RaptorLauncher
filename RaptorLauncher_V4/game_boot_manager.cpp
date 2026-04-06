@@ -70,6 +70,15 @@ bool gameBootLaunchFromPath(const String& binPath) {
 
     size_t expectedSize = fileSize - offset;
     size_t totalWritten = 0;
+      if (expectedSize > (size_t)target->size) {
+        Serial.printf("[BOOT] image trop grande pour %s: %u > %u (offset 0x%lX)\n",
+                      target->label,
+                      (unsigned)expectedSize,
+                      (unsigned)target->size,
+                      (unsigned long)offset);
+        f.close();
+        continue;
+      }
       Serial.printf("[BOOT] offset=0x%lX tentative %d/%d, taille=%u octets\n",
                     (unsigned long)offset, attempt, maxAttemptsPerOffset, (unsigned)expectedSize);
 
