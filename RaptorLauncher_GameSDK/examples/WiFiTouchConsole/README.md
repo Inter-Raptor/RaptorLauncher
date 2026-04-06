@@ -39,8 +39,8 @@ Tu peux donc ouvrir ce dossier tel quel dans Arduino IDE et compiler sans copier
 ## Fonctionnalités
 - **Menu 1 (M1 WiFi)**: scanner tous les Wi-Fi à portée (SSID, puissance RSSI, canal, chiffrement).
 - **Menu 2 (M2 LAN)**: se connecter au réseau perso via `/settings.json` puis lister les appareils détectés sur le sous-réseau local.
-- **Menu 3 (M3 WiFiH)**: historique des reseaux Wi-Fi vus (meme apres disparition).
-- **Menu 4 (M4 DevH)**: historique des appareils vus sur ton reseau perso.
+- **Menu 3 (M3 WiFiH)**: historique des reseaux Wi-Fi vus (meme apres disparition) avec dernier signal + min/max + dernier "vu".
+- **Menu 4 (M4 DevH)**: historique des appareils vus sur ton reseau perso avec dernier "vu" + min/max du signal lien Wi-Fi (RSSI AP).
 - Scroll **tactile vertical** (glisser haut/bas) pour parcourir de longues listes.
 
 ## Wi-Fi depuis /settings.json (racine SD)
@@ -94,7 +94,9 @@ Le rendu est maintenant **événementiel**: l'écran se redessine seulement quan
 
 ## Fichiers historiques sur SD
 Le jeu enregistre automatiquement dans:
-- `/games/WiFiTouchConsole/seen_wifi.log`
-- `/games/WiFiTouchConsole/seen_devices.log`
+- `/games/WiFiTouchConsole/seen_wifi.log` (journal brut)
+- `/games/WiFiTouchConsole/seen_devices.log` (journal brut)
+- `/games/WiFiTouchConsole/seen_wifi_stats.json` (resume persistant: min/max/dernier vu)
+- `/games/WiFiTouchConsole/seen_devices_stats.json` (resume persistant: min/max/dernier vu)
 
-Chaque scan ajoute de nouvelles lignes. Ces historiques sont consultables dans M3 et M4.
+Chaque scan met a jour les journaux + les resumes JSON. Ces historiques sont consultables dans M3 et M4.

@@ -79,10 +79,29 @@ int scanProgress = 0;
 int lanHost = 1;
 WiFiClient lanClient;
 WiFiUDP lanUdp;
-String wifiHistory[MAX_HISTORY_LINES];
-int wifiHistoryCount = 0;
-String deviceHistory[MAX_HISTORY_LINES];
-int deviceHistoryCount = 0;
+
+struct WifiSeenStat {
+  String ssid;
+  String enc;
+  int channel = 0;
+  int minRssi = 0;
+  int maxRssi = 0;
+  int lastRssi = 0;
+  uint32_t lastSeenMs = 0;
+};
+
+struct DeviceSeenStat {
+  String ip;
+  String status;
+  int minLinkRssi = 0;
+  int maxLinkRssi = 0;
+  uint32_t lastSeenMs = 0;
+};
+
+WifiSeenStat wifiStats[MAX_HISTORY_LINES];
+int wifiStatsCount = 0;
+DeviceSeenStat deviceStats[MAX_HISTORY_LINES];
+int deviceStatsCount = 0;
 
 bool pointInRect(int x, int y, const Rect& r) {
   return x >= r.x && x < (r.x + r.w) && y >= r.y && y < (r.y + r.h);
@@ -137,14 +156,13 @@ String authToText(wifi_auth_mode_t auth) {
   }
 }
 
-void pushHistoryLine(String* arr, int& count, const String& line) {
-  if (line.length() == 0) return;
-  if (count < MAX_HISTORY_LINES) {
-    arr[count++] = line;
-    return;
-  }
-  for (int i = 1; i < MAX_HISTORY_LINES; ++i) arr[i - 1] = arr[i];
-  arr[MAX_HISTORY_LINES - 1] = line;
+String ageText(uint32_t seenMs) {
+  uint32_t dt = (millis() >= seenMs) ? (millis() - seenMs) : 0;
+  uint32_t sec = dt / 1000;
+  if (sec < 60) return String(sec) + "s";
+  uint32_t mn = sec / 60;
+  if (mn < 60) return String(mn) + "m";
+  return String(mn / 60) + "h";
 }
 
 void appendHistoryFile(const String& relName, const String& line) {
@@ -156,19 +174,137 @@ void appendHistoryFile(const String& relName, const String& line) {
   f.close();
 }
 
-void loadHistoryFile(const String& relName, String* arr, int& count) {
-  count = 0;
+void saveStatsJson() {
   if (!sdk.isSdReady()) return;
-  String path = sdk.gameRootPath() + "/" + relName;
-  File f = SD.open(path, FILE_READ);
-  if (!f) return;
 
-  while (f.available()) {
-    String line = f.readStringUntil('\n');
-    line.trim();
-    if (line.length() > 0) pushHistoryLine(arr, count, line);
+  {
+    JsonDocument doc;
+    JsonArray arr = doc["items"].to<JsonArray>();
+    for (int i = 0; i < wifiStatsCount; ++i) {
+      JsonObject o = arr.add<JsonObject>();
+      o["ssid"] = wifiStats[i].ssid;
+      o["enc"] = wifiStats[i].enc;
+      o["ch"] = wifiStats[i].channel;
+      o["min"] = wifiStats[i].minRssi;
+      o["max"] = wifiStats[i].maxRssi;
+      o["last"] = wifiStats[i].lastRssi;
+      o["seen"] = wifiStats[i].lastSeenMs;
+    }
+    File f = SD.open(sdk.gameRootPath() + "/seen_wifi_stats.json", FILE_WRITE);
+    if (f) {
+      serializeJson(doc, f);
+      f.close();
+    }
   }
-  f.close();
+
+  {
+    JsonDocument doc;
+    JsonArray arr = doc["items"].to<JsonArray>();
+    for (int i = 0; i < deviceStatsCount; ++i) {
+      JsonObject o = arr.add<JsonObject>();
+      o["ip"] = deviceStats[i].ip;
+      o["status"] = deviceStats[i].status;
+      o["min"] = deviceStats[i].minLinkRssi;
+      o["max"] = deviceStats[i].maxLinkRssi;
+      o["seen"] = deviceStats[i].lastSeenMs;
+    }
+    File f = SD.open(sdk.gameRootPath() + "/seen_devices_stats.json", FILE_WRITE);
+    if (f) {
+      serializeJson(doc, f);
+      f.close();
+    }
+  }
+}
+
+void loadStatsJson() {
+  wifiStatsCount = 0;
+  deviceStatsCount = 0;
+  if (!sdk.isSdReady()) return;
+
+  {
+    File f = SD.open(sdk.gameRootPath() + "/seen_wifi_stats.json", FILE_READ);
+    if (f) {
+      JsonDocument doc;
+      if (!deserializeJson(doc, f)) {
+        JsonArray arr = doc["items"].as<JsonArray>();
+        for (JsonObject o : arr) {
+          if (wifiStatsCount >= MAX_HISTORY_LINES) break;
+          wifiStats[wifiStatsCount].ssid = String((const char*)o["ssid"]);
+          wifiStats[wifiStatsCount].enc = String((const char*)o["enc"]);
+          wifiStats[wifiStatsCount].channel = (int)o["ch"];
+          wifiStats[wifiStatsCount].minRssi = (int)o["min"];
+          wifiStats[wifiStatsCount].maxRssi = (int)o["max"];
+          wifiStats[wifiStatsCount].lastRssi = (int)o["last"];
+          wifiStats[wifiStatsCount].lastSeenMs = (uint32_t)(o["seen"] | 0);
+          wifiStatsCount++;
+        }
+      }
+      f.close();
+    }
+  }
+
+  {
+    File f = SD.open(sdk.gameRootPath() + "/seen_devices_stats.json", FILE_READ);
+    if (f) {
+      JsonDocument doc;
+      if (!deserializeJson(doc, f)) {
+        JsonArray arr = doc["items"].as<JsonArray>();
+        for (JsonObject o : arr) {
+          if (deviceStatsCount >= MAX_HISTORY_LINES) break;
+          deviceStats[deviceStatsCount].ip = String((const char*)o["ip"]);
+          deviceStats[deviceStatsCount].status = String((const char*)o["status"]);
+          deviceStats[deviceStatsCount].minLinkRssi = (int)o["min"];
+          deviceStats[deviceStatsCount].maxLinkRssi = (int)o["max"];
+          deviceStats[deviceStatsCount].lastSeenMs = (uint32_t)(o["seen"] | 0);
+          deviceStatsCount++;
+        }
+      }
+      f.close();
+    }
+  }
+}
+
+void updateWifiStats(const String& ssid, int rssi, int ch, const String& enc) {
+  for (int i = 0; i < wifiStatsCount; ++i) {
+    if (wifiStats[i].ssid == ssid) {
+      if (rssi < wifiStats[i].minRssi) wifiStats[i].minRssi = rssi;
+      if (rssi > wifiStats[i].maxRssi) wifiStats[i].maxRssi = rssi;
+      wifiStats[i].lastRssi = rssi;
+      wifiStats[i].channel = ch;
+      wifiStats[i].enc = enc;
+      wifiStats[i].lastSeenMs = millis();
+      return;
+    }
+  }
+  if (wifiStatsCount >= MAX_HISTORY_LINES) return;
+  wifiStats[wifiStatsCount].ssid = ssid;
+  wifiStats[wifiStatsCount].enc = enc;
+  wifiStats[wifiStatsCount].channel = ch;
+  wifiStats[wifiStatsCount].minRssi = rssi;
+  wifiStats[wifiStatsCount].maxRssi = rssi;
+  wifiStats[wifiStatsCount].lastRssi = rssi;
+  wifiStats[wifiStatsCount].lastSeenMs = millis();
+  wifiStatsCount++;
+}
+
+void updateDeviceStats(const String& ip, const String& status) {
+  int linkRssi = WiFi.RSSI();
+  for (int i = 0; i < deviceStatsCount; ++i) {
+    if (deviceStats[i].ip == ip) {
+      if (linkRssi < deviceStats[i].minLinkRssi) deviceStats[i].minLinkRssi = linkRssi;
+      if (linkRssi > deviceStats[i].maxLinkRssi) deviceStats[i].maxLinkRssi = linkRssi;
+      deviceStats[i].status = status;
+      deviceStats[i].lastSeenMs = millis();
+      return;
+    }
+  }
+  if (deviceStatsCount >= MAX_HISTORY_LINES) return;
+  deviceStats[deviceStatsCount].ip = ip;
+  deviceStats[deviceStatsCount].status = status;
+  deviceStats[deviceStatsCount].minLinkRssi = linkRssi;
+  deviceStats[deviceStatsCount].maxLinkRssi = linkRssi;
+  deviceStats[deviceStatsCount].lastSeenMs = millis();
+  deviceStatsCount++;
 }
 
 int maxScrollForContent(int contentRows) {
@@ -230,10 +366,12 @@ void updateWifiScan() {
       scanResults[i].channel = (uint8_t)WiFi.channel(i);
       scanResults[i].encryption = WiFi.encryptionType(i);
       String ssid = scanResults[i].ssid.length() ? scanResults[i].ssid : String("<SSID cache>");
-      String hist = ssid + " | " + String((long)scanResults[i].rssi) + "dBm | CH" + String((int)scanResults[i].channel) + " | " + authToText(scanResults[i].encryption);
-      pushHistoryLine(wifiHistory, wifiHistoryCount, hist);
+      String enc = authToText(scanResults[i].encryption);
+      String hist = ssid + " | " + String((long)scanResults[i].rssi) + "dBm | CH" + String((int)scanResults[i].channel) + " | " + enc;
       appendHistoryFile("seen_wifi.log", hist);
+      updateWifiStats(ssid, (int)scanResults[i].rssi, (int)scanResults[i].channel, enc);
     }
+    saveStatsJson();
   }
 
   WiFi.scanDelete();
@@ -358,9 +496,11 @@ void updateDeviceScanStep() {
     }
     String statusStr(status);
     pushDevice(target.toString(), statusStr);
-    String hist = target.toString() + " | " + statusStr;
-    pushHistoryLine(deviceHistory, deviceHistoryCount, hist);
+    String ip = target.toString();
+    String hist = ip + " | " + statusStr;
     appendHistoryFile("seen_devices.log", hist);
+    updateDeviceStats(ip, statusStr);
+    saveStatsJson();
   }
 
   lanHost++;
@@ -488,37 +628,46 @@ void drawTopBars() {
 
 void drawWifiHistoryScreen() {
   sdk.fillRect(0, CONTENT_START_Y, sdk.width(), sdk.height() - CONTENT_START_Y, SDK_COLOR_BG);
-  int rows = (wifiHistoryCount > 0) ? wifiHistoryCount : 1;
+  int rows = (wifiStatsCount > 0) ? wifiStatsCount : 1;
   int maxScroll = maxScrollForContent(rows);
   if (handleTouchScroll(maxScroll)) uiDirty = true;
   sdk.drawSmallText(6, CONTENT_START_Y + 2, "Historique reseaux vus", SDK_COLOR_OK, SDK_COLOR_BG);
   int yBase = CONTENT_START_Y + 18 - scrollY;
-  if (wifiHistoryCount == 0) {
+  if (wifiStatsCount == 0) {
     sdk.drawSmallText(6, yBase, "Aucune entree.");
     return;
   }
-  for (int i = 0; i < wifiHistoryCount; ++i) {
+  for (int i = 0; i < wifiStatsCount; ++i) {
     int y = yBase + i * 14;
     if (y < CONTENT_START_Y || y > sdk.height() - 12) continue;
-    sdk.drawSmallText(6, y, wifiHistory[i].substring(0, 52).c_str());
+    String line = wifiStats[i].ssid.substring(0, 14) + " CH" + String(wifiStats[i].channel) +
+                  " now:" + String(wifiStats[i].lastRssi) +
+                  " min:" + String(wifiStats[i].minRssi) +
+                  " max:" + String(wifiStats[i].maxRssi) +
+                  " vu:" + ageText(wifiStats[i].lastSeenMs);
+    sdk.drawSmallText(6, y, line.substring(0, 56).c_str());
   }
 }
 
 void drawDeviceHistoryScreen() {
   sdk.fillRect(0, CONTENT_START_Y, sdk.width(), sdk.height() - CONTENT_START_Y, SDK_COLOR_BG);
-  int rows = (deviceHistoryCount > 0) ? deviceHistoryCount : 1;
+  int rows = (deviceStatsCount > 0) ? deviceStatsCount : 1;
   int maxScroll = maxScrollForContent(rows);
   if (handleTouchScroll(maxScroll)) uiDirty = true;
   sdk.drawSmallText(6, CONTENT_START_Y + 2, "Historique appareils vus", SDK_COLOR_OK, SDK_COLOR_BG);
   int yBase = CONTENT_START_Y + 18 - scrollY;
-  if (deviceHistoryCount == 0) {
+  if (deviceStatsCount == 0) {
     sdk.drawSmallText(6, yBase, "Aucune entree.");
     return;
   }
-  for (int i = 0; i < deviceHistoryCount; ++i) {
+  for (int i = 0; i < deviceStatsCount; ++i) {
     int y = yBase + i * 14;
     if (y < CONTENT_START_Y || y > sdk.height() - 12) continue;
-    sdk.drawSmallText(6, y, deviceHistory[i].substring(0, 52).c_str());
+    String line = deviceStats[i].ip + " " + deviceStats[i].status.substring(0, 10) +
+                  " linkMin:" + String(deviceStats[i].minLinkRssi) +
+                  " linkMax:" + String(deviceStats[i].maxLinkRssi) +
+                  " vu:" + ageText(deviceStats[i].lastSeenMs);
+    sdk.drawSmallText(6, y, line.substring(0, 56).c_str());
   }
 }
 
@@ -737,8 +886,7 @@ void setup() {
   WiFi.mode(WIFI_STA);
   WiFi.disconnect(false, false);
   scanCount = 0;
-  loadHistoryFile("seen_wifi.log", wifiHistory, wifiHistoryCount);
-  loadHistoryFile("seen_devices.log", deviceHistory, deviceHistoryCount);
+  loadStatsJson();
   initialScanPending = true;
   uiDirty = true;
 }
