@@ -66,9 +66,17 @@ bool gameBootLaunchFromPath(const String& binPath) {
   }
 
   uint8_t buf[4096];
-  while (f.available()) {
-    size_t n = f.read(buf, sizeof(buf));
-    if (n == 0) break;
+  size_t totalWritten = 0;
+  while (totalWritten < fileSize) {
+    size_t toRead = fileSize - totalWritten;
+    if (toRead > sizeof(buf)) toRead = sizeof(buf);
+    size_t n = f.read(buf, toRead);
+    if (n == 0) {
+      Serial.printf("[BOOT] lecture SD interrompue a %u/%u octets\n", (unsigned)totalWritten, (unsigned)fileSize);
+      esp_ota_end(otaHandle);
+      f.close();
+      return false;
+    }
     err = esp_ota_write(otaHandle, buf, n);
     if (err != ESP_OK) {
       Serial.printf("[BOOT] esp_ota_write KO: %d\n", (int)err);
@@ -76,8 +84,15 @@ bool gameBootLaunchFromPath(const String& binPath) {
       f.close();
       return false;
     }
+    totalWritten += n;
   }
   f.close();
+
+  if (totalWritten != fileSize) {
+    Serial.printf("[BOOT] taille ecrite mismatch: %u/%u\n", (unsigned)totalWritten, (unsigned)fileSize);
+    esp_ota_end(otaHandle);
+    return false;
+  }
 
   err = esp_ota_end(otaHandle);
   if (err != ESP_OK) {
