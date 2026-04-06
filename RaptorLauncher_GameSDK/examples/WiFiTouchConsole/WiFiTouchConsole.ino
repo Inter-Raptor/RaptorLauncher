@@ -63,6 +63,7 @@ bool myNetConnected = false;
 String myNetIp = "-";
 String myNetSsid = "-";
 String myNetError = "Pas connecte";
+String detailLine = "";
 bool scanningDevices = false;
 int scanProgress = 0;
 int lanHost = 1;
@@ -285,7 +286,10 @@ void connectToMyNetwork() {
 
   myNetSsid = ssid;
   myNetError = "Connexion...";
+  detailLine = "Connexion en cours...";
   uiDirty = true;
+  drawScreen(); // feedback immediat apres tap sur \"Se connecter\"
+  lastDrawMs = millis();
 
   WiFi.mode(WIFI_STA);
   WiFi.disconnect(false, false);
@@ -303,6 +307,10 @@ void connectToMyNetwork() {
       uiDirty = true;
       return;
     }
+    if (millis() - lastDrawMs > 120) {
+      drawScreen();
+      lastDrawMs = millis();
+    }
     delay(20);
   }
 
@@ -310,11 +318,13 @@ void connectToMyNetwork() {
     myNetConnected = true;
     myNetIp = WiFi.localIP().toString();
     myNetError = "Connecte";
+    detailLine = "Connecte: " + myNetIp;
     beginDeviceScan();
   } else {
     myNetConnected = false;
     myNetIp = "-";
     myNetError = "Echec connexion";
+    detailLine = "Echec: verifie SSID/mot de passe";
   }
   uiDirty = true;
 }
@@ -378,6 +388,12 @@ void drawWifiScanScreen() {
              authToText(scanResults[i].encryption).c_str());
     sdk.drawSmallText(6, y, line);
   }
+
+  if (!wifiScanRunning && detailLine.length() > 0) {
+    Rect c = cancelScanRect();
+    sdk.fillRect(c.x, c.y, c.w, c.h, SDK_COLOR_BG);
+    sdk.drawSmallText(6, c.y + 7, detailLine.substring(0, 44).c_str(), SDK_COLOR_ACCENT, SDK_COLOR_BG);
+  }
 }
 
 void drawMyNetworkScreen() {
@@ -427,6 +443,47 @@ void drawMyNetworkScreen() {
     Rect c = cancelScanRect();
     sdk.fillRect(c.x, c.y, c.w, c.h, SDK_COLOR_ERROR);
     sdk.drawSmallText(8, c.y + 7, "Touchez ici pour annuler", SDK_COLOR_BG, SDK_COLOR_ERROR);
+  } else if (detailLine.length() > 0) {
+    Rect c = cancelScanRect();
+    sdk.fillRect(c.x, c.y, c.w, c.h, SDK_COLOR_BG);
+    sdk.drawSmallText(6, c.y + 7, detailLine.substring(0, 44).c_str(), SDK_COLOR_ACCENT, SDK_COLOR_BG);
+  }
+}
+
+void handleListTap(int tx, int ty) {
+  (void)tx;
+  if (ty < CONTENT_START_Y) return;
+
+  if (mode == SCREEN_WIFI_SCAN) {
+    int yBase = CONTENT_START_Y + 18 - scrollY;
+    for (int i = 0; i < scanCount; ++i) {
+      int y = yBase + i * 14;
+      if (ty >= y && ty <= y + 12) {
+        String ssid = scanResults[i].ssid.isEmpty() ? String("<SSID cache>") : scanResults[i].ssid;
+        detailLine = ssid + " | " + String((long)scanResults[i].rssi) + "dBm | CH" + String((int)scanResults[i].channel) + " | " + authToText(scanResults[i].encryption);
+        uiDirty = true;
+        return;
+      }
+    }
+    return;
+  }
+
+  int y = CONTENT_START_Y + 2 - scrollY;
+  y += 14; // SSID
+  y += 14; // Etat
+  y += 18; // IP
+  if (scanningDevices) y += 14;
+
+  if (deviceCount <= 0) return;
+  y += 14; // titre \"Appareils vus\"
+
+  for (int i = 0; i < deviceCount; ++i) {
+    int lineY = y + i * 14;
+    if (ty >= lineY && ty <= lineY + 12) {
+      detailLine = "Appareil " + String(i + 1) + ": " + devices[i].ip + " (" + devices[i].status + ")";
+      uiDirty = true;
+      return;
+    }
   }
 }
 
@@ -487,7 +544,10 @@ void handleTapActions() {
   if (pointInRect(tx, ty, secondaryActionRect()) && mode == SCREEN_MY_NETWORK && myNetConnected && !scanningDevices) {
     beginDeviceScan();
     uiDirty = true;
+    return;
   }
+
+  handleListTap(tx, ty);
 }
 
 void setup() {

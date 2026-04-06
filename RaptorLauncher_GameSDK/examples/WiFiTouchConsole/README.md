@@ -64,6 +64,7 @@ Lors d'un tap sur **Se connecter**, le jeu lit `wifi_ssid`/`wifi_pass` et force 
 - **Bouton haut droite `Quitter`**: retour launcher
 - **Barre action (ligne 2)**: lancer scan Wi‑Fi, se connecter, ou rescanner le LAN
 - **Glisser verticalement** dans la zone de contenu: scroll longues listes
+- **Tap sur un Wi‑Fi / appareil**: affiche plus de details dans le bandeau du bas
 - **Bandeau rouge en bas** (quand visible): annuler une connexion ou un scan réseau en cours
 
 ## Note sur la découverte d'appareils
@@ -81,3 +82,8 @@ Le rendu est maintenant **événementiel**: l'écran se redessine seulement quan
 - Le premier scan Wi-Fi est lance apres le boot (pas dans `setup()`).
 - Le scan Wi-Fi est non bloquant (asynchrone).
 - Le scan LAN est progressif (par etapes dans `loop()`), pour eviter les freezes et retours launcher.
+
+
+## UX connexion
+- Quand tu tapes **Se connecter**, l'etat passe immediatement a `Connexion...` (feedback direct).
+- Le jeu reste tactile pendant l'attente et tu peux annuler via le bandeau du bas.
