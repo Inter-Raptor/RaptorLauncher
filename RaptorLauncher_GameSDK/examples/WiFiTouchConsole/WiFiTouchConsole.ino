@@ -32,6 +32,7 @@ static const int MAX_SCAN_ENTRIES = 40;
 static const int MAX_DEVICE_ENTRIES = 128;
 static const uint32_t WIFI_SCAN_REFRESH_MS = 10000;
 static const uint32_t UI_THROTTLE_MS = 33;
+static const uint32_t TOUCH_GUARD_MS = 1200;
 
 static const int TOP_BAR_H = 24;
 static const int ACTION_BAR_H = 26;
@@ -51,7 +52,9 @@ bool dragging = false;
 
 uint32_t lastUiMs = 0;
 uint32_t lastDrawMs = 0;
+uint32_t bootMs = 0;
 bool uiDirty = true;
+bool touchInputArmed = false;
 
 bool myNetConnected = false;
 String myNetIp = "-";
@@ -422,6 +425,16 @@ void drawScreen() {
 }
 
 void handleTapActions() {
+  if (!touchInputArmed) {
+    if (millis() - bootMs < TOUCH_GUARD_MS) {
+      return;
+    }
+    if (!sdk.isTouchHeld() || sdk.isTouchReleased()) {
+      touchInputArmed = true;
+    }
+    return;
+  }
+
   if (!sdk.isTouchPressed()) return;
 
   int tx = sdk.touchX();
@@ -466,6 +479,7 @@ void handleTapActions() {
 void setup() {
   sdk.begin();
   sdk.clear();
+  bootMs = millis();
 
   WiFi.mode(WIFI_STA);
   WiFi.disconnect(true);
