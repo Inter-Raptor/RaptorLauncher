@@ -73,7 +73,8 @@ La détection est faite par tentatives TCP multi-ports sur le `/24` local
 (80, 443, 53, 22, 445, 139, 1883, 554, 8008).
 
 Important: ce n'est toujours **pas** une liste absolue de tous les clients connectés au routeur.
-Un appareil peut etre present sur le reseau sans ecouter de port TCP, et ne pas apparaitre.
+Le scan marque aussi un hote comme probable actif si la connexion echoue tres vite (heuristique RST/ICMP),
+mais certains appareils peuvent encore ne pas apparaitre.
 
 ## Anti-scintillement
 Le rendu est maintenant **événementiel**: l'écran se redessine seulement quand quelque chose change (tap, scroll, nouveaux résultats), au lieu d'un refresh permanent.

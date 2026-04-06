@@ -243,20 +243,33 @@ void updateDeviceScanStep() {
   scanProgress = lanHost;
   IPAddress target(localIp[0], localIp[1], localIp[2], lanHost);
   bool alive = false;
+  bool repliedClosed = false;
   uint16_t hitPort = 0;
   for (size_t pi = 0; pi < (sizeof(PROBE_PORTS) / sizeof(PROBE_PORTS[0])); ++pi) {
     uint16_t port = PROBE_PORTS[pi];
+    uint32_t t0 = micros();
     if (lanClient.connect(target, port, 30)) {
       alive = true;
       hitPort = port;
       lanClient.stop();
       break;
     }
+    uint32_t dtMs = (micros() - t0) / 1000;
+    // Heuristique: echec tres rapide => hote vivant mais port ferme (RST/ICMP unreachable).
+    if (dtMs <= 8) {
+      repliedClosed = true;
+      hitPort = port;
+      break;
+    }
   }
 
-  if (alive) {
+  if (alive || repliedClosed) {
     char status[28];
-    snprintf(status, sizeof(status), "Actif (TCP:%u)", (unsigned)hitPort);
+    if (alive) {
+      snprintf(status, sizeof(status), "Actif (TCP:%u)", (unsigned)hitPort);
+    } else {
+      snprintf(status, sizeof(status), "Actif (RST:%u)", (unsigned)hitPort);
+    }
     pushDevice(target.toString(), String(status));
   }
 
