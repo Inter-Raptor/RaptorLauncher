@@ -8,6 +8,79 @@
 static Preferences gPrefs;
 static const char* PREF_NS = "raptor_boot";
 static const char* PREF_LAUNCHER_LABEL = "launcher";
+static const uint8_t ESP_IMAGE_MAGIC = 0xE9;
+static const uint8_t ESP_IMAGE_CHECKSUM_INIT = 0xEF;
+
+static uint32_t readU32LE(const uint8_t* p) {
+  return ((uint32_t)p[0]) |
+         ((uint32_t)p[1] << 8) |
+         ((uint32_t)p[2] << 16) |
+         ((uint32_t)p[3] << 24);
+}
+
+static bool inspectEspImageAtOffset(const String& path, uint32_t offset, size_t& imageSizeOut) {
+  File f = SD.open(path, FILE_READ);
+  if (!f) return false;
+  if (!f.seek(offset)) {
+    f.close();
+    return false;
+  }
+
+  uint8_t hdr[24];
+  if (f.read(hdr, sizeof(hdr)) != sizeof(hdr)) {
+    f.close();
+    return false;
+  }
+  if (hdr[0] != ESP_IMAGE_MAGIC) {
+    f.close();
+    return false;
+  }
+
+  uint8_t segmentCount = hdr[1];
+  size_t pos = offset + sizeof(hdr);
+  uint8_t checksum = ESP_IMAGE_CHECKSUM_INIT;
+  uint8_t buf[256];
+
+  for (uint8_t i = 0; i < segmentCount; ++i) {
+    if (!f.seek(pos)) {
+      f.close();
+      return false;
+    }
+    uint8_t segHdr[8];
+    if (f.read(segHdr, sizeof(segHdr)) != sizeof(segHdr)) {
+      f.close();
+      return false;
+    }
+    uint32_t segLen = readU32LE(segHdr + 4);
+    pos += sizeof(segHdr);
+
+    uint32_t remaining = segLen;
+    while (remaining > 0) {
+      size_t chunk = remaining > sizeof(buf) ? sizeof(buf) : remaining;
+      size_t n = f.read(buf, chunk);
+      if (n != chunk) {
+        f.close();
+        return false;
+      }
+      for (size_t k = 0; k < n; ++k) checksum ^= buf[k];
+      remaining -= (uint32_t)n;
+      pos += n;
+    }
+  }
+
+  size_t checksumPos = (pos + 15) & ~((size_t)15);
+  if (!f.seek(checksumPos)) {
+    f.close();
+    return false;
+  }
+  int expected = f.read();
+  f.close();
+  if (expected < 0) return false;
+  if ((uint8_t)expected != checksum) return false;
+
+  imageSizeOut = (checksumPos - offset) + 1; // inclus le byte checksum
+  return true;
+}
 
 static bool selectTargetOta(const esp_partition_t* running, const esp_partition_t*& target) {
   if (running->subtype == ESP_PARTITION_SUBTYPE_APP_OTA_0) {
@@ -45,30 +118,18 @@ bool gameBootLaunchFromPath(const String& binPath) {
       return false;
     }
 
-      size_t fileSize = f.size();
-      if (offset >= fileSize) {
+      size_t imageSize = 0;
+      if (!inspectEspImageAtOffset(binPath, offset, imageSize)) {
+        Serial.printf("[BOOT] image invalide a l'offset 0x%lX\n", (unsigned long)offset);
         f.close();
         continue;
       }
-
-      if (!f.seek(offset)) {
-        Serial.printf("[BOOT] seek KO sur offset 0x%lX\n", (unsigned long)offset);
-        f.close();
-        continue;
-      }
-
-      int magic = f.read();
-      if (magic != 0xE9) {
-        f.close();
-        continue;
-      }
-
       if (!f.seek(offset)) {
         f.close();
         continue;
       }
 
-    size_t expectedSize = fileSize - offset;
+    size_t expectedSize = imageSize;
     size_t totalWritten = 0;
       if (expectedSize > (size_t)target->size) {
         Serial.printf("[BOOT] image trop grande pour %s: %u > %u (offset 0x%lX)\n",
