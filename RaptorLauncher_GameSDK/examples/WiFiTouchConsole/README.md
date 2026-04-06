@@ -37,8 +37,10 @@ quand tu compiles directement `WiFiTouchConsole.ino`.
 Tu peux donc ouvrir ce dossier tel quel dans Arduino IDE et compiler sans copier manuellement le SDK.
 
 ## Fonctionnalités
-- **Menu 1**: scanner tous les Wi-Fi à portée (SSID, puissance RSSI, canal, chiffrement).
-- **Menu 2**: se connecter au réseau perso via `/settings.json` (racine SD) puis lister les appareils détectés sur le sous-réseau local.
+- **Menu 1 (M1 WiFi)**: scanner tous les Wi-Fi à portée (SSID, puissance RSSI, canal, chiffrement).
+- **Menu 2 (M2 LAN)**: se connecter au réseau perso via `/settings.json` puis lister les appareils détectés sur le sous-réseau local.
+- **Menu 3 (M3 CH)**: graphique d'occupation des canaux 2.4GHz.
+- **Menu 4 (M4 Info)**: informations utiles (nombre de réseaux, ouverts, plus fort signal, IP/GW/DNS).
 - Scroll **tactile vertical** (glisser haut/bas) pour parcourir de longues listes.
 
 ## Wi-Fi depuis /settings.json (racine SD)
@@ -59,9 +61,8 @@ Le menu 2 utilise uniquement `/settings.json` (meme format que le launcher).
 Lors d'un tap sur **Se connecter**, le jeu lit `wifi_ssid`/`wifi_pass` et force la tentative de connexion (meme si `wifi_enabled` est a `false`).
 
 ## Contrôles (100% tactile)
-- **Onglet haut gauche**: Menu Wi‑Fi autour
-- **Onglet haut centre**: Menu réseau perso
-- **Bouton haut droite `Quitter`**: retour launcher
+- **Onglets hauts**: M1 WiFi / M2 LAN / M3 CH / M4 Info
+- **Bouton haut droite `Quit`**: retour launcher
 - **Barre action (ligne 2)**: lancer scan Wi‑Fi, se connecter, ou rescanner le LAN
 - **Glisser verticalement** dans la zone de contenu: scroll longues listes
 - **Tap sur un Wi‑Fi / appareil**: affiche plus de details dans le bandeau du bas
