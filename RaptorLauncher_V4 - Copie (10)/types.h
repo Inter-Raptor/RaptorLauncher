@@ -45,5 +45,4 @@ struct GameInfo {
 
   String bin;
   String save;
-  String rom;
 };
