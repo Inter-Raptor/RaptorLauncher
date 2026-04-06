@@ -21,7 +21,7 @@ Ce sketch embarque un vrai coeur d'emulation Game Boy DMG via **Peanut-GB**.
 ## Depannage si le launcher revient immediatement
 - Verifie le nom du dossier jeu : `PokemonBleu_GB` (fallback accepte: `pokemon_gb`).
 - Verifie que `meta.json` pointe vers le bon binaire (`gb_emulator.bin` ou `game.bin` selon ton choix).
-- Utilise le **binaire applicatif** (`*.ino.bin` ou `game.bin`), pas `merged.bin`, pas `bootloader.bin`, pas `partitions.bin`.
+- Utilise le **binaire applicatif** (`GB_Emulator.ino.bin` ou `game.bin`), pas `merged.bin`, pas `bootloader.bin`, pas `partitions.bin`.
 - Recompile avec la derniere version: la ROM est lue en streaming SD (pas de gros `malloc`), ce qui evite les erreurs ROM KO sur ESP32 sans PSRAM.
 - Verifie `boot.json` et la ROM:
   - `/games/<dossier>/boot.json`

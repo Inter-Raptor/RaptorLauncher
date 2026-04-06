@@ -38,6 +38,25 @@ bool gameBootLaunchFromPath(const String& binPath) {
     return false;
   }
 
+  size_t fileSize = f.size();
+  uint8_t magic = 0x00;
+  if (fileSize == 0 || f.read(&magic, 1) != 1) {
+    Serial.printf("[BOOT] binaire vide/invalide: %s\n", binPath.c_str());
+    f.close();
+    return false;
+  }
+  if (!f.seek(0)) {
+    Serial.printf("[BOOT] impossible de relire le binaire: %s\n", binPath.c_str());
+    f.close();
+    return false;
+  }
+  Serial.printf("[BOOT] taille binaire: %u octets, magic=0x%02X\n", (unsigned)fileSize, (unsigned)magic);
+  if (magic != 0xE9) {
+    Serial.println("[BOOT] format invalide: utiliser un .ino.bin / game.bin (pas merged.bin/bootloader.bin/partitions.bin)");
+    f.close();
+    return false;
+  }
+
   esp_ota_handle_t otaHandle = 0;
   esp_err_t err = esp_ota_begin(target, OTA_SIZE_UNKNOWN, &otaHandle);
   if (err != ESP_OK) {
@@ -63,6 +82,9 @@ bool gameBootLaunchFromPath(const String& binPath) {
   err = esp_ota_end(otaHandle);
   if (err != ESP_OK) {
     Serial.printf("[BOOT] esp_ota_end KO: %d\n", (int)err);
+    if (err == ESP_ERR_OTA_VALIDATE_FAILED) {
+      Serial.println("[BOOT] validation image KO: binaire corrompu ou mauvais type de .bin");
+    }
     return false;
   }
 
