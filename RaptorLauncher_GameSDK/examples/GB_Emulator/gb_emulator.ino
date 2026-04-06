@@ -18,8 +18,11 @@ static struct gb_s gGb;
 static GbBootConfig gCfg;
 static String gResolvedGameFolder = GB_GAME_FOLDER;
 
-static uint8_t* gRomData = nullptr;
+static File gRomFile;
 static size_t gRomSize = 0;
+static uint8_t gRomCache[512];
+static uint32_t gRomCacheBase = 0xFFFFFFFFu;
+static size_t gRomCacheLen = 0;
 
 static uint8_t* gCartRam = nullptr;
 static size_t gCartRamSize = 0;
@@ -29,7 +32,16 @@ static bool gEmuReady = false;
 static String gStatus = "init";
 
 static uint8_t gbRomRead(struct gb_s* /*gb*/, const uint_fast32_t addr) {
-  return (addr < gRomSize) ? gRomData[addr] : 0xFF;
+  if (!gRomFile || addr >= gRomSize) return 0xFF;
+
+  if (gRomCacheBase == 0xFFFFFFFFu || addr < gRomCacheBase || addr >= (gRomCacheBase + gRomCacheLen)) {
+    gRomCacheBase = (uint32_t)(addr & ~((uint_fast32_t)sizeof(gRomCache) - 1));
+    if (!gRomFile.seek(gRomCacheBase)) return 0xFF;
+    gRomCacheLen = gRomFile.read(gRomCache, sizeof(gRomCache));
+    if (gRomCacheLen == 0) return 0xFF;
+  }
+
+  return gRomCache[addr - gRomCacheBase];
 }
 
 static uint8_t gbCartRamRead(struct gb_s* /*gb*/, const uint_fast32_t addr) {
@@ -59,34 +71,6 @@ static void gbLcdDrawLine(struct gb_s* /*gb*/, const uint8_t* pixels, const uint
   for (int x = 0; x < LCD_WIDTH; ++x) {
     dst[x] = pal[pixels[x] & 0x03];
   }
-}
-
-static bool sdReadAll(const String& path, uint8_t** outData, size_t* outSize) {
-  File f = SD.open(path, FILE_READ);
-  if (!f) return false;
-
-  size_t size = f.size();
-  if (size == 0) {
-    f.close();
-    return false;
-  }
-
-  uint8_t* data = (uint8_t*)malloc(size);
-  if (!data) {
-    f.close();
-    return false;
-  }
-
-  size_t n = f.read(data, size);
-  f.close();
-  if (n != size) {
-    free(data);
-    return false;
-  }
-
-  *outData = data;
-  *outSize = size;
-  return true;
 }
 
 static bool loadBootConfig(GbBootConfig& out) {
@@ -166,8 +150,15 @@ static bool initEmulator() {
     return false;
   }
 
-  if (!sdReadAll(gCfg.romPath, &gRomData, &gRomSize)) {
+  gRomFile = SD.open(gCfg.romPath, FILE_READ);
+  if (!gRomFile) {
     drawErrorScreen("ROM KO", String("Introuvable: ") + gCfg.romPath);
+    return false;
+  }
+  gRomSize = gRomFile.size();
+  if (gRomSize == 0) {
+    drawErrorScreen("ROM KO", String("Fichier vide: ") + gCfg.romPath);
+    gRomFile.close();
     return false;
   }
 
