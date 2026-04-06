@@ -1,4 +1,5 @@
 #include "raptor_game_sdk.h"
+#include <ArduinoJson.h>
 #include <WiFi.h>
 
 RaptorGameSDK sdk;
@@ -243,12 +244,63 @@ void updateDeviceScanStep() {
   uiDirty = true;
 }
 
+bool loadWifiCredentialsFromSettings(String& ssid, String& pass) {
+  JsonDocument doc;
+  if (!sdk.loadLauncherSettings(doc)) {
+    myNetError = "settings.json manquant";
+    return false;
+  }
+
+  ssid = String((const char*)doc["wifi_ssid"]);
+  pass = String((const char*)doc["wifi_pass"]);
+
+  // Compatibilite anciens noms.
+  if (ssid.isEmpty()) {
+    ssid = String((const char*)doc["ssid"]);
+    pass = String((const char*)doc["password"]);
+  }
+
+  if (ssid.isEmpty()) {
+    myNetError = "wifi_ssid vide";
+    return false;
+  }
+  return true;
+}
+
 void connectToMyNetwork() {
-  myNetSsid = "settings.json";
+  String ssid;
+  String pass;
+  if (!loadWifiCredentialsFromSettings(ssid, pass)) {
+    myNetConnected = false;
+    myNetIp = "-";
+    uiDirty = true;
+    return;
+  }
+
+  myNetSsid = ssid;
   myNetError = "Connexion...";
   uiDirty = true;
 
-  if (sdk.wifiConnectFromSettings()) {
+  WiFi.mode(WIFI_STA);
+  WiFi.disconnect(false, false);
+  delay(40);
+  WiFi.begin(ssid.c_str(), pass.c_str());
+
+  uint32_t t0 = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - t0 < 12000) {
+    sdk.updateInputs();
+    if (sdk.isTouchPressed() && pointInRect(sdk.touchX(), sdk.touchY(), cancelScanRect())) {
+      WiFi.disconnect(false, false);
+      myNetError = "Connexion annulee";
+      myNetConnected = false;
+      myNetIp = "-";
+      uiDirty = true;
+      return;
+    }
+    delay(20);
+  }
+
+  if (WiFi.status() == WL_CONNECTED) {
     myNetConnected = true;
     myNetIp = WiFi.localIP().toString();
     myNetError = "Connecte";

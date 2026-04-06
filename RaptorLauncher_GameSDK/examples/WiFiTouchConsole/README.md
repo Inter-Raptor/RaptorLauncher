@@ -56,6 +56,7 @@ Champs attendus:
 ```
 
 Le menu 2 utilise uniquement `/settings.json` (meme format que le launcher).
+Lors d'un tap sur **Se connecter**, le jeu lit `wifi_ssid`/`wifi_pass` et force la tentative de connexion (meme si `wifi_enabled` est a `false`).
 
 ## Contrôles (100% tactile)
 - **Onglet haut gauche**: Menu Wi‑Fi autour
