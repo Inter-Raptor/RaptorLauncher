@@ -20,9 +20,19 @@ static String gResolvedGameFolder = GB_GAME_FOLDER;
 
 static File gRomFile;
 static size_t gRomSize = 0;
-static uint8_t gRomCache[512];
-static uint32_t gRomCacheBase = 0xFFFFFFFFu;
-static size_t gRomCacheLen = 0;
+static uint8_t* gRomData = nullptr;
+static bool gRomLoadedInMemory = false;
+
+static constexpr int ROM_BANK_CACHE_SLOTS = 8;
+struct RomBankCacheSlot {
+  uint32_t bankIndex;
+  uint32_t age;
+  size_t len;
+  bool valid;
+  uint8_t data[0x4000];
+};
+static RomBankCacheSlot gRomBankCache[ROM_BANK_CACHE_SLOTS];
+static uint32_t gRomBankAgeCounter = 1;
 
 static uint8_t* gCartRam = nullptr;
 static size_t gCartRamSize = 0;
@@ -30,18 +40,58 @@ static size_t gCartRamSize = 0;
 static uint16_t gFrame565[LCD_WIDTH * LCD_HEIGHT];
 static bool gEmuReady = false;
 static String gStatus = "init";
+static bool gFrameHasContent = false;
+static uint32_t gUiTick = 0;
 
-static uint8_t gbRomRead(struct gb_s* /*gb*/, const uint_fast32_t addr) {
-  if (!gRomFile || addr >= gRomSize) return 0xFF;
+static bool readRomBankToBuffer(uint32_t bankIndex, uint8_t* buffer, size_t& outLen) {
+  if (!gRomFile) return false;
+  uint32_t offset = bankIndex * 0x4000u;
+  if (offset >= gRomSize) {
+    outLen = 0;
+    return false;
+  }
+  if (!gRomFile.seek(offset)) {
+    outLen = 0;
+    return false;
+  }
+  outLen = gRomFile.read(buffer, 0x4000);
+  return outLen > 0;
+}
 
-  if (gRomCacheBase == 0xFFFFFFFFu || addr < gRomCacheBase || addr >= (gRomCacheBase + gRomCacheLen)) {
-    gRomCacheBase = (uint32_t)(addr & ~((uint_fast32_t)sizeof(gRomCache) - 1));
-    if (!gRomFile.seek(gRomCacheBase)) return 0xFF;
-    gRomCacheLen = gRomFile.read(gRomCache, sizeof(gRomCache));
-    if (gRomCacheLen == 0) return 0xFF;
+static RomBankCacheSlot* getRomBankSlot(uint32_t bankIndex) {
+  RomBankCacheSlot* oldest = &gRomBankCache[0];
+  for (int i = 0; i < ROM_BANK_CACHE_SLOTS; ++i) {
+    RomBankCacheSlot* slot = &gRomBankCache[i];
+    if (slot->valid && slot->bankIndex == bankIndex) {
+      slot->age = gRomBankAgeCounter++;
+      return slot;
+    }
+    if (!slot->valid) oldest = slot;
+    else if (slot->age < oldest->age) oldest = slot;
   }
 
-  return gRomCache[addr - gRomCacheBase];
+  size_t n = 0;
+  if (!readRomBankToBuffer(bankIndex, oldest->data, n)) return nullptr;
+  oldest->bankIndex = bankIndex;
+  oldest->len = n;
+  oldest->valid = true;
+  oldest->age = gRomBankAgeCounter++;
+  return oldest;
+}
+
+static uint8_t gbRomRead(struct gb_s* /*gb*/, const uint_fast32_t addr) {
+  if (addr >= gRomSize) return 0xFF;
+
+  if (gRomLoadedInMemory && gRomData) {
+    return gRomData[addr];
+  }
+
+  const uint32_t bankIndex = (uint32_t)(addr >> 14); // /0x4000
+  const uint16_t bankOffset = (uint16_t)(addr & 0x3FFFu);
+
+  RomBankCacheSlot* slot = getRomBankSlot(bankIndex);
+  if (!slot || bankOffset >= slot->len) return 0xFF;
+  return slot->data[bankOffset];
 }
 
 static uint8_t gbCartRamRead(struct gb_s* /*gb*/, const uint_fast32_t addr) {
@@ -69,7 +119,9 @@ static void gbLcdDrawLine(struct gb_s* /*gb*/, const uint8_t* pixels, const uint
 
   uint16_t* dst = &gFrame565[(size_t)line * LCD_WIDTH];
   for (int x = 0; x < LCD_WIDTH; ++x) {
-    dst[x] = pal[pixels[x] & 0x03];
+    uint8_t shade = pixels[x] & 0x03;
+    if (shade != 0) gFrameHasContent = true;
+    dst[x] = pal[shade];
   }
 }
 
@@ -162,6 +214,25 @@ static bool initEmulator() {
     return false;
   }
 
+  gRomData = (uint8_t*)malloc(gRomSize);
+  if (gRomData) {
+    size_t n = gRomFile.read(gRomData, gRomSize);
+    if (n == gRomSize) {
+      gRomLoadedInMemory = true;
+      gRomFile.close();
+      gStatus = String("ROM en RAM: ") + String((unsigned)gRomSize) + " bytes";
+    } else {
+      free(gRomData);
+      gRomData = nullptr;
+      gRomLoadedInMemory = false;
+      gRomFile.seek(0);
+      gStatus = String("ROM stream SD: ") + String((unsigned)n) + "/" + String((unsigned)gRomSize);
+    }
+  } else {
+    gRomLoadedInMemory = false;
+    gStatus = "ROM stream SD: cache 8 banques";
+  }
+
   enum gb_init_error_e err = gb_init(&gGb, gbRomRead, gbCartRamRead, gbCartRamWrite, gbError, nullptr);
   if (err != GB_INIT_NO_ERROR) {
     drawErrorScreen("gb_init KO", String("Erreur code: ") + String((int)err));
@@ -169,6 +240,7 @@ static bool initEmulator() {
   }
 
   gb_init_lcd(&gGb, gbLcdDrawLine);
+  gGb.direct.frame_skip = true;
 
   if (gb_get_save_size_s(&gGb, &gCartRamSize) == 0 && gCartRamSize > 0) {
     gCartRam = (uint8_t*)malloc(gCartRamSize);
@@ -180,7 +252,7 @@ static bool initEmulator() {
     loadSaveFromSd();
   }
 
-  gStatus = "GB init OK";
+  if (gStatus == "init") gStatus = "GB init OK";
   return true;
 }
 
@@ -205,16 +277,22 @@ void loop() {
   }
 
   gGb.direct.joypad = joypadMaskFromInputs();
-  gb_run_frame(&gGb);
 
-  // Dessin ecran GB 160x144 centre sur ecran 320x240
-  sdk.clear();
   int x = (sdk.width() - LCD_WIDTH) / 2;
   int y = (sdk.height() - LCD_HEIGHT) / 2;
   if (x < 0) x = 0;
   if (y < 0) y = 0;
 
+  gFrameHasContent = false;
+  gb_run_frame(&gGb);
+
   sdk.drawPixels565(x, y, LCD_WIDTH, LCD_HEIGHT, gFrame565);
+  if ((++gUiTick & 31u) == 0u) {
+    sdk.drawSmallText(4, 4, gStatus.c_str(), SDK_COLOR_TEXT, SDK_COLOR_BG);
+  }
+  if (!gFrameHasContent) {
+    sdk.drawSmallText(6, 6, "Frame GB vide -> verifier ROM/boot.json", SDK_COLOR_WARN, SDK_COLOR_BG);
+  }
 
   if (sdk.isPressed(BTN_A) && sdk.isPressed(BTN_B)) {
     flushSaveToSd();
