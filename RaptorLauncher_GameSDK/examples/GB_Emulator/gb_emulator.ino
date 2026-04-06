@@ -1,8 +1,8 @@
-#include "src/raptor_game_sdk.h"
+#include "raptor_game_sdk.h"
 #include <cstring>
 
 #define ENABLE_SOUND 0
-#include "src/peanut_gb.h"
+#include "peanut_gb.h"
 
 RaptorGameSDK sdk;
 

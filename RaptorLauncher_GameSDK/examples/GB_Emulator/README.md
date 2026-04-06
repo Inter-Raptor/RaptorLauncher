@@ -10,9 +10,9 @@ Ce sketch embarque un vrai coeur d'emulation Game Boy DMG via **Peanut-GB**.
 - Charge/sauvegarde la SRAM cartouche vers `save_path`
 
 ## Build (Arduino IDE)
-1. Copier le dossier `GB_Emulator/` complet (avec son sous-dossier `src/`).
+1. Copier le dossier `GB_Emulator/` complet.
 2. Ouvrir `gb_emulator.ino`.
-3. Le sketch est autonome: `src/` contient deja `raptor_game_sdk.*`, `raptor_game_config.h` et `peanut_gb.h`.
+3. Le sketch est autonome: le dossier contient deja `raptor_game_sdk.*`, `raptor_game_config.h` et `peanut_gb.h`.
 4. Verifier que `GB_GAME_FOLDER` correspond au dossier SD cible.
 5. Compiler pour ESP32.
 6. Recuperer `game.bin` genere (souvent sous `build/esp32.esp32.esp32/game.bin`).
