@@ -32,37 +32,72 @@ bool gameBootLaunchFromPath(const String& binPath) {
   const esp_partition_t* target = nullptr;
   if (!selectTargetOta(running, target)) return false;
 
-  File f = SD.open(binPath, FILE_READ);
-  if (!f) {
-    Serial.printf("[BOOT] impossible d'ouvrir %s\n", binPath.c_str());
-    return false;
-  }
+  const int maxAttempts = 2;
+  esp_err_t err = ESP_FAIL;
+  for (int attempt = 1; attempt <= maxAttempts; ++attempt) {
+    File f = SD.open(binPath, FILE_READ);
+    if (!f) {
+      Serial.printf("[BOOT] impossible d'ouvrir %s\n", binPath.c_str());
+      return false;
+    }
 
-  esp_ota_handle_t otaHandle = 0;
-  esp_err_t err = esp_ota_begin(target, OTA_SIZE_UNKNOWN, &otaHandle);
-  if (err != ESP_OK) {
-    Serial.printf("[BOOT] esp_ota_begin KO: %d\n", (int)err);
-    f.close();
-    return false;
-  }
+    size_t expectedSize = f.size();
+    size_t totalWritten = 0;
+    Serial.printf("[BOOT] tentative %d/%d, taille=%u octets\n", attempt, maxAttempts, (unsigned)expectedSize);
 
-  uint8_t buf[4096];
-  while (f.available()) {
-    size_t n = f.read(buf, sizeof(buf));
-    if (n == 0) break;
-    err = esp_ota_write(otaHandle, buf, n);
+    esp_ota_handle_t otaHandle = 0;
+    err = esp_ota_begin(target, OTA_SIZE_UNKNOWN, &otaHandle);
     if (err != ESP_OK) {
-      Serial.printf("[BOOT] esp_ota_write KO: %d\n", (int)err);
-      esp_ota_end(otaHandle);
+      Serial.printf("[BOOT] esp_ota_begin KO: %d\n", (int)err);
       f.close();
       return false;
     }
-  }
-  f.close();
 
-  err = esp_ota_end(otaHandle);
+    uint8_t buf[1024];
+    while (totalWritten < expectedSize) {
+      size_t toRead = expectedSize - totalWritten;
+      if (toRead > sizeof(buf)) toRead = sizeof(buf);
+      size_t n = f.read(buf, toRead);
+      if (n == 0) {
+        Serial.printf("[BOOT] lecture SD interrompue a %u/%u octets\n", (unsigned)totalWritten, (unsigned)expectedSize);
+        esp_ota_abort(otaHandle);
+        f.close();
+        err = ESP_FAIL;
+        break;
+      }
+      err = esp_ota_write(otaHandle, buf, n);
+      if (err != ESP_OK) {
+        Serial.printf("[BOOT] esp_ota_write KO: %d\n", (int)err);
+        esp_ota_abort(otaHandle);
+        f.close();
+        break;
+      }
+      totalWritten += n;
+    }
+    f.close();
+
+    if (err != ESP_OK) {
+      continue;
+    }
+
+    if (totalWritten != expectedSize) {
+      Serial.printf("[BOOT] taille ecrite invalide: %u/%u\n", (unsigned)totalWritten, (unsigned)expectedSize);
+      esp_ota_abort(otaHandle);
+      err = ESP_FAIL;
+      continue;
+    }
+
+    err = esp_ota_end(otaHandle);
+    if (err == ESP_OK) {
+      break;
+    }
+
+    Serial.printf("[BOOT] esp_ota_end KO (tentative %d): %d\n", attempt, (int)err);
+    delay(50);
+  }
+
   if (err != ESP_OK) {
-    Serial.printf("[BOOT] esp_ota_end KO: %d\n", (int)err);
+    Serial.printf("[BOOT] validation image KO apres %d tentative(s)\n", maxAttempts);
     return false;
   }
 
