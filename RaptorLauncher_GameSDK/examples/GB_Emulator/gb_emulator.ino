@@ -34,6 +34,10 @@ struct RomBankCacheSlot {
 static RomBankCacheSlot gRomBankCache[ROM_BANK_CACHE_SLOTS];
 static uint32_t gRomBankAgeCounter = 1;
 static uint8_t* gRomCachePool = nullptr;
+static int gRomBankCacheSlotsActive = 0;
+static uint8_t gRomTinyCache[512];
+static uint32_t gRomTinyCacheBase = 0xFFFFFFFFu;
+static size_t gRomTinyCacheLen = 0;
 
 static uint8_t* gCartRam = nullptr;
 static size_t gCartRamSize = 0;
@@ -60,9 +64,9 @@ static bool readRomBankToBuffer(uint32_t bankIndex, uint8_t* buffer, size_t& out
 }
 
 static RomBankCacheSlot* getRomBankSlot(uint32_t bankIndex) {
-  if (!gRomCachePool) return nullptr;
+  if (!gRomCachePool || gRomBankCacheSlotsActive <= 0) return nullptr;
   RomBankCacheSlot* oldest = &gRomBankCache[0];
-  for (int i = 0; i < ROM_BANK_CACHE_SLOTS; ++i) {
+  for (int i = 0; i < gRomBankCacheSlotsActive; ++i) {
     RomBankCacheSlot* slot = &gRomBankCache[i];
     if (slot->valid && slot->bankIndex == bankIndex) {
       slot->age = gRomBankAgeCounter++;
@@ -89,12 +93,24 @@ static uint8_t gbRomRead(struct gb_s* /*gb*/, const uint_fast32_t addr) {
     return gRomData[addr];
   }
 
-  const uint32_t bankIndex = (uint32_t)(addr >> 14); // /0x4000
-  const uint16_t bankOffset = (uint16_t)(addr & 0x3FFFu);
+  if (gRomCachePool && gRomBankCacheSlotsActive > 0) {
+    const uint32_t bankIndex = (uint32_t)(addr >> 14); // /0x4000
+    const uint16_t bankOffset = (uint16_t)(addr & 0x3FFFu);
 
-  RomBankCacheSlot* slot = getRomBankSlot(bankIndex);
-  if (!slot || bankOffset >= slot->len) return 0xFF;
-  return slot->data[bankOffset];
+    RomBankCacheSlot* slot = getRomBankSlot(bankIndex);
+    if (!slot || bankOffset >= slot->len) return 0xFF;
+    return slot->data[bankOffset];
+  }
+
+  // Fallback ultra-compact si RAM tres limitee.
+  if (!gRomFile) return 0xFF;
+  if (gRomTinyCacheBase == 0xFFFFFFFFu || addr < gRomTinyCacheBase || addr >= (gRomTinyCacheBase + gRomTinyCacheLen)) {
+    gRomTinyCacheBase = (uint32_t)(addr & ~((uint_fast32_t)sizeof(gRomTinyCache) - 1));
+    if (!gRomFile.seek(gRomTinyCacheBase)) return 0xFF;
+    gRomTinyCacheLen = gRomFile.read(gRomTinyCache, sizeof(gRomTinyCache));
+    if (gRomTinyCacheLen == 0) return 0xFF;
+  }
+  return gRomTinyCache[addr - gRomTinyCacheBase];
 }
 
 static uint8_t gbCartRamRead(struct gb_s* /*gb*/, const uint_fast32_t addr) {
@@ -242,21 +258,26 @@ static bool initEmulator() {
     }
   } else {
     gRomLoadedInMemory = false;
-    gStatus = "ROM stream SD: cache 8 banques";
     if (!gRomCachePool) {
-      gRomCachePool = (uint8_t*)malloc((size_t)ROM_BANK_CACHE_SLOTS * 0x4000u);
-      if (!gRomCachePool) {
-        drawErrorScreen("RAM KO", "Cache ROM impossible (reduis ROM/carte)");
-        return false;
+      for (int slots = ROM_BANK_CACHE_SLOTS; slots >= 1; --slots) {
+        uint8_t* pool = (uint8_t*)malloc((size_t)slots * 0x4000u);
+        if (!pool) continue;
+        gRomCachePool = pool;
+        gRomBankCacheSlotsActive = slots;
+        break;
       }
-      for (int i = 0; i < ROM_BANK_CACHE_SLOTS; ++i) {
-        gRomBankCache[i].valid = false;
-        gRomBankCache[i].age = 0;
-        gRomBankCache[i].len = 0;
-        gRomBankCache[i].bankIndex = 0xFFFFFFFFu;
-        gRomBankCache[i].data = gRomCachePool + ((size_t)i * 0x4000u);
+      if (gRomCachePool) {
+        for (int i = 0; i < gRomBankCacheSlotsActive; ++i) {
+          gRomBankCache[i].valid = false;
+          gRomBankCache[i].age = 0;
+          gRomBankCache[i].len = 0;
+          gRomBankCache[i].bankIndex = 0xFFFFFFFFu;
+          gRomBankCache[i].data = gRomCachePool + ((size_t)i * 0x4000u);
+        }
       }
     }
+    if (gRomCachePool) gStatus = String("ROM stream SD: cache ") + String(gRomBankCacheSlotsActive) + " banques";
+    else gStatus = "ROM stream SD: tiny cache";
   }
 
   enum gb_init_error_e err = gb_init(&gGb, gbRomRead, gbCartRamRead, gbCartRamWrite, gbError, nullptr);
