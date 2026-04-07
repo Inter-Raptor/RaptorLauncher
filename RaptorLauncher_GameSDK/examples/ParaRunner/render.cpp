@@ -18,6 +18,8 @@ static int prevObsH[MAX_OBSTACLES] = {0};
 static bool prevObsActive[MAX_OBSTACLES] = {false};
 static uint32_t prevHudScore = 0xFFFFFFFFu;
 static uint8_t prevHudLives = 255;
+static int lastMenuSelectionRendered = -1;
+static int lastGameOverSelectionRendered = -1;
 
 bool pointInRect(int px, int py, const ButtonRect& r) {
   return px >= r.x && px < (r.x + r.w) && py >= r.y && py < (r.y + r.h);
@@ -211,7 +213,11 @@ static void drawGameFullOnce() {
 }
 
 void drawMenuScreen() {
+  if (lastRenderedState == STATE_MENU && lastMenuSelectionRendered == menuSelection) {
+    return;
+  }
   lastRenderedState = STATE_MENU;
+  lastMenuSelectionRendered = menuSelection;
   sdk.beginBatch();
 
   drawBackgroundFull();
@@ -253,7 +259,11 @@ void drawGameScreen() {
 }
 
 void drawGameOverScreen() {
+  if (lastRenderedState == STATE_GAME_OVER && lastGameOverSelectionRendered == gameOverSelection) {
+    return;
+  }
   lastRenderedState = STATE_GAME_OVER;
+  lastGameOverSelectionRendered = gameOverSelection;
   sdk.beginBatch();
 
   drawBackgroundFull();
