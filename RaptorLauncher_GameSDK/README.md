@@ -21,6 +21,8 @@ Si une fonction n'est pas déclarée dans ce fichier, elle ne doit pas être pr�
   - `src/raptor_game_sdk.h/.cpp` : API publique et implémentation
 - `examples/SDK_TestLab/`
   - sketch de validation officiel du SDK (compile = cohérence API)
+- `examples/ParaRunner/`
+  - base de runner type dino (saut, abaissement, obstacles cactus/ptera) avec rendu sans scintillement
 - `sd_template/games/MonJeu/`
   - `meta.json` modèle compatible launcher
   - `assets/` pour tes ressources
