@@ -11,6 +11,36 @@ static bool btnDuckHeld() {
   return sdk.isPressed(BTN_DOWN);
 }
 
+static uint16_t spriteTransparencyKeyFromTopRight(const SpriteFrame& s) {
+  return pgm_read_word(&s.pixels[s.w - 1]);
+}
+
+static void getOpaqueBounds(const SpriteFrame& s, int& minX, int& minY, int& maxX, int& maxY) {
+  const uint16_t key = spriteTransparencyKeyFromTopRight(s);
+  minX = s.w;
+  minY = s.h;
+  maxX = -1;
+  maxY = -1;
+
+  for (int yy = 0; yy < s.h; yy++) {
+    for (int xx = 0; xx < s.w; xx++) {
+      uint16_t c = pgm_read_word(&s.pixels[yy * s.w + xx]);
+      if (c == key) continue;
+      if (xx < minX) minX = xx;
+      if (yy < minY) minY = yy;
+      if (xx > maxX) maxX = xx;
+      if (yy > maxY) maxY = yy;
+    }
+  }
+
+  if (maxX < minX || maxY < minY) {
+    minX = 0;
+    minY = 0;
+    maxX = s.w - 1;
+    maxY = s.h - 1;
+  }
+}
+
 void resetPlayer() {
   playerY = PLAYER_STAND_Y;
   playerVelY = 0.0f;
@@ -63,7 +93,9 @@ void updatePlayerInput() {
 
   // accroupi tant qu'on maintient
   ducking = duckHeld && onGround;
-  playerY = ducking ? PLAYER_DUCK_Y : PLAYER_STAND_Y;
+  if (onGround) {
+    playerY = ducking ? PLAYER_DUCK_Y : PLAYER_STAND_Y;
+  }
 
   if (ducking && !duckingPrev) {
     playDuckSound();
@@ -87,27 +119,37 @@ void updatePlayerPhysics() {
 }
 
 void updateScoreAndSpeed() {
-  if (millis() - lastScoreTickMs >= 140) {
+  if (millis() - lastScoreTickMs >= 100) {
     score += 1;
     lastScoreTickMs = millis();
   }
 
-  gameSpeed = 5.2f + score * 0.025f;
-  if (gameSpeed > 8.0f) gameSpeed = 8.0f;
+  gameSpeed = 6.4f + score * 0.028f;
+  if (gameSpeed > 10.5f) gameSpeed = 10.5f;
 }
 
 void getPlayerHitbox(int& x, int& y, int& w, int& h) {
-  if (ducking && onGround) {
-    x = PLAYER_X + 9;
-    y = (int)playerY + 10;
-    w = 25;
-    h = 14;
-  } else {
-    x = PLAYER_X + 10;
-    y = (int)playerY + 5;
-    w = 22;
-    h = 31;
-  }
+  const SpriteFrame& s = currentPlayerSprite();
+
+  int minX, minY, maxX, maxY;
+  getOpaqueBounds(s, minX, minY, maxX, maxY);
+
+  const int trimX = ducking ? 2 : 3;
+  const int trimTop = ducking ? 1 : 2;
+  const int trimBottom = ducking ? 1 : 3;
+
+  minX += trimX;
+  maxX -= trimX;
+  minY += trimTop;
+  maxY -= trimBottom;
+
+  if (maxX < minX) { minX = 0; maxX = s.w - 1; }
+  if (maxY < minY) { minY = 0; maxY = s.h - 1; }
+
+  x = PLAYER_X + minX;
+  y = (int)playerY + minY;
+  w = (maxX - minX + 1);
+  h = (maxY - minY + 1);
 }
 
 void loseOneLife() {

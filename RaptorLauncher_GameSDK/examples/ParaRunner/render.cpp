@@ -16,16 +16,19 @@ static int prevObsY[MAX_OBSTACLES] = {0};
 static int prevObsW[MAX_OBSTACLES] = {0};
 static int prevObsH[MAX_OBSTACLES] = {0};
 static bool prevObsActive[MAX_OBSTACLES] = {false};
+static uint32_t prevHudScore = 0xFFFFFFFFu;
+static uint8_t prevHudLives = 255;
 
 bool pointInRect(int px, int py, const ButtonRect& r) {
   return px >= r.x && px < (r.x + r.w) && py >= r.y && py < (r.y + r.h);
 }
 
 void drawSpriteKey(int x, int y, const SpriteFrame& s) {
+  const uint16_t key = pgm_read_word(&s.pixels[s.w - 1]); // pixel haut-droite = transparence
   for (int yy = 0; yy < s.h; yy++) {
     for (int xx = 0; xx < s.w; xx++) {
       uint16_t c = pgm_read_word(&s.pixels[yy * s.w + xx]);
-      if (c != s.key) {
+      if (c != key) {
         sdk.fillRect(x + xx, y + yy, 1, 1, c);
       }
     }
@@ -33,10 +36,11 @@ void drawSpriteKey(int x, int y, const SpriteFrame& s) {
 }
 
 void drawSpriteKeyFlipH(int x, int y, const SpriteFrame& s) {
+  const uint16_t key = pgm_read_word(&s.pixels[s.w - 1]); // pixel haut-droite = transparence
   for (int yy = 0; yy < s.h; yy++) {
     for (int xx = 0; xx < s.w; xx++) {
       uint16_t c = pgm_read_word(&s.pixels[yy * s.w + xx]);
-      if (c != s.key) {
+      if (c != key) {
         sdk.fillRect(x + (s.w - 1 - xx), y + yy, 1, 1, c);
       }
     }
@@ -199,6 +203,8 @@ static void drawObstaclesCurrent() {
 static void drawGameFullOnce() {
   drawBackgroundFull();
   drawHud();
+  prevHudScore = score;
+  prevHudLives = lives;
   drawTouchZones();
   drawObstaclesCurrent();
   drawPlayerCurrent();
@@ -234,7 +240,11 @@ void drawGameScreen() {
   erasePreviousMovingObjects();
   drawObstaclesCurrent();
   drawPlayerCurrent();
-  drawHud();
+  if (score != prevHudScore || lives != prevHudLives) {
+    drawHud();
+    prevHudScore = score;
+    prevHudLives = lives;
+  }
 }
 
 void drawGameOverScreen() {
