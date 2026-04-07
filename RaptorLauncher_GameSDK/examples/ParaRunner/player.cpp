@@ -11,36 +11,6 @@ static bool btnDuckHeld() {
   return sdk.isPressed(BTN_DOWN);
 }
 
-static uint16_t spriteTransparencyKeyFromTopRight(const SpriteFrame& s) {
-  return pgm_read_word(&s.pixels[s.w - 1]);
-}
-
-static void getOpaqueBounds(const SpriteFrame& s, int& minX, int& minY, int& maxX, int& maxY) {
-  const uint16_t key = spriteTransparencyKeyFromTopRight(s);
-  minX = s.w;
-  minY = s.h;
-  maxX = -1;
-  maxY = -1;
-
-  for (int yy = 0; yy < s.h; yy++) {
-    for (int xx = 0; xx < s.w; xx++) {
-      uint16_t c = pgm_read_word(&s.pixels[yy * s.w + xx]);
-      if (c == key) continue;
-      if (xx < minX) minX = xx;
-      if (yy < minY) minY = yy;
-      if (xx > maxX) maxX = xx;
-      if (yy > maxY) maxY = yy;
-    }
-  }
-
-  if (maxX < minX || maxY < minY) {
-    minX = 0;
-    minY = 0;
-    maxX = s.w - 1;
-    maxY = s.h - 1;
-  }
-}
-
 void resetPlayer() {
   playerY = PLAYER_STAND_Y;
   playerVelY = 0.0f;
@@ -129,27 +99,17 @@ void updateScoreAndSpeed() {
 }
 
 void getPlayerHitbox(int& x, int& y, int& w, int& h) {
-  const SpriteFrame& s = currentPlayerSprite();
-
-  int minX, minY, maxX, maxY;
-  getOpaqueBounds(s, minX, minY, maxX, maxY);
-
-  const int trimX = ducking ? 2 : 3;
-  const int trimTop = ducking ? 1 : 2;
-  const int trimBottom = ducking ? 1 : 3;
-
-  minX += trimX;
-  maxX -= trimX;
-  minY += trimTop;
-  maxY -= trimBottom;
-
-  if (maxX < minX) { minX = 0; maxX = s.w - 1; }
-  if (maxY < minY) { minY = 0; maxY = s.h - 1; }
-
-  x = PLAYER_X + minX;
-  y = (int)playerY + minY;
-  w = (maxX - minX + 1);
-  h = (maxY - minY + 1);
+  if (ducking && onGround) {
+    x = PLAYER_X + 10;
+    y = (int)playerY + 14;
+    w = 20;
+    h = 11;
+  } else {
+    x = PLAYER_X + 10;
+    y = (int)playerY + 6;
+    w = 23;
+    h = 30;
+  }
 }
 
 void loseOneLife() {
