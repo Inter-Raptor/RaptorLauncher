@@ -12,7 +12,7 @@ static const float PLAYER_STAND_Y = 134.0f;
 static const float PLAYER_DUCK_Y  = 146.0f;
 
 static const float GRAVITY = 0.88f;
-static const float JUMP_VELOCITY = -18.0f;
+static const float JUMP_VELOCITY = -12.7f;
 
 static const int MAX_OBSTACLES = 2;
 

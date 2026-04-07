@@ -212,6 +212,7 @@ static void drawGameFullOnce() {
 
 void drawMenuScreen() {
   lastRenderedState = STATE_MENU;
+  sdk.beginBatch();
 
   drawBackgroundFull();
 
@@ -228,12 +229,15 @@ void drawMenuScreen() {
 
   sdk.drawCenteredText(210, "Tactile ou boutons", COL_BLACK, COL_SKY_1);
   sdk.drawCenteredText(224, "A/Haut=saut  Bas=baisse", COL_BLACK, COL_SKY_1);
+  sdk.endBatch();
 }
 
 void drawGameScreen() {
+  sdk.beginBatch();
   if (lastRenderedState != STATE_PLAYING) {
     drawGameFullOnce();
     lastRenderedState = STATE_PLAYING;
+    sdk.endBatch();
     return;
   }
 
@@ -245,10 +249,12 @@ void drawGameScreen() {
     prevHudScore = score;
     prevHudLives = lives;
   }
+  sdk.endBatch();
 }
 
 void drawGameOverScreen() {
   lastRenderedState = STATE_GAME_OVER;
+  sdk.beginBatch();
 
   drawBackgroundFull();
 
@@ -274,4 +280,5 @@ void drawGameOverScreen() {
 
   drawButton(btnRetry, COL_GREEN,  COL_WHITE, "REJOUER", COL_BLACK, gameOverSelection == GAMEOVER_RETRY);
   drawButton(btnMenu,  COL_ORANGE, COL_WHITE, "MENU",    COL_BLACK, gameOverSelection == GAMEOVER_MENU);
+  sdk.endBatch();
 }

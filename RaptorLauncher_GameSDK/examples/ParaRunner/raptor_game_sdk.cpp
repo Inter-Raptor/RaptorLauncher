@@ -216,6 +216,9 @@ int RaptorGameSDK::touchY() const { return touchPy; }
 int RaptorGameSDK::width() const { return gLcd.width(); }
 int RaptorGameSDK::height() const { return gLcd.height(); }
 
+void RaptorGameSDK::beginBatch() { gLcd.startWrite(); }
+void RaptorGameSDK::endBatch() { gLcd.endWrite(); }
+
 void RaptorGameSDK::clear(uint16_t color) { gLcd.fillScreen(color); }
 void RaptorGameSDK::drawRect(int x, int y, int w, int h, uint16_t color) { gLcd.drawRect(x, y, w, h, color); }
 void RaptorGameSDK::fillRect(int x, int y, int w, int h, uint16_t color) { gLcd.fillRect(x, y, w, h, color); }
