@@ -86,10 +86,7 @@ void RaptorGameSDK::begin() {
   // Important: des le debut du jeu, on arme le retour auto au launcher
   // en cas de reboot/reset inattendu.
   bool armed = armReturnToLauncherOnNextBoot();
-
-  clear();
-  drawCenteredText(10, "Raptor Game SDK ready");
-  drawSmallText(8, 34, armed ? "Boot safety: launcher armed" : "Boot safety: launcher label missing", armed ? SDK_COLOR_OK : SDK_COLOR_WARN, SDK_COLOR_BG);
+  Serial.println(armed ? "[SDK] boot safety armed" : "[SDK] boot safety launcher label missing");
 }
 
 void RaptorGameSDK::initDisplay() {
