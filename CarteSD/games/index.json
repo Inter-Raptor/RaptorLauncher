@@ -4,13 +4,13 @@
   "entries": [
     {
       "indice": 3,
-      "folder": "DinoLife",
-      "meta": "DinoLife/meta.json"
+      "folder": "DinoBlaster",
+      "meta": "DinoBlaster/meta.json"
     },
     {
       "indice": 3,
-      "folder": "DinoBlaster",
-      "meta": "DinoBlaster/meta.json"
+      "folder": "DinoLife",
+      "meta": "DinoLife/meta.json"
     },
     {
       "indice": 30,
@@ -31,11 +31,6 @@
       "indice": 3,
       "folder": "ParaRunner",
       "meta": "ParaRunner/meta.json"
-    },
-    {
-      "indice": 30,
-      "folder": "PokemonBleu_GB",
-      "meta": "PokemonBleu_GB/meta.json"
     },
     {
       "indice": 1,

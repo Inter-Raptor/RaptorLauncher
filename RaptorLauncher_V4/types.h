@@ -34,6 +34,7 @@ struct GameInfo {
   String author;
   String description;
   String type;
+  int indice;
 
   String icon;
   int iconW;
@@ -45,5 +46,4 @@ struct GameInfo {
 
   String bin;
   String save;
-  String rom;
 };

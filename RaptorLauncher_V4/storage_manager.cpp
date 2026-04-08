@@ -2,6 +2,7 @@
 #include <SPI.h>
 #include <SD.h>
 #include <ArduinoJson.h>
+#include <algorithm>
 #include "storage_manager.h"
 
 #define SD_CS   5
@@ -60,6 +61,7 @@ std::vector<GameInfo> storageListGames() {
       game.author = "";
       game.description = "";
       game.type = "mixed";
+      game.indice = 30;
 
       game.icon = "";
       game.iconW = 0;
@@ -71,7 +73,6 @@ std::vector<GameInfo> storageListGames() {
 
       game.bin = "game.bin";
       game.save = "sauv.json";
-      game.rom = "";
 
       String metaPath = "/games" + folderName + "/meta.json";
 
@@ -100,6 +101,7 @@ std::vector<GameInfo> storageListGames() {
           game.author      = doc["author"]      | "";
           game.description = doc["description"] | "";
           game.type        = doc["type"]        | "mixed";
+          game.indice      = doc["indice"]      | 30;
 
           game.icon        = doc["icon"]        | "";
           game.iconW       = doc["icon_w"]      | 0;
@@ -111,7 +113,6 @@ std::vector<GameInfo> storageListGames() {
 
           game.bin         = doc["bin"]         | "game.bin";
           game.save        = doc["save"]        | "sauv.json";
-          game.rom         = doc["rom"]         | "";
 
           Serial.print("[JSON] name = ");
           Serial.println(game.name);
@@ -139,13 +140,17 @@ std::vector<GameInfo> storageListGames() {
 
           Serial.print("[JSON] save = ");
           Serial.println(game.save);
-          if (game.rom.length() > 0) {
-            Serial.print("[JSON] rom = ");
-            Serial.println(game.rom);
-          }
+          Serial.print("[JSON] indice = ");
+          Serial.println(game.indice);
         }
       } else {
         Serial.println("[SD] meta.json absent ou impossible a ouvrir");
+      }
+
+      if (game.type == "emulationGB") {
+        Serial.println("[SD] jeu emulationGB ignore (support retire)");
+        file = root.openNextFile();
+        continue;
       }
 
       list.push_back(game);
@@ -155,5 +160,18 @@ std::vector<GameInfo> storageListGames() {
   }
 
   root.close();
+
+  std::sort(list.begin(), list.end(), [](const GameInfo& a, const GameInfo& b) {
+    if (a.indice != b.indice) {
+      return a.indice < b.indice;
+    }
+
+    String an = a.name;
+    String bn = b.name;
+    an.toLowerCase();
+    bn.toLowerCase();
+    return an < bn;
+  });
+
   return list;
 }
