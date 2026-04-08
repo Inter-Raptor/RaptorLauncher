@@ -1,14 +1,15 @@
 {
   "name": "WiFi Touch Console",
   "author": "Raptor SDK",
-  "description": "Outil tactile pour scanner les Wi-Fi et inspecter le reseau local",
-  "type": "mixed",
-  "icon": "icon.raw",
-  "icon_w": 50,
-  "icon_h": 50,
-  "title": "title.raw",
-  "title_w": 320,
-  "title_h": 240,
+  "description": "Outil tactile pour scanner les reseaux Wi-Fi et diagnostiquer le LAN.",
+  "type": "utility",
+  "indice": 2,
+  "icon": "",
+  "icon_w": 0,
+  "icon_h": 0,
+  "title": "",
+  "title_w": 0,
+  "title_h": 0,
   "bin": "game.bin",
   "save": "sauv.json"
 }

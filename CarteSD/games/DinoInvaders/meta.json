@@ -1,8 +1,9 @@
 {
   "name": "Dino Invaders",
   "author": "Vivien",
-  "description": "Un jeu type Space Invaders avec des dinosaures.",
-  "type": "mixed",
+  "description": "Shoot'em up style Space Invaders avec des dinos.",
+  "type": "game",
+  "indice": 30,
   "icon": "icon.raw",
   "icon_w": 50,
   "icon_h": 50,

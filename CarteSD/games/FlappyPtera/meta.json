@@ -1,8 +1,9 @@
 {
   "name": "Flappy Ptera",
   "author": "Vivien",
-  "description": "Un jeu de vol type Flappy Bird avec un pteranodon.",
-  "type": "mixed",
+  "description": "Jeu de reflexe type Flappy Bird avec un pteranodon.",
+  "type": "game",
+  "indice": 30,
   "icon": "icon.raw",
   "icon_w": 50,
   "icon_h": 50,
