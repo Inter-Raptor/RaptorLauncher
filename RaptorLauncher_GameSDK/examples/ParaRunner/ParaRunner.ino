@@ -45,5 +45,5 @@ void loop() {
       break;
   }
 
-  delay(16);
+  delay(28);
 }

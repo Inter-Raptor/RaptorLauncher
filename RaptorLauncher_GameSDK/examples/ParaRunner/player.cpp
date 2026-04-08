@@ -11,6 +11,30 @@ static bool btnDuckHeld() {
   return sdk.isPressed(BTN_DOWN);
 }
 
+struct HitboxPreset {
+  int x;
+  int y;
+  int w;
+  int h;
+};
+
+static const HitboxPreset HB_RUN_1  = { 10,  6, 23, 30 };
+static const HitboxPreset HB_RUN_2  = { 10,  6, 23, 30 };
+static const HitboxPreset HB_JUMP_1 = { 10,  6, 23, 32 };
+static const HitboxPreset HB_JUMP_2 = { 10,  7, 23, 33 };
+static const HitboxPreset HB_DUCK_1 = { 10, 14, 20, 11 };
+static const HitboxPreset HB_DUCK_2 = { 11, 14, 20, 11 };
+
+static const HitboxPreset& currentHitboxPreset() {
+  const SpriteFrame& s = currentPlayerSprite();
+  if (&s == &SPR_RUN_1)  return HB_RUN_1;
+  if (&s == &SPR_RUN_2)  return HB_RUN_2;
+  if (&s == &SPR_JUMP_1) return HB_JUMP_1;
+  if (&s == &SPR_JUMP_2) return HB_JUMP_2;
+  if (&s == &SPR_DUCK_1) return HB_DUCK_1;
+  return HB_DUCK_2;
+}
+
 void resetPlayer() {
   playerY = PLAYER_STAND_Y;
   playerVelY = 0.0f;
@@ -63,7 +87,9 @@ void updatePlayerInput() {
 
   // accroupi tant qu'on maintient
   ducking = duckHeld && onGround;
-  playerY = ducking ? PLAYER_DUCK_Y : PLAYER_STAND_Y;
+  if (onGround) {
+    playerY = ducking ? PLAYER_DUCK_Y : PLAYER_STAND_Y;
+  }
 
   if (ducking && !duckingPrev) {
     playDuckSound();
@@ -87,27 +113,21 @@ void updatePlayerPhysics() {
 }
 
 void updateScoreAndSpeed() {
-  if (millis() - lastScoreTickMs >= 140) {
+  if (millis() - lastScoreTickMs >= 100) {
     score += 1;
     lastScoreTickMs = millis();
   }
 
-  gameSpeed = 5.2f + score * 0.025f;
-  if (gameSpeed > 8.0f) gameSpeed = 8.0f;
+  gameSpeed = 6.4f + score * 0.028f;
+  if (gameSpeed > 10.5f) gameSpeed = 10.5f;
 }
 
 void getPlayerHitbox(int& x, int& y, int& w, int& h) {
-  if (ducking && onGround) {
-    x = PLAYER_X + 9;
-    y = (int)playerY + 10;
-    w = 25;
-    h = 14;
-  } else {
-    x = PLAYER_X + 10;
-    y = (int)playerY + 5;
-    w = 22;
-    h = 31;
-  }
+  const HitboxPreset& hb = currentHitboxPreset();
+  x = PLAYER_X + hb.x;
+  y = (int)playerY + hb.y;
+  w = hb.w;
+  h = hb.h;
 }
 
 void loseOneLife() {

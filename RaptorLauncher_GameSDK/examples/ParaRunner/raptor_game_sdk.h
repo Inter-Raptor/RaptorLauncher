@@ -50,6 +50,8 @@ public:
   int width() const;
   int height() const;
 
+  void beginBatch();
+  void endBatch();
   void clear(uint16_t color = SDK_COLOR_BG);
   void drawRect(int x, int y, int w, int h, uint16_t color);
   void fillRect(int x, int y, int w, int h, uint16_t color);
