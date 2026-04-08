@@ -46,4 +46,6 @@ struct GameInfo {
   String bin;
   String save;
   String rom;
+  bool metaValid;
+  int indice;
 };

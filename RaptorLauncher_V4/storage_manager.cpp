@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <algorithm>
 #include <SPI.h>
 #include <SD.h>
 #include <ArduinoJson.h>
@@ -72,6 +73,8 @@ std::vector<GameInfo> storageListGames() {
       game.bin = "game.bin";
       game.save = "sauv.json";
       game.rom = "";
+      game.metaValid = false;
+      game.indice = 9999;
 
       String metaPath = "/games" + folderName + "/meta.json";
 
@@ -95,6 +98,7 @@ std::vector<GameInfo> storageListGames() {
         if (err) {
           Serial.print("[JSON] erreur: ");
           Serial.println(err.c_str());
+          game.metaValid = false;
         } else {
           game.name        = doc["name"]        | game.name;
           game.author      = doc["author"]      | "";
@@ -112,6 +116,7 @@ std::vector<GameInfo> storageListGames() {
           game.bin         = doc["bin"]         | "game.bin";
           game.save        = doc["save"]        | "sauv.json";
           game.rom         = doc["rom"]         | "";
+          game.indice      = doc["indice"]      | 9999;
 
           Serial.print("[JSON] name = ");
           Serial.println(game.name);
@@ -139,13 +144,17 @@ std::vector<GameInfo> storageListGames() {
 
           Serial.print("[JSON] save = ");
           Serial.println(game.save);
+          Serial.print("[JSON] indice = ");
+          Serial.println(game.indice);
           if (game.rom.length() > 0) {
             Serial.print("[JSON] rom = ");
             Serial.println(game.rom);
           }
+          game.metaValid = true;
         }
       } else {
         Serial.println("[SD] meta.json absent ou impossible a ouvrir");
+        game.metaValid = false;
       }
 
       list.push_back(game);
@@ -153,6 +162,11 @@ std::vector<GameInfo> storageListGames() {
 
     file = root.openNextFile();
   }
+
+  std::sort(list.begin(), list.end(), [](const GameInfo& a, const GameInfo& b) {
+    if (a.indice != b.indice) return a.indice < b.indice;
+    return a.name.compareTo(b.name) < 0;
+  });
 
   root.close();
   return list;

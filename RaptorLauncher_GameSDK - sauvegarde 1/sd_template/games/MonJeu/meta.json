@@ -1,0 +1,14 @@
+{
+  "name": "Mon Jeu",
+  "author": "Ton Nom",
+  "description": "Mon premier jeu compatible RaptorLauncher",
+  "type": "mixed",
+  "icon": "icon.raw",
+  "icon_w": 50,
+  "icon_h": 50,
+  "title": "title.raw",
+  "title_w": 320,
+  "title_h": 240,
+  "bin": "game.bin",
+  "save": "sauv.json"
+}

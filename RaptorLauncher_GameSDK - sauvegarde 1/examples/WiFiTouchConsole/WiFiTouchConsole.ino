@@ -1,0 +1,937 @@
+#include "raptor_game_sdk.h"
+#include <ArduinoJson.h>
+#include <WiFi.h>
+#include <WiFiUdp.h>
+#if defined(ESP32)
+extern "C" {
+  #include "lwip/etharp.h"
+  #include "lwip/ip4_addr.h"
+}
+#endif
+
+RaptorGameSDK sdk;
+
+enum ScreenMode {
+  SCREEN_WIFI_SCAN = 0,
+  SCREEN_MY_NETWORK = 1,
+  SCREEN_WIFI_HISTORY = 2,
+  SCREEN_DEVICE_HISTORY = 3
+};
+
+struct ScanEntry {
+  String ssid;
+  int32_t rssi;
+  uint8_t channel;
+  wifi_auth_mode_t encryption;
+};
+
+struct DeviceEntry {
+  String ip;
+  String status;
+};
+
+struct Rect {
+  int x;
+  int y;
+  int w;
+  int h;
+};
+
+static const int MAX_SCAN_ENTRIES = 40;
+static const int MAX_DEVICE_ENTRIES = 128;
+static const int MAX_HISTORY_LINES = 220;
+static const uint16_t PROBE_PORTS[] = {80, 443, 53, 22, 445, 139, 1883, 554, 8008};
+static const uint32_t WIFI_SCAN_REFRESH_MS = 10000;
+static const uint32_t UI_THROTTLE_MS = 33;
+static const uint32_t TOUCH_GUARD_MS = 1200;
+
+static const int TOP_BAR_H = 24;
+static const int ACTION_BAR_H = 26;
+static const int CONTENT_START_Y = TOP_BAR_H + ACTION_BAR_H + 4;
+
+ScanEntry scanResults[MAX_SCAN_ENTRIES];
+int scanCount = 0;
+uint32_t lastScanMs = 0;
+bool initialScanPending = true;
+bool wifiScanRunning = false;
+
+DeviceEntry devices[MAX_DEVICE_ENTRIES];
+int deviceCount = 0;
+
+ScreenMode mode = SCREEN_WIFI_SCAN;
+int scrollY = 0;
+int lastTouchY = 0;
+bool dragging = false;
+
+uint32_t lastUiMs = 0;
+uint32_t lastDrawMs = 0;
+uint32_t bootMs = 0;
+bool uiDirty = true;
+bool touchInputArmed = false;
+
+bool myNetConnected = false;
+String myNetIp = "-";
+String myNetSsid = "-";
+String myNetError = "Pas connecte";
+String detailLine = "";
+bool scanningDevices = false;
+int scanProgress = 0;
+int lanHost = 1;
+WiFiClient lanClient;
+WiFiUDP lanUdp;
+
+struct WifiSeenStat {
+  String ssid;
+  String enc;
+  int channel = 0;
+  int minRssi = 0;
+  int maxRssi = 0;
+  int lastRssi = 0;
+  uint32_t lastSeenMs = 0;
+};
+
+struct DeviceSeenStat {
+  String ip;
+  String status;
+  int minLinkRssi = 0;
+  int maxLinkRssi = 0;
+  uint32_t lastSeenMs = 0;
+};
+
+WifiSeenStat wifiStats[MAX_HISTORY_LINES];
+int wifiStatsCount = 0;
+DeviceSeenStat deviceStats[MAX_HISTORY_LINES];
+int deviceStatsCount = 0;
+bool statsLoaded = false;
+bool statsDirty = false;
+uint32_t lastStatsSaveMs = 0;
+
+bool pointInRect(int x, int y, const Rect& r) {
+  return x >= r.x && x < (r.x + r.w) && y >= r.y && y < (r.y + r.h);
+}
+
+Rect tabWifiRect() {
+  return {0, 0, (sdk.width() - 56) / 4, TOP_BAR_H};
+}
+
+Rect tabMyNetRect() {
+  int w = (sdk.width() - 56) / 4;
+  return {w, 0, w, TOP_BAR_H};
+}
+
+Rect tabGraphRect() {
+  int w = (sdk.width() - 56) / 4;
+  return {w * 2, 0, w, TOP_BAR_H};
+}
+
+Rect tabInfoRect() {
+  int w = (sdk.width() - 56) / 4;
+  return {w * 3, 0, w, TOP_BAR_H};
+}
+
+Rect quitRect() {
+  return {sdk.width() - 56, 0, 56, TOP_BAR_H};
+}
+
+Rect primaryActionRect() {
+  return {0, TOP_BAR_H, sdk.width() / 2, ACTION_BAR_H};
+}
+
+Rect secondaryActionRect() {
+  return {sdk.width() / 2, TOP_BAR_H, sdk.width() / 2, ACTION_BAR_H};
+}
+
+Rect cancelScanRect() {
+  return {0, sdk.height() - 24, sdk.width(), 24};
+}
+
+String authToText(wifi_auth_mode_t auth) {
+  switch (auth) {
+    case WIFI_AUTH_OPEN: return "OPEN";
+    case WIFI_AUTH_WEP: return "WEP";
+    case WIFI_AUTH_WPA_PSK: return "WPA";
+    case WIFI_AUTH_WPA2_PSK: return "WPA2";
+    case WIFI_AUTH_WPA_WPA2_PSK: return "WPA/WPA2";
+    case WIFI_AUTH_WPA2_ENTERPRISE: return "WPA2-ENT";
+    case WIFI_AUTH_WPA3_PSK: return "WPA3";
+    case WIFI_AUTH_WPA2_WPA3_PSK: return "WPA2/3";
+    default: return "?";
+  }
+}
+
+String ageText(uint32_t seenMs) {
+  uint32_t dt = (millis() >= seenMs) ? (millis() - seenMs) : 0;
+  uint32_t sec = dt / 1000;
+  if (sec < 60) return String(sec) + "s";
+  uint32_t mn = sec / 60;
+  if (mn < 60) return String(mn) + "m";
+  return String(mn / 60) + "h";
+}
+
+void appendHistoryFile(const String& relName, const String& line) {
+  if (!sdk.isSdReady()) return;
+  String path = sdk.gameRootPath() + "/" + relName;
+  File f = SD.open(path, FILE_APPEND);
+  if (!f) return;
+  f.println(line);
+  f.close();
+}
+
+void saveStatsJson() {
+  if (!sdk.isSdReady()) return;
+
+  {
+    JsonDocument doc;
+    JsonArray arr = doc["items"].to<JsonArray>();
+    for (int i = 0; i < wifiStatsCount; ++i) {
+      JsonObject o = arr.add<JsonObject>();
+      o["ssid"] = wifiStats[i].ssid;
+      o["enc"] = wifiStats[i].enc;
+      o["ch"] = wifiStats[i].channel;
+      o["min"] = wifiStats[i].minRssi;
+      o["max"] = wifiStats[i].maxRssi;
+      o["last"] = wifiStats[i].lastRssi;
+      o["seen"] = wifiStats[i].lastSeenMs;
+    }
+    File f = SD.open(sdk.gameRootPath() + "/seen_wifi_stats.json", FILE_WRITE);
+    if (f) {
+      serializeJson(doc, f);
+      f.close();
+    }
+  }
+
+  {
+    JsonDocument doc;
+    JsonArray arr = doc["items"].to<JsonArray>();
+    for (int i = 0; i < deviceStatsCount; ++i) {
+      JsonObject o = arr.add<JsonObject>();
+      o["ip"] = deviceStats[i].ip;
+      o["status"] = deviceStats[i].status;
+      o["min"] = deviceStats[i].minLinkRssi;
+      o["max"] = deviceStats[i].maxLinkRssi;
+      o["seen"] = deviceStats[i].lastSeenMs;
+    }
+    File f = SD.open(sdk.gameRootPath() + "/seen_devices_stats.json", FILE_WRITE);
+    if (f) {
+      serializeJson(doc, f);
+      f.close();
+    }
+  }
+}
+
+void loadStatsJson() {
+  wifiStatsCount = 0;
+  deviceStatsCount = 0;
+  if (!sdk.isSdReady()) return;
+
+  {
+    File f = SD.open(sdk.gameRootPath() + "/seen_wifi_stats.json", FILE_READ);
+    if (f) {
+      JsonDocument doc;
+      if (!deserializeJson(doc, f)) {
+        JsonArray arr = doc["items"].as<JsonArray>();
+        for (JsonObject o : arr) {
+          if (wifiStatsCount >= MAX_HISTORY_LINES) break;
+          wifiStats[wifiStatsCount].ssid = String((const char*)o["ssid"]);
+          wifiStats[wifiStatsCount].enc = String((const char*)o["enc"]);
+          wifiStats[wifiStatsCount].channel = (int)o["ch"];
+          wifiStats[wifiStatsCount].minRssi = (int)o["min"];
+          wifiStats[wifiStatsCount].maxRssi = (int)o["max"];
+          wifiStats[wifiStatsCount].lastRssi = (int)o["last"];
+          wifiStats[wifiStatsCount].lastSeenMs = (uint32_t)(o["seen"] | 0);
+          wifiStatsCount++;
+        }
+      }
+      f.close();
+    }
+  }
+
+  {
+    File f = SD.open(sdk.gameRootPath() + "/seen_devices_stats.json", FILE_READ);
+    if (f) {
+      JsonDocument doc;
+      if (!deserializeJson(doc, f)) {
+        JsonArray arr = doc["items"].as<JsonArray>();
+        for (JsonObject o : arr) {
+          if (deviceStatsCount >= MAX_HISTORY_LINES) break;
+          deviceStats[deviceStatsCount].ip = String((const char*)o["ip"]);
+          deviceStats[deviceStatsCount].status = String((const char*)o["status"]);
+          deviceStats[deviceStatsCount].minLinkRssi = (int)o["min"];
+          deviceStats[deviceStatsCount].maxLinkRssi = (int)o["max"];
+          deviceStats[deviceStatsCount].lastSeenMs = (uint32_t)(o["seen"] | 0);
+          deviceStatsCount++;
+        }
+      }
+      f.close();
+    }
+  }
+}
+
+void updateWifiStats(const String& ssid, int rssi, int ch, const String& enc) {
+  for (int i = 0; i < wifiStatsCount; ++i) {
+    if (wifiStats[i].ssid == ssid) {
+      if (rssi < wifiStats[i].minRssi) wifiStats[i].minRssi = rssi;
+      if (rssi > wifiStats[i].maxRssi) wifiStats[i].maxRssi = rssi;
+      wifiStats[i].lastRssi = rssi;
+      wifiStats[i].channel = ch;
+      wifiStats[i].enc = enc;
+      wifiStats[i].lastSeenMs = millis();
+      return;
+    }
+  }
+  if (wifiStatsCount >= MAX_HISTORY_LINES) return;
+  wifiStats[wifiStatsCount].ssid = ssid;
+  wifiStats[wifiStatsCount].enc = enc;
+  wifiStats[wifiStatsCount].channel = ch;
+  wifiStats[wifiStatsCount].minRssi = rssi;
+  wifiStats[wifiStatsCount].maxRssi = rssi;
+  wifiStats[wifiStatsCount].lastRssi = rssi;
+  wifiStats[wifiStatsCount].lastSeenMs = millis();
+  wifiStatsCount++;
+}
+
+void updateDeviceStats(const String& ip, const String& status) {
+  int linkRssi = WiFi.RSSI();
+  for (int i = 0; i < deviceStatsCount; ++i) {
+    if (deviceStats[i].ip == ip) {
+      if (linkRssi < deviceStats[i].minLinkRssi) deviceStats[i].minLinkRssi = linkRssi;
+      if (linkRssi > deviceStats[i].maxLinkRssi) deviceStats[i].maxLinkRssi = linkRssi;
+      deviceStats[i].status = status;
+      deviceStats[i].lastSeenMs = millis();
+      return;
+    }
+  }
+  if (deviceStatsCount >= MAX_HISTORY_LINES) return;
+  deviceStats[deviceStatsCount].ip = ip;
+  deviceStats[deviceStatsCount].status = status;
+  deviceStats[deviceStatsCount].minLinkRssi = linkRssi;
+  deviceStats[deviceStatsCount].maxLinkRssi = linkRssi;
+  deviceStats[deviceStatsCount].lastSeenMs = millis();
+  deviceStatsCount++;
+}
+
+int maxScrollForContent(int contentRows) {
+  int contentHeight = contentRows * 14 + 8;
+  int viewportHeight = sdk.height() - CONTENT_START_Y;
+  int maxScroll = contentHeight - viewportHeight;
+  if (maxScroll < 0) maxScroll = 0;
+  return maxScroll;
+}
+
+bool handleTouchScroll(int maxScroll) {
+  bool changed = false;
+
+  if (sdk.isTouchPressed() && sdk.touchY() >= CONTENT_START_Y) {
+    dragging = true;
+    lastTouchY = sdk.touchY();
+  }
+
+  if (dragging && sdk.isTouchHeld()) {
+    int y = sdk.touchY();
+    int dy = y - lastTouchY;
+    lastTouchY = y;
+    int oldScroll = scrollY;
+    scrollY -= dy;
+    if (scrollY < 0) scrollY = 0;
+    if (scrollY > maxScroll) scrollY = maxScroll;
+    changed = (oldScroll != scrollY);
+  }
+
+  if (sdk.isTouchReleased()) {
+    dragging = false;
+  }
+
+  return changed;
+}
+
+void startWifiScan() {
+  if (wifiScanRunning) return;
+  WiFi.scanDelete();
+  // async = true pour ne pas bloquer le launcher au demarrage.
+  WiFi.scanNetworks(true, true);
+  wifiScanRunning = true;
+  uiDirty = true;
+}
+
+void updateWifiScan() {
+  if (!wifiScanRunning) return;
+
+  int found = WiFi.scanComplete();
+  if (found == WIFI_SCAN_RUNNING) return;
+
+  if (found < 0) {
+    scanCount = 0;
+  } else {
+    scanCount = (found > MAX_SCAN_ENTRIES) ? MAX_SCAN_ENTRIES : found;
+    for (int i = 0; i < scanCount; ++i) {
+      scanResults[i].ssid = WiFi.SSID(i);
+      scanResults[i].rssi = WiFi.RSSI(i);
+      scanResults[i].channel = (uint8_t)WiFi.channel(i);
+      scanResults[i].encryption = WiFi.encryptionType(i);
+      String ssid = scanResults[i].ssid.length() ? scanResults[i].ssid : String("<SSID cache>");
+      String enc = authToText(scanResults[i].encryption);
+      String hist = ssid + " | " + String((long)scanResults[i].rssi) + "dBm | CH" + String((int)scanResults[i].channel) + " | " + enc;
+      appendHistoryFile("seen_wifi.log", hist);
+      updateWifiStats(ssid, (int)scanResults[i].rssi, (int)scanResults[i].channel, enc);
+    }
+    statsDirty = true;
+  }
+
+  WiFi.scanDelete();
+  wifiScanRunning = false;
+  lastScanMs = millis();
+  uiDirty = true;
+}
+
+void beginDeviceScan() {
+  deviceCount = 0;
+  scanningDevices = true;
+  scanProgress = 0;
+  lanHost = 1;
+  lanClient.setTimeout(70);
+  lanUdp.begin(54000);
+  uiDirty = true;
+}
+
+void stopDeviceScan(const char* reason = nullptr) {
+  scanningDevices = false;
+  if (reason) myNetError = reason;
+  uiDirty = true;
+}
+
+void updateDeviceScanStep() {
+  if (!scanningDevices) return;
+  if (!myNetConnected) {
+    stopDeviceScan();
+    return;
+  }
+
+  IPAddress localIp = WiFi.localIP();
+  IPAddress gateway = WiFi.gatewayIP();
+
+  auto pushDevice = [&](const String& ip, const String& status) {
+    if (deviceCount >= MAX_DEVICE_ENTRIES) return;
+    devices[deviceCount].ip = ip;
+    devices[deviceCount].status = status;
+    deviceCount++;
+  };
+
+  if (deviceCount == 0) {
+    pushDevice(localIp.toString(), "Cet appareil");
+    if (gateway != INADDR_NONE) {
+      pushDevice(gateway.toString(), "Routeur");
+    }
+  }
+
+  while (lanHost <= 254 && (IPAddress(localIp[0], localIp[1], localIp[2], lanHost) == localIp ||
+         IPAddress(localIp[0], localIp[1], localIp[2], lanHost) == gateway)) {
+    lanHost++;
+  }
+
+  if (lanHost > 254 || deviceCount >= MAX_DEVICE_ENTRIES) {
+    stopDeviceScan();
+    return;
+  }
+
+  scanProgress = lanHost;
+  IPAddress target(localIp[0], localIp[1], localIp[2], lanHost);
+  bool alive = false;
+  bool repliedClosed = false;
+  bool arpAlive = false;
+  uint16_t hitPort = 0;
+
+  // 1) Sonde ARP indirecte via emission UDP (la pile doit resoudre l'ARP d'abord).
+  lanUdp.beginPacket(target, 9);
+  lanUdp.write((uint8_t)0x00);
+  lanUdp.endPacket();
+  delay(1);
+
+#if defined(ESP32)
+  ip4_addr_t targetIp;
+  IP4_ADDR(&targetIp, target[0], target[1], target[2], target[3]);
+  for (int i = 0; i < ARP_TABLE_SIZE; ++i) {
+    ip4_addr_t* ipaddr = nullptr;
+    struct netif* netif = nullptr;
+    struct eth_addr* mac = nullptr;
+    if (etharp_get_entry(i, &ipaddr, &netif, &mac) && ipaddr != nullptr) {
+      if (ip4_addr_cmp(ipaddr, &targetIp)) {
+        arpAlive = true;
+        break;
+      }
+    }
+  }
+#endif
+
+  if (arpAlive) {
+    alive = true;
+    hitPort = 0;
+  }
+
+  // 2) Fallback TCP si ARP non concluant.
+  if (!alive) {
+  for (size_t pi = 0; pi < (sizeof(PROBE_PORTS) / sizeof(PROBE_PORTS[0])); ++pi) {
+    uint16_t port = PROBE_PORTS[pi];
+    uint32_t t0 = micros();
+    if (lanClient.connect(target, port, 30)) {
+      alive = true;
+      hitPort = port;
+      lanClient.stop();
+      break;
+    }
+    uint32_t dtMs = (micros() - t0) / 1000;
+    // Heuristique: echec tres rapide => hote vivant mais port ferme (RST/ICMP unreachable).
+    if (dtMs <= 8) {
+      repliedClosed = true;
+      hitPort = port;
+      break;
+    }
+  }
+  }
+
+  if (alive || repliedClosed) {
+    char status[28];
+    if (alive && hitPort == 0) {
+      snprintf(status, sizeof(status), "Actif (ARP)");
+    } else if (alive) {
+      snprintf(status, sizeof(status), "Actif (TCP:%u)", (unsigned)hitPort);
+    } else {
+      snprintf(status, sizeof(status), "Actif (RST:%u)", (unsigned)hitPort);
+    }
+    String statusStr(status);
+    pushDevice(target.toString(), statusStr);
+    String ip = target.toString();
+    String hist = ip + " | " + statusStr;
+    appendHistoryFile("seen_devices.log", hist);
+    updateDeviceStats(ip, statusStr);
+    statsDirty = true;
+  }
+
+  lanHost++;
+  uiDirty = true;
+}
+
+bool loadWifiCredentialsFromSettings(String& ssid, String& pass) {
+  JsonDocument doc;
+  if (!sdk.loadLauncherSettings(doc)) {
+    myNetError = "settings.json manquant";
+    return false;
+  }
+
+  ssid = String((const char*)doc["wifi_ssid"]);
+  pass = String((const char*)doc["wifi_pass"]);
+
+  // Compatibilite anciens noms.
+  if (ssid.isEmpty()) {
+    ssid = String((const char*)doc["ssid"]);
+    pass = String((const char*)doc["password"]);
+  }
+
+  if (ssid.isEmpty()) {
+    myNetError = "wifi_ssid vide";
+    return false;
+  }
+  return true;
+}
+
+void connectToMyNetwork() {
+  String ssid;
+  String pass;
+  if (!loadWifiCredentialsFromSettings(ssid, pass)) {
+    myNetConnected = false;
+    myNetIp = "-";
+    uiDirty = true;
+    return;
+  }
+
+  myNetSsid = ssid;
+  myNetError = "Connexion...";
+  detailLine = "Connexion en cours...";
+  uiDirty = true;
+  drawScreen(); // feedback immediat apres tap sur \"Se connecter\"
+  lastDrawMs = millis();
+
+  WiFi.mode(WIFI_STA);
+  WiFi.disconnect(false, false);
+  delay(40);
+  WiFi.begin(ssid.c_str(), pass.c_str());
+
+  uint32_t t0 = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - t0 < 12000) {
+    sdk.updateInputs();
+    if (sdk.isTouchPressed() && pointInRect(sdk.touchX(), sdk.touchY(), cancelScanRect())) {
+      WiFi.disconnect(false, false);
+      myNetError = "Connexion annulee";
+      myNetConnected = false;
+      myNetIp = "-";
+      uiDirty = true;
+      return;
+    }
+    if (millis() - lastDrawMs > 120) {
+      drawScreen();
+      lastDrawMs = millis();
+    }
+    delay(20);
+  }
+
+  if (WiFi.status() == WL_CONNECTED) {
+    myNetConnected = true;
+    myNetIp = WiFi.localIP().toString();
+    myNetError = "Connecte";
+    detailLine = "Connecte: " + myNetIp;
+    beginDeviceScan();
+  } else {
+    myNetConnected = false;
+    myNetIp = "-";
+    myNetError = "Echec connexion";
+    detailLine = "Echec: verifie SSID/mot de passe";
+  }
+  uiDirty = true;
+}
+
+void drawTopBars() {
+  Rect wifiR = tabWifiRect();
+  Rect netR = tabMyNetRect();
+  Rect graphR = tabGraphRect();
+  Rect infoR = tabInfoRect();
+  Rect quitR = quitRect();
+
+  sdk.fillRect(0, 0, sdk.width(), TOP_BAR_H, SDK_COLOR_BG);
+
+  sdk.fillRect(wifiR.x, wifiR.y, wifiR.w, wifiR.h, mode == SCREEN_WIFI_SCAN ? SDK_COLOR_ACCENT : SDK_COLOR_WARN);
+  sdk.drawSmallText(wifiR.x + 5, wifiR.y + 7, "M1 WiFi", mode == SCREEN_WIFI_SCAN ? SDK_COLOR_BG : SDK_COLOR_TEXT, mode == SCREEN_WIFI_SCAN ? SDK_COLOR_ACCENT : SDK_COLOR_WARN);
+
+  sdk.fillRect(netR.x, netR.y, netR.w, netR.h, mode == SCREEN_MY_NETWORK ? SDK_COLOR_ACCENT : SDK_COLOR_WARN);
+  sdk.drawSmallText(netR.x + 5, netR.y + 7, "M2 LAN", mode == SCREEN_MY_NETWORK ? SDK_COLOR_BG : SDK_COLOR_TEXT, mode == SCREEN_MY_NETWORK ? SDK_COLOR_ACCENT : SDK_COLOR_WARN);
+
+  sdk.fillRect(graphR.x, graphR.y, graphR.w, graphR.h, mode == SCREEN_WIFI_HISTORY ? SDK_COLOR_ACCENT : SDK_COLOR_WARN);
+  sdk.drawSmallText(graphR.x + 4, graphR.y + 7, "M3 WiFiH", mode == SCREEN_WIFI_HISTORY ? SDK_COLOR_BG : SDK_COLOR_TEXT, mode == SCREEN_WIFI_HISTORY ? SDK_COLOR_ACCENT : SDK_COLOR_WARN);
+
+  sdk.fillRect(infoR.x, infoR.y, infoR.w, infoR.h, mode == SCREEN_DEVICE_HISTORY ? SDK_COLOR_ACCENT : SDK_COLOR_WARN);
+  sdk.drawSmallText(infoR.x + 4, infoR.y + 7, "M4 DevH", mode == SCREEN_DEVICE_HISTORY ? SDK_COLOR_BG : SDK_COLOR_TEXT, mode == SCREEN_DEVICE_HISTORY ? SDK_COLOR_ACCENT : SDK_COLOR_WARN);
+
+  sdk.fillRect(quitR.x, quitR.y, quitR.w, quitR.h, SDK_COLOR_ERROR);
+  sdk.drawSmallText(quitR.x + 7, quitR.y + 7, "Quit", SDK_COLOR_BG, SDK_COLOR_ERROR);
+
+  Rect p = primaryActionRect();
+  Rect s = secondaryActionRect();
+  sdk.fillRect(p.x, p.y, p.w, p.h, SDK_COLOR_BG);
+  sdk.fillRect(s.x, s.y, s.w, s.h, SDK_COLOR_BG);
+
+  if (mode == SCREEN_WIFI_SCAN || mode == SCREEN_WIFI_HISTORY || mode == SCREEN_DEVICE_HISTORY) {
+    sdk.drawSmallText(p.x + 6, p.y + 8, "Scanner WiFi", SDK_COLOR_OK, SDK_COLOR_BG);
+    sdk.drawSmallText(s.x + 6, s.y + 8, wifiScanRunning ? "Scan..." : "Auto 10s", SDK_COLOR_TEXT, SDK_COLOR_BG);
+  } else {
+    sdk.drawSmallText(p.x + 6, p.y + 8, "Se connecter", SDK_COLOR_OK, SDK_COLOR_BG);
+    sdk.drawSmallText(s.x + 6, s.y + 8, scanningDevices ? "Scan en cours..." : "Rescanner LAN", SDK_COLOR_TEXT, SDK_COLOR_BG);
+  }
+
+  sdk.fillRect(0, TOP_BAR_H - 1, sdk.width(), 1, SDK_COLOR_WARN);
+  sdk.fillRect(0, TOP_BAR_H + ACTION_BAR_H - 1, sdk.width(), 1, SDK_COLOR_WARN);
+}
+
+void drawWifiHistoryScreen() {
+  sdk.fillRect(0, CONTENT_START_Y, sdk.width(), sdk.height() - CONTENT_START_Y, SDK_COLOR_BG);
+  int rows = (wifiStatsCount > 0) ? wifiStatsCount : 1;
+  int maxScroll = maxScrollForContent(rows);
+  if (handleTouchScroll(maxScroll)) uiDirty = true;
+  sdk.drawSmallText(6, CONTENT_START_Y + 2, "Historique reseaux vus", SDK_COLOR_OK, SDK_COLOR_BG);
+  int yBase = CONTENT_START_Y + 18 - scrollY;
+  if (wifiStatsCount == 0) {
+    sdk.drawSmallText(6, yBase, "Aucune entree.");
+    return;
+  }
+  for (int i = 0; i < wifiStatsCount; ++i) {
+    int y = yBase + i * 14;
+    if (y < CONTENT_START_Y || y > sdk.height() - 12) continue;
+    String line = wifiStats[i].ssid.substring(0, 14) + " CH" + String(wifiStats[i].channel) +
+                  " now:" + String(wifiStats[i].lastRssi) +
+                  " min:" + String(wifiStats[i].minRssi) +
+                  " max:" + String(wifiStats[i].maxRssi) +
+                  " vu:" + ageText(wifiStats[i].lastSeenMs);
+    sdk.drawSmallText(6, y, line.substring(0, 56).c_str());
+  }
+}
+
+void drawDeviceHistoryScreen() {
+  sdk.fillRect(0, CONTENT_START_Y, sdk.width(), sdk.height() - CONTENT_START_Y, SDK_COLOR_BG);
+  int rows = (deviceStatsCount > 0) ? deviceStatsCount : 1;
+  int maxScroll = maxScrollForContent(rows);
+  if (handleTouchScroll(maxScroll)) uiDirty = true;
+  sdk.drawSmallText(6, CONTENT_START_Y + 2, "Historique appareils vus", SDK_COLOR_OK, SDK_COLOR_BG);
+  int yBase = CONTENT_START_Y + 18 - scrollY;
+  if (deviceStatsCount == 0) {
+    sdk.drawSmallText(6, yBase, "Aucune entree.");
+    return;
+  }
+  for (int i = 0; i < deviceStatsCount; ++i) {
+    int y = yBase + i * 14;
+    if (y < CONTENT_START_Y || y > sdk.height() - 12) continue;
+    String line = deviceStats[i].ip + " " + deviceStats[i].status.substring(0, 10) +
+                  " linkMin:" + String(deviceStats[i].minLinkRssi) +
+                  " linkMax:" + String(deviceStats[i].maxLinkRssi) +
+                  " vu:" + ageText(deviceStats[i].lastSeenMs);
+    sdk.drawSmallText(6, y, line.substring(0, 56).c_str());
+  }
+}
+
+void drawWifiScanScreen() {
+  int rows = (scanCount > 0) ? scanCount : 1;
+  int maxScroll = maxScrollForContent(rows);
+  if (handleTouchScroll(maxScroll)) uiDirty = true;
+
+  sdk.fillRect(0, CONTENT_START_Y, sdk.width(), sdk.height() - CONTENT_START_Y, SDK_COLOR_BG);
+
+  char header[64];
+  snprintf(header, sizeof(header), "Reseaux detectes: %d", scanCount);
+  sdk.drawSmallText(6, CONTENT_START_Y + 2, header, SDK_COLOR_OK, SDK_COLOR_BG);
+
+  int yBase = CONTENT_START_Y + 18 - scrollY;
+  for (int i = 0; i < scanCount; ++i) {
+    int y = yBase + i * 14;
+    if (y < CONTENT_START_Y || y > sdk.height() - 12) continue;
+
+    char line[128];
+    const String ssid = scanResults[i].ssid.isEmpty() ? String("<SSID cache>") : scanResults[i].ssid;
+    snprintf(line, sizeof(line), "%02d %-14s %4lddBm CH%02u %s",
+             i + 1,
+             ssid.substring(0, 14).c_str(),
+             (long)scanResults[i].rssi,
+             (unsigned)scanResults[i].channel,
+             authToText(scanResults[i].encryption).c_str());
+    sdk.drawSmallText(6, y, line);
+  }
+
+  if (!wifiScanRunning && detailLine.length() > 0) {
+    Rect c = cancelScanRect();
+    sdk.fillRect(c.x, c.y, c.w, c.h, SDK_COLOR_BG);
+    sdk.drawSmallText(6, c.y + 7, detailLine.substring(0, 44).c_str(), SDK_COLOR_ACCENT, SDK_COLOR_BG);
+  }
+}
+
+void drawMyNetworkScreen() {
+  int baseRows = 4 + deviceCount;
+  int rows = (baseRows > 6) ? baseRows : 6;
+  int maxScroll = maxScrollForContent(rows);
+  if (handleTouchScroll(maxScroll)) uiDirty = true;
+
+  sdk.fillRect(0, CONTENT_START_Y, sdk.width(), sdk.height() - CONTENT_START_Y, SDK_COLOR_BG);
+
+  int y = CONTENT_START_Y + 2 - scrollY;
+  char line[128];
+
+  snprintf(line, sizeof(line), "SSID: %s", myNetSsid.c_str());
+  if (y >= CONTENT_START_Y && y <= sdk.height() - 10) sdk.drawSmallText(6, y, line);
+  y += 14;
+
+  snprintf(line, sizeof(line), "Etat: %s", myNetError.c_str());
+  if (y >= CONTENT_START_Y && y <= sdk.height() - 10) sdk.drawSmallText(6, y, line, myNetConnected ? SDK_COLOR_OK : SDK_COLOR_WARN, SDK_COLOR_BG);
+  y += 14;
+
+  snprintf(line, sizeof(line), "IP locale: %s", myNetIp.c_str());
+  if (y >= CONTENT_START_Y && y <= sdk.height() - 10) sdk.drawSmallText(6, y, line);
+  y += 18;
+
+  if (scanningDevices) {
+    snprintf(line, sizeof(line), "Scan appareils: %d/254", scanProgress);
+    if (y >= CONTENT_START_Y && y <= sdk.height() - 10) sdk.drawSmallText(6, y, line, SDK_COLOR_ACCENT, SDK_COLOR_BG);
+    y += 14;
+  }
+
+  if (deviceCount == 0) {
+    if (y >= CONTENT_START_Y && y <= sdk.height() - 10) sdk.drawSmallText(6, y, "Aucun appareil detecte.");
+  } else {
+    if (y >= CONTENT_START_Y && y <= sdk.height() - 10) sdk.drawSmallText(6, y, "Appareils vus:", SDK_COLOR_OK, SDK_COLOR_BG);
+    y += 14;
+
+    for (int i = 0; i < deviceCount; ++i) {
+      int lineY = y + i * 14;
+      if (lineY < CONTENT_START_Y || lineY > sdk.height() - 10) continue;
+      snprintf(line, sizeof(line), "%02d %s - %s", i + 1, devices[i].ip.c_str(), devices[i].status.c_str());
+      sdk.drawSmallText(6, lineY, line);
+    }
+  }
+
+  if (scanningDevices || myNetError == "Connexion...") {
+    Rect c = cancelScanRect();
+    sdk.fillRect(c.x, c.y, c.w, c.h, SDK_COLOR_ERROR);
+    sdk.drawSmallText(8, c.y + 7, "Touchez ici pour annuler", SDK_COLOR_BG, SDK_COLOR_ERROR);
+  } else if (detailLine.length() > 0) {
+    Rect c = cancelScanRect();
+    sdk.fillRect(c.x, c.y, c.w, c.h, SDK_COLOR_BG);
+    sdk.drawSmallText(6, c.y + 7, detailLine.substring(0, 44).c_str(), SDK_COLOR_ACCENT, SDK_COLOR_BG);
+  }
+}
+
+void handleListTap(int tx, int ty) {
+  (void)tx;
+  if (ty < CONTENT_START_Y) return;
+
+  if (mode == SCREEN_WIFI_SCAN) {
+    int yBase = CONTENT_START_Y + 18 - scrollY;
+    for (int i = 0; i < scanCount; ++i) {
+      int y = yBase + i * 14;
+      if (ty >= y && ty <= y + 12) {
+        String ssid = scanResults[i].ssid.isEmpty() ? String("<SSID cache>") : scanResults[i].ssid;
+        detailLine = ssid + " | " + String((long)scanResults[i].rssi) + "dBm | CH" + String((int)scanResults[i].channel) + " | " + authToText(scanResults[i].encryption);
+        uiDirty = true;
+        return;
+      }
+    }
+    return;
+  }
+
+  int y = CONTENT_START_Y + 2 - scrollY;
+  y += 14; // SSID
+  y += 14; // Etat
+  y += 18; // IP
+  if (scanningDevices) y += 14;
+
+  if (deviceCount <= 0) return;
+  y += 14; // titre \"Appareils vus\"
+
+  for (int i = 0; i < deviceCount; ++i) {
+    int lineY = y + i * 14;
+    if (ty >= lineY && ty <= lineY + 12) {
+      detailLine = "Appareil " + String(i + 1) + ": " + devices[i].ip + " (" + devices[i].status + ")";
+      uiDirty = true;
+      return;
+    }
+  }
+}
+
+void drawScreen() {
+  drawTopBars();
+  if (mode == SCREEN_WIFI_SCAN) {
+    drawWifiScanScreen();
+  } else if (mode == SCREEN_MY_NETWORK) {
+    drawMyNetworkScreen();
+  } else if (mode == SCREEN_WIFI_HISTORY) {
+    drawWifiHistoryScreen();
+  } else {
+    drawDeviceHistoryScreen();
+  }
+}
+
+void handleTapActions() {
+  if (!touchInputArmed) {
+    if (millis() - bootMs < TOUCH_GUARD_MS) {
+      return;
+    }
+    if (!sdk.isTouchHeld() || sdk.isTouchReleased()) {
+      touchInputArmed = true;
+    }
+    return;
+  }
+
+  if (!sdk.isTouchPressed()) return;
+
+  int tx = sdk.touchX();
+  int ty = sdk.touchY();
+
+  if (pointInRect(tx, ty, quitRect())) {
+    sdk.requestReturnToLauncher();
+    return;
+  }
+
+  if (pointInRect(tx, ty, tabWifiRect())) {
+    mode = SCREEN_WIFI_SCAN;
+    scrollY = 0;
+    uiDirty = true;
+    return;
+  }
+
+  if (pointInRect(tx, ty, tabMyNetRect())) {
+    mode = SCREEN_MY_NETWORK;
+    scrollY = 0;
+    uiDirty = true;
+    return;
+  }
+
+  if (pointInRect(tx, ty, tabGraphRect())) {
+    mode = SCREEN_WIFI_HISTORY;
+    scrollY = 0;
+    uiDirty = true;
+    return;
+  }
+
+  if (pointInRect(tx, ty, tabInfoRect())) {
+    mode = SCREEN_DEVICE_HISTORY;
+    scrollY = 0;
+    uiDirty = true;
+    return;
+  }
+
+  if (pointInRect(tx, ty, primaryActionRect())) {
+    if (mode == SCREEN_WIFI_SCAN || mode == SCREEN_WIFI_HISTORY || mode == SCREEN_DEVICE_HISTORY) {
+      startWifiScan();
+    } else {
+      connectToMyNetwork();
+    }
+    uiDirty = true;
+    return;
+  }
+
+  if (pointInRect(tx, ty, secondaryActionRect()) && mode == SCREEN_MY_NETWORK && myNetConnected && !scanningDevices) {
+    beginDeviceScan();
+    uiDirty = true;
+    return;
+  }
+
+  handleListTap(tx, ty);
+}
+
+void setup() {
+  sdk.begin();
+  sdk.clear();
+  bootMs = millis();
+
+  WiFi.persistent(false);
+  WiFi.mode(WIFI_STA);
+  WiFi.disconnect(false, false);
+  scanCount = 0;
+  statsLoaded = false;
+  initialScanPending = true;
+  uiDirty = true;
+}
+
+void loop() {
+  sdk.updateInputs();
+  updateWifiScan();
+  updateDeviceScanStep();
+
+  if (scanningDevices && sdk.isTouchPressed() && pointInRect(sdk.touchX(), sdk.touchY(), cancelScanRect())) {
+    stopDeviceScan("Scan annule");
+  }
+
+  handleTapActions();
+
+  if (initialScanPending && millis() - bootMs > 500) {
+    startWifiScan();
+    initialScanPending = false;
+  }
+
+  if (!statsLoaded && millis() - bootMs > 1200) {
+    loadStatsJson();
+    statsLoaded = true;
+    uiDirty = true;
+  }
+
+  if (statsDirty && (millis() - lastStatsSaveMs > 2000)) {
+    saveStatsJson();
+    statsDirty = false;
+    lastStatsSaveMs = millis();
+  }
+
+  if (!initialScanPending && mode == SCREEN_WIFI_SCAN && !wifiScanRunning && (millis() - lastScanMs > WIFI_SCAN_REFRESH_MS)) {
+    startWifiScan();
+  }
+
+  if (uiDirty && (millis() - lastDrawMs >= UI_THROTTLE_MS)) {
+    drawScreen();
+    uiDirty = false;
+    lastDrawMs = millis();
+  }
+
+  if (millis() - lastUiMs < 4) delay(1);
+  lastUiMs = millis();
+}
