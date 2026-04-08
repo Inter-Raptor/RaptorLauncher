@@ -2,6 +2,8 @@
 #include <SPI.h>
 #include <SD.h>
 #include <ArduinoJson.h>
+#include <algorithm>
+#include <cctype>
 #include "storage_manager.h"
 
 #define SD_CS   5
@@ -71,7 +73,7 @@ std::vector<GameInfo> storageListGames() {
 
       game.bin = "game.bin";
       game.save = "sauv.json";
-      game.rom = "";
+      game.index = 30;
 
       String metaPath = "/games" + folderName + "/meta.json";
 
@@ -111,7 +113,7 @@ std::vector<GameInfo> storageListGames() {
 
           game.bin         = doc["bin"]         | "game.bin";
           game.save        = doc["save"]        | "sauv.json";
-          game.rom         = doc["rom"]         | "";
+          game.index       = doc["index"]       | (doc["indice"] | 30);
 
           Serial.print("[JSON] name = ");
           Serial.println(game.name);
@@ -139,10 +141,8 @@ std::vector<GameInfo> storageListGames() {
 
           Serial.print("[JSON] save = ");
           Serial.println(game.save);
-          if (game.rom.length() > 0) {
-            Serial.print("[JSON] rom = ");
-            Serial.println(game.rom);
-          }
+          Serial.print("[JSON] index = ");
+          Serial.println(game.index);
         }
       } else {
         Serial.println("[SD] meta.json absent ou impossible a ouvrir");
@@ -155,5 +155,16 @@ std::vector<GameInfo> storageListGames() {
   }
 
   root.close();
+
+  std::sort(list.begin(), list.end(), [](const GameInfo& a, const GameInfo& b) {
+    if (a.index != b.index) return a.index < b.index;
+
+    String an = a.name;
+    String bn = b.name;
+    an.toLowerCase();
+    bn.toLowerCase();
+    return an < bn;
+  });
+
   return list;
 }

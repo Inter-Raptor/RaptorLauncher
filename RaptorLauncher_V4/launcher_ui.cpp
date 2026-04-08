@@ -10,7 +10,6 @@
 #include "led_manager.h"
 #include "mcp23017_manager.h"
 #include "game_boot_manager.h"
-#include "gb_launch_config.h"
 #include "config.h"
 #include "types.h"
 
@@ -454,25 +453,6 @@ static void launchGameFromIndex(int index) {
   if (index < 0 || index >= (int)gameList.size()) return;
   const GameInfo& game = gameList[index];
   showGameTitleScreen(game);
-
-  if (game.type == "emulationGB") {
-    if (game.rom.length() == 0) {
-      Serial.println("[GB] rom manquante dans meta.json");
-      gSaveStatusText = "ROM manquante";
-      currentScreen = SCREEN_HOME;
-      gNeedsRedraw = true;
-      return;
-    }
-
-    String romPath = resolveGamePath(game, game.rom);
-    if (!gbLaunchSavePendingRom(romPath, game.name)) {
-      Serial.println("[GB] impossible d'ecrire .gb_launch.json");
-      gSaveStatusText = "Config GB KO";
-      currentScreen = SCREEN_HOME;
-      gNeedsRedraw = true;
-      return;
-    }
-  }
 
   String binPath = resolveGamePath(game, game.bin);
   bool ok = gameBootLaunchFromPath(binPath);
