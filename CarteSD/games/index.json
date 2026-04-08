@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "description": "Index manuel des jeux (ordre de menu recommande via indice).",
+  "entries": [
+    {
+      "indice": 3,
+      "folder": "DinoLife",
+      "meta": "DinoLife/meta.json"
+    },
+    {
+      "indice": 3,
+      "folder": "DinoBlaster",
+      "meta": "DinoBlaster/meta.json"
+    },
+    {
+      "indice": 30,
+      "folder": "DinoInvaders",
+      "meta": "DinoInvaders/meta.json"
+    },
+    {
+      "indice": 30,
+      "folder": "FlappyPtera",
+      "meta": "FlappyPtera/meta.json"
+    },
+    {
+      "indice": 3,
+      "folder": "JurassicBrickBreaker",
+      "meta": "JurassicBrickBreaker/meta.json"
+    },
+    {
+      "indice": 3,
+      "folder": "ParaRunner",
+      "meta": "ParaRunner/meta.json"
+    },
+    {
+      "indice": 30,
+      "folder": "PokemonBleu_GB",
+      "meta": "PokemonBleu_GB/meta.json"
+    },
+    {
+      "indice": 1,
+      "folder": "RaptorSDKTestLab",
+      "meta": "RaptorSDKTestLab/meta.json"
+    },
+    {
+      "indice": 2,
+      "folder": "WiFiTouchConsole",
+      "meta": "WiFiTouchConsole/meta.json"
+    }
+  ]
+}

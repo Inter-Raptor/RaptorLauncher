@@ -1,8 +1,9 @@
 {
   "name": "Pokemon Bleu (GB)",
   "author": "Inter-Raptor",
-  "description": "Lance Pokemon Bleu via emulateur GB ESP32",
-  "type": "mixed",
+  "description": "Lance Pokemon Bleu via emulateur GB ESP32.",
+  "type": "emulationGB",
+  "indice": 30,
   "icon": "icon.raw",
   "icon_w": 50,
   "icon_h": 50,
@@ -10,5 +11,6 @@
   "title_w": 320,
   "title_h": 240,
   "bin": "gb_emulator.bin",
-  "save": "sauv.json"
+  "save": "sauv.json",
+  "rom": "roms/PokemonBleu.gb"
 }
