@@ -12,5 +12,6 @@
   "title_w": 0,
   "title_h": 0,
   "bin": "game.bin",
-  "save": "sauv.json"
+  "save": "sauv.json",
+  "index": 3
 }
