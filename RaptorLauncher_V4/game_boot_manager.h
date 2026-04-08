@@ -4,3 +4,6 @@
 bool gameBootInit();
 bool gameBootLaunchFromPath(const String& binPath);
 bool gameBootMarkReturnToLauncher();
+void gameBootHandleLauncherBoot();
+void gameBootMarkLauncherStable();
+bool gameBootIsPathBlocked(const String& binPath, String& reason);

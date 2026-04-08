@@ -171,6 +171,14 @@ void displayDrawRect(int x, int y, int w, int h, uint16_t color) {
   lcd.drawRect(x, y, w, h, color);
 }
 
+void displayFillRoundRect(int x, int y, int w, int h, int radius, uint16_t color) {
+  lcd.fillRoundRect(x, y, w, h, radius, color);
+}
+
+void displayDrawRoundRect(int x, int y, int w, int h, int radius, uint16_t color) {
+  lcd.drawRoundRect(x, y, w, h, radius, color);
+}
+
 int displayWidth() {
   return lcd.width();
 }
