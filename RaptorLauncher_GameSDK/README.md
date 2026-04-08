@@ -95,6 +95,32 @@ if (sdk.hasPngSupport()) {
 - GIF/WebP non supportés.
 - Les wrappers audio WAV/MP3 sont bloquants (lecture synchrone).
 
+### ⚠️ Erreurs fréquentes à éviter (version courte)
+- Ne pas faire de redraw complet à chaque frame (risque de scintillement).
+- Éviter les boucles de rendu pixel-par-pixel (`fillRect(1x1)`), coûteuses en performances.
+- Ne pas lancer de tâches lourdes en `setup()` (scan réseau, traitements bloquants).
+- Caler tôt la physique + hitbox (stand/duck/jump) pour garder un gameplay cohérent.
+- Centraliser pins/constantes/timings pour faciliter debug et équilibrage.
+- Utiliser le moniteur série pour diagnostiquer vite (SD, meta, bin, mémoire, réseau).
+- Préférer un rendu événementiel: redraw uniquement quand l'état change.
+
+### Retours d'expérience DEV (version détaillée)
+- **Scintillement UI**
+  - Cause: redraw complet en boucle.
+  - Solution: rendu événementiel (redraw seulement quand l'état change).
+- **Chutes de performances**
+  - Cause: rendu pixel-par-pixel massif (`fillRect(1x1)` en doubles boucles).
+  - Solution: réduire ces zones, regrouper les dessins, pré-calculer ce qui peut l'être.
+- **Freeze / retour launcher au boot**
+  - Cause: opérations lourdes en `setup()`.
+  - Solution: setup minimal, puis traitement progressif en `loop()` (asynchrone/étagé).
+- **Collisions ou sensations de saut incohérentes**
+  - Cause: physique et hitbox réglées trop tard.
+  - Solution: verrouiller tôt `GRAVITY`, `JUMP_VELOCITY`, positions Y et presets hitbox.
+- **Debug difficile**
+  - Cause: constantes dispersées et manque de logs.
+  - Solution: centraliser les paramètres clés + logs série simples (`spawn/hit/despawn/state`).
+
 ---
 
 ## 5) Règles PRO prévues
