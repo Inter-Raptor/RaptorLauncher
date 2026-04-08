@@ -8,9 +8,6 @@
 static Preferences gPrefs;
 static const char* PREF_NS = "raptor_boot";
 static const char* PREF_LAUNCHER_LABEL = "launcher";
-static const char* PREF_PENDING_BIN = "pending_bin";
-static const char* PREF_FAIL_COUNT = "fail_count";
-static const char* PREF_BLOCKED_BIN = "blocked_bin";
 
 static bool selectTargetOta(const esp_partition_t* running, const esp_partition_t*& target) {
   if (running->subtype == ESP_PARTITION_SUBTYPE_APP_OTA_0) {
@@ -34,8 +31,6 @@ bool gameBootLaunchFromPath(const String& binPath) {
 
   const esp_partition_t* target = nullptr;
   if (!selectTargetOta(running, target)) return false;
-
-  gPrefs.putString(PREF_PENDING_BIN, binPath);
 
   File f = SD.open(binPath, FILE_READ);
   if (!f) {
@@ -91,35 +86,4 @@ bool gameBootMarkReturnToLauncher() {
   const esp_partition_t* launcher = esp_partition_find_first(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_ANY, label.c_str());
   if (!launcher) return false;
   return esp_ota_set_boot_partition(launcher) == ESP_OK;
-}
-
-void gameBootHandleLauncherBoot() {
-  String pending = gPrefs.getString(PREF_PENDING_BIN, "");
-  if (pending.length() == 0) {
-    return;
-  }
-
-  uint8_t failCount = (uint8_t)gPrefs.getUChar(PREF_FAIL_COUNT, 0);
-  failCount++;
-  gPrefs.putUChar(PREF_FAIL_COUNT, failCount);
-  Serial.printf("[SAFE] retour launcher apres tentative: %s (echecs=%u)\n", pending.c_str(), (unsigned)failCount);
-
-  if (failCount >= 2) {
-    gPrefs.putString(PREF_BLOCKED_BIN, pending);
-    Serial.printf("[SAFE] jeu bloque temporairement: %s\n", pending.c_str());
-  }
-}
-
-void gameBootMarkLauncherStable() {
-  if (gPrefs.getString(PREF_PENDING_BIN, "").length() == 0) return;
-  gPrefs.putString(PREF_PENDING_BIN, "");
-  gPrefs.putUChar(PREF_FAIL_COUNT, 0);
-}
-
-bool gameBootIsPathBlocked(const String& binPath, String& reason) {
-  String blocked = gPrefs.getString(PREF_BLOCKED_BIN, "");
-  if (blocked.length() == 0) return false;
-  if (blocked != binPath) return false;
-  reason = "SAFE_MODE_BLOCKED";
-  return true;
 }

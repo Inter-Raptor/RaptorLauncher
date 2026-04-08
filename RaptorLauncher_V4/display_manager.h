@@ -13,8 +13,6 @@ void displayDrawCenteredText(int y, const char* text);
 
 void displayFillRect(int x, int y, int w, int h, uint16_t color);
 void displayDrawRect(int x, int y, int w, int h, uint16_t color);
-void displayFillRoundRect(int x, int y, int w, int h, int radius, uint16_t color);
-void displayDrawRoundRect(int x, int y, int w, int h, int radius, uint16_t color);
 
 bool displayDrawRAW(const char* path, int x, int y, int width, int height);
 bool displayDrawBMP(const char* path, int x, int y);

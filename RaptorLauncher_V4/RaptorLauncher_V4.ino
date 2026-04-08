@@ -33,7 +33,6 @@ void setup() {
   ledManagerSetBrightness(settingsGet().led_brightness);
   mcp23017Init();
   gameBootInit();
-  gameBootHandleLauncherBoot();
 
   wifiManagerInit();
   
@@ -44,18 +43,10 @@ void setup() {
 }
 
 void loop() {
-  static bool bootMarkedStable = false;
-  static unsigned long bootMs = millis();
-
   wifiManagerUpdate();
   touchUpdate();   // <<< IMPORTANT : mise a jour tactile
   inputUpdate();
   launcherUpdate();
   launcherRender();
-
-  if (!bootMarkedStable && millis() - bootMs > 3000) {
-    gameBootMarkLauncherStable();
-    bootMarkedStable = true;
-  }
   delay(16);
 }

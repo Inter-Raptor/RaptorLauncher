@@ -28,7 +28,6 @@ void settingsSetDefaults() {
   gSettings.touch_offset_y = 0;
   gSettings.led_brightness = 40;
   gSettings.language = 0;
-  gSettings.settings_icon_mode = false;
 }
 
 SystemSettings& settingsGet() {
@@ -49,7 +48,6 @@ bool settingsSave() {
   doc["touch_offset_y"] = gSettings.touch_offset_y;
   doc["led_brightness"] = gSettings.led_brightness;
   doc["language"] = gSettings.language;
-  doc["settings_icon_mode"] = gSettings.settings_icon_mode;
 
   if (SD.exists(SETTINGS_TMP_PATH)) {
     SD.remove(SETTINGS_TMP_PATH);
@@ -124,7 +122,6 @@ bool settingsInit() {
   gSettings.touch_offset_y = clampValue(doc["touch_offset_y"] | 0, -80, 80);
   gSettings.led_brightness = clampValue(doc["led_brightness"] | 40, 0, 100);
   gSettings.language = clampValue(doc["language"] | 0, 0, 4);
-  gSettings.settings_icon_mode = doc["settings_icon_mode"] | false;
 
   Serial.print("[SETTINGS] volume = ");
   Serial.println(gSettings.volume);
@@ -151,8 +148,6 @@ bool settingsInit() {
   Serial.println(gSettings.led_brightness);
   Serial.print("[SETTINGS] language = ");
   Serial.println(gSettings.language);
-  Serial.print("[SETTINGS] settings_icon_mode = ");
-  Serial.println(gSettings.settings_icon_mode ? "icon" : "text");
 
   return true;
 }

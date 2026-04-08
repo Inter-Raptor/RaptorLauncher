@@ -1,6 +1,5 @@
 #include <Arduino.h>
 #include <vector>
-#include <SD.h>
 #include "launcher_ui.h"
 #include "display_manager.h"
 #include "touch_manager.h"
@@ -31,9 +30,6 @@ static bool gWifiBusy = false;
 static String gWifiStatusText = "";
 static String gSaveStatusText = "";
 static int gLedSelectedColor = 0;
-static bool gShowSplashDone = false;
-static int gTouchFeedbackZone = 0;
-static unsigned long gTouchFeedbackUntilMs = 0;
 
 enum LauncherScreen {
   SCREEN_HOME,
@@ -82,22 +78,12 @@ static const uint16_t COLOR_INFO_BOX   = 0x7D7C;
 static const uint16_t COLOR_INFO_TEXT  = 0xFFFF;
 static const uint16_t COLOR_PLAY_BOX   = 0x07E0;
 static const uint16_t COLOR_PLAY_TEXT  = 0xFFFF;
-static const uint16_t COLOR_HOME_PANEL = 0x18E3;
-static const uint16_t COLOR_HOME_FOOTER = 0x1082;
-static const uint16_t COLOR_TOUCH_FEEDBACK = 0x07FF;
-
-static const char* HOME_BG_RAW = "/launcher/home_bg.raw";
-static const char* HOME_BG_BMP = "/launcher/home_bg.bmp";
-static const char* SPLASH_RAW = "/launcher/splash.raw";
-static const char* SPLASH_BMP = "/launcher/splash.bmp";
-static const char* SPLASH_WAV = "/launcher/splash.wav";
 
 // --------------------------------------------------
 // Home
 // --------------------------------------------------
 static const int ICON_W = 50;
 static const int ICON_H = 50;
-static const int ICON_RADIUS = 5;
 static const int SLOT_COUNT_PER_PAGE = 10;
 
 static const int ROW1_Y = 12;
@@ -138,10 +124,6 @@ static const int INFO_BACK_X = 222;
 static const int INFO_BACK_Y = 202;
 static const int INFO_BACK_W = 90;
 static const int INFO_BACK_H = 34;
-static const int PAGE_INDICATOR_X = 134;
-static const int PAGE_INDICATOR_Y = 206;
-static const int PAGE_INDICATOR_W = 52;
-static const int PAGE_INDICATOR_H = 26;
 
 // --------------------------------------------------
 // Settings fixed layout
@@ -242,8 +224,7 @@ enum TextKey {
   TK_WIFI, TK_SSID, TK_LED, TK_OPEN, TK_TAP, TK_RESET_SETTINGS, TK_BACK, TK_SAVE, TK_CANCEL,
   TK_LED_PICK_TITLE, TK_LED_PICK_HINT, TK_LED_BRIGHTNESS, TK_LED_OFF_HINT, TK_WIFI_ON, TK_WIFI_OFF,
   TK_CALIB_DONE, TK_SAVE_CALIB_Q, TK_KEEP_OLD, TK_OK_SAVED, TK_SAVE_ERROR,
-  TK_PARAMETERS_BTN, TK_NEXT_PAGE, TK_PAGE1, TK_PLAY, TK_CALIB_TITLE, TK_TOUCH_5CROSS,
-  TK_PREV_PAGE, TK_HOME_BTN_MODE, TK_TEXT_MODE, TK_ICON_MODE
+  TK_PARAMETERS_BTN, TK_NEXT_PAGE, TK_PAGE1, TK_PLAY, TK_CALIB_TITLE, TK_TOUCH_5CROSS
 };
 
 static const char* tr(TextKey key) {
@@ -281,11 +262,7 @@ static const char* tr(TextKey key) {
     {"Page 1","Page 1","Pagina 1","Seite 1","Pagina 1"},
     {"Play","Jouer","Jugar","Spielen","Gioca"},
     {"Calibration","Calibration","Calibracion","Kalibrierung","Calibrazione"},
-    {"Touch the 5 crosses","Touchez les 5 croix","Toque las 5 cruces","Beruehre die 5 Kreuze","Tocca le 5 croci"},
-    {"Prev page","Page precedente","Pagina ant.","Vorherige Seite","Pagina precedente"},
-    {"Settings button","Bouton Parametres","Boton Ajustes","Einstellungen-Taste","Pulsante Impostazioni"},
-    {"Text","Texte","Texto","Text","Testo"},
-    {"Icon","Icone","Icono","Icone","Icona"}
+    {"Touch the 5 crosses","Touchez les 5 croix","Toque las 5 cruces","Beruehre die 5 Kreuze","Tocca le 5 croci"}
   };
   return T[key][lang];
 }
@@ -366,22 +343,6 @@ static void getInfoBoxHitRectForSlot(int slot, int &x, int &y, int &w, int &h) {
 
 static void drawFooterButton(int x, int y, const char* text) {
   displayDrawText(x, y + 8, text);
-}
-
-static bool isTouchFeedbackActive(int zoneId) {
-  return gTouchFeedbackZone == zoneId && millis() < gTouchFeedbackUntilMs;
-}
-
-static void drawHomeFooterButton(int x, int y, int w, int h, const char* text, int feedbackId) {
-  uint16_t border = isTouchFeedbackActive(feedbackId) ? COLOR_TOUCH_FEEDBACK : COLOR_INFO_TEXT;
-  displayFillRoundRect(x, y, w, h, 6, COLOR_HOME_FOOTER);
-  displayDrawRoundRect(x, y, w, h, 6, border);
-  displayDrawSmallText(x + 10, y + 12, text);
-}
-
-static void markTouchFeedback(int zoneId) {
-  gTouchFeedbackZone = zoneId;
-  gTouchFeedbackUntilMs = millis() + 140;
 }
 
 static void drawPlayButton(int x, int y, int w, int h, const char* text) {
@@ -489,70 +450,9 @@ static void showGameTitleScreen(const GameInfo& game) {
   gNeedsRedraw = true;
 }
 
-static void showSplashIfAvailable() {
-  if (gShowSplashDone) return;
-  gShowSplashDone = true;
-
-  bool splashImageOk = displayDrawRAW(SPLASH_RAW, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
-  if (!splashImageOk) {
-    splashImageOk = displayDrawBMP(SPLASH_BMP, 0, 0);
-  }
-  if (!splashImageOk) {
-    Serial.println("[SPLASH] image absente/corrompue, skip image");
-  }
-
-  bool splashAudioOk = audioPlayWav(SPLASH_WAV, 1000);
-  if (!splashAudioOk) {
-    delay(1000);
-  }
-}
-
-enum LaunchDiagCode {
-  LAUNCH_OK = 0,
-  LAUNCH_ERR_META,
-  LAUNCH_ERR_BIN_MISSING,
-  LAUNCH_ERR_ROM_MISSING,
-  LAUNCH_ERR_SAFE_MODE
-};
-
-static LaunchDiagCode precheckGameLaunch(const GameInfo& game, String& reason) {
-  if (!game.metaValid) {
-    reason = "META_JSON_INVALID";
-    return LAUNCH_ERR_META;
-  }
-
-  if (game.type == "emulationGB" && game.rom.length() == 0) {
-    reason = "ROM_MISSING";
-    return LAUNCH_ERR_ROM_MISSING;
-  }
-
-  String binPath = resolveGamePath(game, game.bin);
-  if (!SD.exists(binPath)) {
-    reason = "BIN_MISSING";
-    return LAUNCH_ERR_BIN_MISSING;
-  }
-
-  if (gameBootIsPathBlocked(binPath, reason)) {
-    return LAUNCH_ERR_SAFE_MODE;
-  }
-
-  reason = "OK";
-  return LAUNCH_OK;
-}
-
 static void launchGameFromIndex(int index) {
   if (index < 0 || index >= (int)gameList.size()) return;
   const GameInfo& game = gameList[index];
-  String preReason;
-  LaunchDiagCode pre = precheckGameLaunch(game, preReason);
-  if (pre != LAUNCH_OK) {
-    Serial.printf("[DIAG] launch refuse (%s) jeu=%s\n", preReason.c_str(), game.name.c_str());
-    gSaveStatusText = String("Launch: ") + preReason;
-    currentScreen = SCREEN_HOME;
-    gNeedsRedraw = true;
-    return;
-  }
-
   showGameTitleScreen(game);
 
   if (game.type == "emulationGB") {
@@ -587,22 +487,14 @@ static void launchGameFromIndex(int index) {
 // Draw
 // --------------------------------------------------
 static void drawHomeScreen() {
-  bool bgOk = displayDrawRAW(HOME_BG_RAW, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
-  if (!bgOk) {
-    bgOk = displayDrawBMP(HOME_BG_BMP, 0, 0);
-  }
-  if (!bgOk) {
-    displayClear();
-  }
+  displayClear();
 
   int pageCount = totalPages();
 
   if (pageCount > 1) {
     char pageBuf[32];
     snprintf(pageBuf, sizeof(pageBuf), "%d/%d", currentPage + 1, pageCount);
-    displayFillRoundRect(PAGE_INDICATOR_X, PAGE_INDICATOR_Y, PAGE_INDICATOR_W, PAGE_INDICATOR_H, 6, COLOR_HOME_FOOTER);
-    displayDrawRoundRect(PAGE_INDICATOR_X, PAGE_INDICATOR_Y, PAGE_INDICATOR_W, PAGE_INDICATOR_H, 6, COLOR_INFO_TEXT);
-    displayDrawSmallText(PAGE_INDICATOR_X + 14, PAGE_INDICATOR_Y + 10, pageBuf);
+    displayDrawSmallText(286, 4, pageBuf);
   }
 
   int start = pageStartIndex();
@@ -620,13 +512,11 @@ static void drawHomeScreen() {
     if (game.icon.length() > 0 && game.iconW > 0 && game.iconH > 0) {
       String path = resolveGamePath(game, game.icon);
 
-      displayFillRoundRect(x, y, ICON_W, ICON_H, ICON_RADIUS, COLOR_HOME_PANEL);
       if (game.icon.endsWith(".raw")) {
         imageOk = displayDrawRAW(path.c_str(), x, y, game.iconW, game.iconH);
       } else if (game.icon.endsWith(".bmp")) {
         imageOk = displayDrawBMP(path.c_str(), x, y);
       }
-      displayDrawRoundRect(x, y, ICON_W, ICON_H, ICON_RADIUS, COLOR_INFO_TEXT);
     }
 
     if (!imageOk) {
@@ -642,22 +532,20 @@ static void drawHomeScreen() {
     String line1, line2;
     splitLabelTwoLines(game.name, line1, line2);
 
-    displayFillRoundRect(x - 2, y + LABEL_OFFSET_Y_LINE1 - 2, ICON_W + 4, 18, 4, COLOR_HOME_PANEL);
     displayDrawSmallText(x, y + LABEL_OFFSET_Y_LINE1, line1.c_str());
     if (line2.length() > 0) {
       displayDrawSmallText(x, y + LABEL_OFFSET_Y_LINE2, line2.c_str());
     }
   }
 
-  if (settingsGet().settings_icon_mode) {
-    drawHomeFooterButton(BTN_LEFT_X, BTN_LEFT_Y, BTN_LEFT_W, BTN_LEFT_H, "[=]", 1);
-  } else {
-    drawHomeFooterButton(BTN_LEFT_X, BTN_LEFT_Y, BTN_LEFT_W, BTN_LEFT_H, tr(TK_PARAMETERS_BTN), 1);
-  }
+  drawFooterButton(BTN_LEFT_X, BTN_LEFT_Y, tr(TK_PARAMETERS_BTN));
 
   if (pageCount > 1) {
-    if (currentPage > 0) drawHomeFooterButton(BTN_RIGHT_X, BTN_RIGHT_Y, BTN_RIGHT_W, BTN_RIGHT_H, tr(TK_PREV_PAGE), 2);
-    else drawHomeFooterButton(BTN_RIGHT_X, BTN_RIGHT_Y, BTN_RIGHT_W, BTN_RIGHT_H, tr(TK_NEXT_PAGE), 2);
+    if (currentPage < pageCount - 1) {
+      drawFooterButton(BTN_RIGHT_X, BTN_RIGHT_Y, tr(TK_NEXT_PAGE));
+    } else {
+      drawFooterButton(BTN_RIGHT_X, BTN_RIGHT_Y, tr(TK_PAGE1));
+    }
   }
 }
 
@@ -708,9 +596,14 @@ static void drawSettingsScreen() {
     }
   }
 
-  // Bouton Parametres (texte / icone)
+  // SSID
   displayDrawRect(4, SET_ROW6_Y - 2, 312, 16, COLOR_INFO_TEXT);
-  drawSettingsRowLabel(SET_ROW6_Y, tr(TK_HOME_BTN_MODE), settingsGet().settings_icon_mode ? tr(TK_ICON_MODE) : tr(TK_TEXT_MODE), 220);
+  drawSettingsRowLabel(SET_ROW6_Y, tr(TK_SSID), nullptr);
+  if (settingsGet().wifi_ssid.length() > 0) {
+    displayDrawSmallText(80, SET_ROW6_Y + SET_TEXT_Y_OFFSET, settingsGet().wifi_ssid.c_str());
+  } else {
+    displayDrawSmallText(80, SET_ROW6_Y + SET_TEXT_Y_OFFSET, "non configure");
+  }
 
   // Test commandes physiques
   displayDrawRect(4, SET_ROW7_Y - 2, 312, 16, COLOR_INFO_TEXT);
@@ -964,7 +857,6 @@ static int hitTestHomeInfo(int x, int y) {
 // --------------------------------------------------
 void launcherInit() {
   Serial.println("[LAUNCHER] init");
-  showSplashIfAvailable();
   gameList = storageListGames();
   currentPage = 0;
   currentScreen = SCREEN_HOME;
@@ -981,14 +873,8 @@ void launcherInit() {
 
 void launcherUpdate() {
   static bool wasTouching = false;
-  static bool feedbackWasActive = false;
 
   bool touching = gTouchPressed;
-  bool feedbackActiveNow = millis() < gTouchFeedbackUntilMs;
-  if (feedbackWasActive && !feedbackActiveNow && currentScreen == SCREEN_HOME) {
-    gNeedsRedraw = true;
-  }
-  feedbackWasActive = feedbackActiveNow;
 
   gTouchLiveActive = false;
 
@@ -1095,26 +981,16 @@ void launcherUpdate() {
           launchGameFromIndex(hitGame);
         }
         else if (pointInRect(gLastTouchX, gLastTouchY, BTN_LEFT_X, BTN_LEFT_Y, BTN_LEFT_W, BTN_LEFT_H)) {
-          markTouchFeedback(1);
           currentScreen = SCREEN_SETTINGS;
           gNeedsRedraw = true;
         }
         else if (pointInRect(gLastTouchX, gLastTouchY, BTN_RIGHT_X, BTN_RIGHT_Y, BTN_RIGHT_W, BTN_RIGHT_H)) {
-          markTouchFeedback(2);
           int pageCount = totalPages();
           if (pageCount > 1) {
-            if (currentPage > 0) {
-              currentPage--;
-            } else {
-              currentPage++;
-              if (currentPage >= pageCount) currentPage = 0;
-            }
+            currentPage++;
+            if (currentPage >= pageCount) currentPage = 0;
             gNeedsRedraw = true;
           }
-        }
-        else if (pointInRect(gLastTouchX, gLastTouchY, PAGE_INDICATOR_X, PAGE_INDICATOR_Y, PAGE_INDICATOR_W, PAGE_INDICATOR_H)) {
-          currentPage = 0;
-          gNeedsRedraw = true;
         }
       }
     }
@@ -1150,11 +1026,6 @@ void launcherUpdate() {
       }
       else if (pointInRect(gLastTouchX, gLastTouchY, 8, SET_ROW8_Y, 312, 14)) {
         audioTestBeep();
-        gNeedsRedraw = true;
-      }
-      else if (pointInRect(gLastTouchX, gLastTouchY, 8, SET_ROW6_Y, 312, 14)) {
-        settingsGet().settings_icon_mode = !settingsGet().settings_icon_mode;
-        saveSettingsNow();
         gNeedsRedraw = true;
       }
       else if (pointInRect(gLastTouchX, gLastTouchY, 8, SET_ROW9_Y, 312, 14)) {

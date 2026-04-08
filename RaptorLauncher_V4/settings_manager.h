@@ -16,7 +16,6 @@ struct SystemSettings {
   int touch_offset_y;
   int led_brightness;
   int language; // 0=EN,1=FR,2=ES,3=DE,4=IT
-  bool settings_icon_mode; // false=texte, true=icone
 };
 
 bool settingsInit();
