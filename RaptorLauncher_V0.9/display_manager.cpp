@@ -215,6 +215,17 @@ bool displayDrawRAW(const char* path, int x, int y, int width, int height) {
     return false;
   }
 
+  size_t expectedSize = (size_t)width * (size_t)height * 2;
+  size_t fileSize = (size_t)rawFile.size();
+  if (fileSize != expectedSize) {
+    Serial.print("[RAW] taille fichier invalide. attendu=");
+    Serial.print(expectedSize);
+    Serial.print(" octets, recu=");
+    Serial.println(fileSize);
+    rawFile.close();
+    return false;
+  }
+
   if (x >= lcd.width() || y >= lcd.height()) {
     Serial.println("[RAW] image hors ecran");
     rawFile.close();

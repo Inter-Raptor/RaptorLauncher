@@ -16,9 +16,16 @@ static int clampValue(int v, int minV, int maxV) {
 void settingsSetDefaults() {
   gSettings.volume = 80;
   gSettings.brightness = 100;
+  gSettings.boot_splash_ms = 1500;
+  gSettings.boot_splash_w = 320;
+  gSettings.boot_splash_h = 240;
 
   gSettings.wifi_ssid = "";
   gSettings.wifi_pass = "";
+  gSettings.boot_splash_raw = "";
+  gSettings.home_bg_raw = "";
+  gSettings.home_bg_w = 320;
+  gSettings.home_bg_h = 240;
 
   gSettings.touch_x_min = 200;
   gSettings.touch_x_max = 3800;
@@ -38,8 +45,15 @@ bool settingsSave() {
   JsonDocument doc;
   doc["volume"] = gSettings.volume;
   doc["brightness"] = gSettings.brightness;
+  doc["boot_splash_ms"] = gSettings.boot_splash_ms;
+  doc["boot_splash_w"] = gSettings.boot_splash_w;
+  doc["boot_splash_h"] = gSettings.boot_splash_h;
   doc["wifi_ssid"] = gSettings.wifi_ssid;
   doc["wifi_pass"] = gSettings.wifi_pass;
+  doc["boot_splash_raw"] = gSettings.boot_splash_raw;
+  doc["home_bg_raw"] = gSettings.home_bg_raw;
+  doc["home_bg_w"] = gSettings.home_bg_w;
+  doc["home_bg_h"] = gSettings.home_bg_h;
   doc["touch_x_min"] = gSettings.touch_x_min;
   doc["touch_x_max"] = gSettings.touch_x_max;
   doc["touch_y_min"] = gSettings.touch_y_min;
@@ -110,9 +124,16 @@ bool settingsInit() {
 
   gSettings.volume = clampValue(doc["volume"] | 80, 0, 100);
   gSettings.brightness = clampValue(doc["brightness"] | 100, 0, 100);
+  gSettings.boot_splash_ms = clampValue(doc["boot_splash_ms"] | 1500, 0, 10000);
+  gSettings.boot_splash_w = clampValue(doc["boot_splash_w"] | 320, 1, 1024);
+  gSettings.boot_splash_h = clampValue(doc["boot_splash_h"] | 240, 1, 1024);
 
   gSettings.wifi_ssid = doc["wifi_ssid"] | "";
   gSettings.wifi_pass = doc["wifi_pass"] | "";
+  gSettings.boot_splash_raw = doc["boot_splash_raw"] | "";
+  gSettings.home_bg_raw = doc["home_bg_raw"] | "";
+  gSettings.home_bg_w = clampValue(doc["home_bg_w"] | 320, 1, 1024);
+  gSettings.home_bg_h = clampValue(doc["home_bg_h"] | 240, 1, 1024);
 
   gSettings.touch_x_min = doc["touch_x_min"] | 200;
   gSettings.touch_x_max = doc["touch_x_max"] | 3800;
@@ -128,9 +149,23 @@ bool settingsInit() {
 
   Serial.print("[SETTINGS] brightness = ");
   Serial.println(gSettings.brightness);
+  Serial.print("[SETTINGS] boot_splash_ms = ");
+  Serial.println(gSettings.boot_splash_ms);
+  Serial.print("[SETTINGS] boot_splash_w = ");
+  Serial.println(gSettings.boot_splash_w);
+  Serial.print("[SETTINGS] boot_splash_h = ");
+  Serial.println(gSettings.boot_splash_h);
 
   Serial.print("[SETTINGS] wifi_ssid = ");
   Serial.println(gSettings.wifi_ssid);
+  Serial.print("[SETTINGS] boot_splash_raw = ");
+  Serial.println(gSettings.boot_splash_raw);
+  Serial.print("[SETTINGS] home_bg_raw = ");
+  Serial.println(gSettings.home_bg_raw);
+  Serial.print("[SETTINGS] home_bg_w = ");
+  Serial.println(gSettings.home_bg_w);
+  Serial.print("[SETTINGS] home_bg_h = ");
+  Serial.println(gSettings.home_bg_h);
 
   Serial.print("[SETTINGS] touch_x_min = ");
   Serial.println(gSettings.touch_x_min);

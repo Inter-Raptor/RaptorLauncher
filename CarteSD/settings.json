@@ -1,6 +1,13 @@
 {
   "volume": 30,
   "brightness": 25,
+  "boot_splash_raw": "/boot.raw",
+  "boot_splash_ms": 1500,
+  "boot_splash_w": 320,
+  "boot_splash_h": 240,
+  "home_bg_raw": "/home_bg.raw",
+  "home_bg_w": 320,
+  "home_bg_h": 240,
   "wifi_ssid": "VivienJardot",
   "wifi_pass": "VivienJardot1991",
   "touch_x_min": 317,

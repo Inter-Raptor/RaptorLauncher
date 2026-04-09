@@ -51,3 +51,42 @@
 
 ## Historique / corrigé
 Certaines remarques anciennes peuvent être partiellement obsolètes (ex. correctifs matériels/pins RGB déjà appliqués). Conserver ces points comme **historique**, et préciser l'état **corrigé/non corrigé** au fur et à mesure.
+
+## Vérification rapide — RaptorLauncher_V0.9
+
+### Fond d'écran de l'accueil (derrière les icônes)
+- Dans `RaptorLauncher_V0.9`, l'écran d'accueil efface d'abord l'écran avec `displayClear()`, puis dessine les icônes de jeux.
+- Il n'y a pas de chargement d'image de fond globale pour la grille de jeux (pas de `home_bg` lu depuis la SD dans `drawHomeScreen()`).
+- Résultat : en l'état, la v0.9 n'affiche pas de fond d'écran derrière les icônes sur la page qui liste les jeux.
+
+### Ordre d'affichage des jeux
+- L'ordre est bien modifiable via `meta.json` de chaque jeu avec le champ `index` (ou `indice` en fallback).
+- Le launcher trie d'abord par `index` croissant.
+- En cas d'égalité d'`index`, il trie ensuite par nom (`name`) en ordre alphabétique.
+
+### Action pratique
+- Pour changer l'ordre, modifier `index` dans `CarteSD/games/<NomDuJeu>/meta.json`, puis redémarrer le launcher.
+
+## Nouveaux réglages v0.9 (images RAW)
+
+Dans `settings.json` à la racine de la SD :
+
+```json
+{
+  "boot_splash_raw": "/boot.raw",
+  "boot_splash_ms": 1500,
+  "boot_splash_w": 320,
+  "boot_splash_h": 240,
+  "home_bg_raw": "/home_bg.raw",
+  "home_bg_w": 320,
+  "home_bg_h": 240
+}
+```
+
+- `boot_splash_raw` : image RAW affichée au démarrage (si absente/invalide = démarrage classique).
+- `boot_splash_ms` : durée d'affichage au boot en millisecondes (0 à 10000).
+- `boot_splash_w` / `boot_splash_h` : dimensions EXACTES du fichier RAW de splash.
+- `home_bg_raw` : fond RAW de l'écran d'accueil (les icônes et noms des jeux sont dessinés par-dessus).
+- `home_bg_w` / `home_bg_h` : dimensions EXACTES du fichier RAW du fond d'accueil.
+- Le bouton **Paramètres** de l'accueil est remplacé par une icône **roue dentée** dessinée en code (pas chargée depuis la SD).
+- Si les dimensions ne correspondent pas au fichier RAW, l'image peut apparaître brouillée/cassée.
