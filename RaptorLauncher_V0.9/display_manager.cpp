@@ -102,6 +102,78 @@ static bool readLE32(File& f, uint32_t& value) {
   return true;
 }
 
+enum class RawByteOrder {
+  BigEndian,
+  LittleEndian
+};
+
+static uint16_t readRawPixelFromBytes(const uint8_t* bytes, RawByteOrder order) {
+  if (order == RawByteOrder::LittleEndian) {
+    return (uint16_t)bytes[0] | ((uint16_t)bytes[1] << 8);
+  }
+  return ((uint16_t)bytes[0] << 8) | (uint16_t)bytes[1];
+}
+
+static int colorDiffScore565(uint16_t a, uint16_t b) {
+  int ar = (a >> 11) & 0x1F;
+  int ag = (a >> 5)  & 0x3F;
+  int ab = a & 0x1F;
+
+  int br = (b >> 11) & 0x1F;
+  int bg = (b >> 5)  & 0x3F;
+  int bb = b & 0x1F;
+
+  int dr = ar - br;
+  int dg = ag - bg;
+  int db = ab - bb;
+  if (dr < 0) dr = -dr;
+  if (dg < 0) dg = -dg;
+  if (db < 0) db = -db;
+  return dr + dg + db;
+}
+
+static uint32_t rawSmoothnessScore(const uint8_t* bytes, int width, int rows, RawByteOrder order) {
+  uint32_t score = 0;
+  for (int y = 0; y < rows; y++) {
+    const uint8_t* rowPtr = bytes + (y * width * 2);
+    for (int x = 0; x < width; x++) {
+      uint16_t cur = readRawPixelFromBytes(rowPtr + x * 2, order);
+      if (x > 0) {
+        uint16_t left = readRawPixelFromBytes(rowPtr + (x - 1) * 2, order);
+        score += (uint32_t)colorDiffScore565(cur, left);
+      }
+      if (y > 0) {
+        const uint8_t* prevRow = bytes + ((y - 1) * width * 2);
+        uint16_t top = readRawPixelFromBytes(prevRow + x * 2, order);
+        score += (uint32_t)colorDiffScore565(cur, top);
+      }
+    }
+  }
+  return score;
+}
+
+static RawByteOrder detectRawByteOrder(File& rawFile, int width, int height) {
+  const int sampleRows = (height < 8) ? height : 8;
+  if (width <= 0 || sampleRows <= 0) return RawByteOrder::BigEndian;
+
+  const size_t sampleBytes = (size_t)width * (size_t)sampleRows * 2u;
+  uint8_t* sample = (uint8_t*)malloc(sampleBytes);
+  if (!sample) return RawByteOrder::BigEndian;
+
+  size_t readCount = rawFile.read(sample, sampleBytes);
+  RawByteOrder selected = RawByteOrder::BigEndian;
+
+  if (readCount == sampleBytes) {
+    uint32_t scoreBE = rawSmoothnessScore(sample, width, sampleRows, RawByteOrder::BigEndian);
+    uint32_t scoreLE = rawSmoothnessScore(sample, width, sampleRows, RawByteOrder::LittleEndian);
+    selected = (scoreLE < scoreBE) ? RawByteOrder::LittleEndian : RawByteOrder::BigEndian;
+  }
+
+  free(sample);
+  rawFile.seek(0);
+  return selected;
+}
+
 // ======================================================
 // API PUBLIQUE
 // ======================================================
@@ -240,19 +312,23 @@ bool displayDrawRAW(const char* path, int x, int y, int width, int height) {
     return false;
   }
 
+  RawByteOrder byteOrder = detectRawByteOrder(rawFile, width, height);
+  Serial.print("[RAW] byte order detecte: ");
+  Serial.println(byteOrder == RawByteOrder::LittleEndian ? "RGB565_LE" : "RGB565_BE");
+
   lcd.setSwapBytes(true);
 
   for (int row = 0; row < drawHeight; row++) {
     for (int col = 0; col < drawWidth; col++) {
-      uint8_t hi, lo;
-      if (rawFile.read(&hi, 1) != 1 || rawFile.read(&lo, 1) != 1) {
+      uint8_t px[2];
+      if (rawFile.read(px, 2) != 2) {
         Serial.println("[RAW] lecture pixel impossible");
         lcd.setSwapBytes(false);
         free(lineBuffer);
         rawFile.close();
         return false;
       }
-      lineBuffer[col] = ((uint16_t)hi << 8) | (uint16_t)lo;
+      lineBuffer[col] = readRawPixelFromBytes(px, byteOrder);
     }
 
     if (width > drawWidth) {
