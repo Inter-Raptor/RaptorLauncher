@@ -218,6 +218,12 @@ static String resolveGamePath(const GameInfo& game, const String& path) {
   return String(SD_MOUNT_POINT) + game.folder + "/" + path;
 }
 
+static String resolveSdPath(const String& path) {
+  if (path.length() == 0) return "";
+  if (path.startsWith("/")) return path;
+  return String("/") + path;
+}
+
 enum TextKey {
   TK_SETTINGS, TK_VOLUME, TK_BRIGHTNESS, TK_AUDIO_TEST, TK_TOUCH_TEST, TK_TOUCH_CALIB, TK_LANGUAGE,
   TK_WIFI, TK_SSID, TK_LED, TK_OPEN, TK_TAP, TK_RESET_SETTINGS, TK_BACK, TK_SAVE, TK_CANCEL,
@@ -342,6 +348,39 @@ static void getInfoBoxHitRectForSlot(int slot, int &x, int &y, int &w, int &h) {
 
 static void drawFooterButton(int x, int y, const char* text) {
   displayDrawText(x, y + 8, text);
+}
+
+static void drawSettingsGearButton(int x, int y) {
+  static const uint16_t GEAR16[16] = {
+    0b0000000110000000,
+    0b0000011111100000,
+    0b0000111001110000,
+    0b0001110000111000,
+    0b0011100000011100,
+    0b0011001111001100,
+    0b0110011111100110,
+    0b0110011001100110,
+    0b0110011001100110,
+    0b0110011111100110,
+    0b0011001111001100,
+    0b0011100000011100,
+    0b0001110000111000,
+    0b0000111001110000,
+    0b0000011111100000,
+    0b0000000110000000
+  };
+
+  int iconX = x + 16;
+  int iconY = y + 8;
+
+  for (int row = 0; row < 16; row++) {
+    for (int col = 0; col < 16; col++) {
+      bool on = (GEAR16[row] >> (15 - col)) & 0x1;
+      if (on) {
+        displayFillRect(iconX + col, iconY + row, 1, 1, COLOR_TEXT);
+      }
+    }
+  }
 }
 
 static void drawPlayButton(int x, int y, int w, int h, const char* text) {
@@ -469,6 +508,13 @@ static void launchGameFromIndex(int index) {
 static void drawHomeScreen() {
   displayClear();
 
+  String bgPath = resolveSdPath(settingsGet().home_bg_raw);
+  if (bgPath.length() > 0) {
+    if (!displayDrawRAW(bgPath.c_str(), 0, 0, settingsGet().home_bg_w, settingsGet().home_bg_h)) {
+      Serial.println("[LAUNCHER] home_bg_raw absent/invalide -> fond classique");
+    }
+  }
+
   int pageCount = totalPages();
 
   if (pageCount > 1) {
@@ -518,7 +564,7 @@ static void drawHomeScreen() {
     }
   }
 
-  drawFooterButton(BTN_LEFT_X, BTN_LEFT_Y, tr(TK_PARAMETERS_BTN));
+  drawSettingsGearButton(BTN_LEFT_X, BTN_LEFT_Y);
 
   if (pageCount > 1) {
     if (currentPage < pageCount - 1) {
@@ -848,6 +894,16 @@ void launcherInit() {
   gWifiStatusText = "";
   gLedSelectedColor = 0;
   ledManagerOff();
+
+  String splashPath = resolveSdPath(settingsGet().boot_splash_raw);
+  if (splashPath.length() > 0) {
+    if (displayDrawRAW(splashPath.c_str(), 0, 0, settingsGet().boot_splash_w, settingsGet().boot_splash_h)) {
+      delay(settingsGet().boot_splash_ms);
+    } else {
+      Serial.println("[LAUNCHER] boot_splash_raw absent/invalide -> demarrage classique");
+    }
+  }
+
   gNeedsRedraw = true;
 }
 
