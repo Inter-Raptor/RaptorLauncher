@@ -22,6 +22,10 @@ void setup() {
   displayInit();
   storageInit();
 
+  if (!displayDrawRAW("/boot.raw", 0, 0, 320, 240)) {
+    displayDrawRAW("/boot.bg.raw", 0, 0, 320, 240);
+  }
+
   settingsInit();
 
   touchInit();

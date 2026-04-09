@@ -124,6 +124,9 @@ static const int INFO_BACK_Y = 202;
 static const int INFO_BACK_W = 90;
 static const int INFO_BACK_H = 34;
 
+static const int SCREEN_RAW_W = 320;
+static const int SCREEN_RAW_H = 240;
+
 // --------------------------------------------------
 // Settings fixed layout
 // --------------------------------------------------
@@ -463,11 +466,42 @@ static void launchGameFromIndex(int index) {
   }
 }
 
+
+static bool drawHomeBackground() {
+  struct BgCandidate {
+    const char* path;
+    bool isRaw;
+  };
+
+  static const BgCandidate CANDIDATES[] = {
+    {"/home_bg.raw", true},
+    {"/home.bg.raw", true},
+    {"/home_bg.bmp", false},
+    {"/home.bg.bmp", false}
+  };
+
+  for (const BgCandidate& c : CANDIDATES) {
+    bool ok = c.isRaw
+      ? displayDrawRAW(c.path, 0, 0, SCREEN_RAW_W, SCREEN_RAW_H)
+      : displayDrawBMP(c.path, 0, 0);
+    if (ok) {
+      Serial.print("[UI] fond home charge: ");
+      Serial.println(c.path);
+      return true;
+    }
+  }
+
+  Serial.println("[UI] fond home absent, fond uni utilise");
+  return false;
+}
+
 // --------------------------------------------------
 // Draw
 // --------------------------------------------------
 static void drawHomeScreen() {
-  displayClear();
+  if (!drawHomeBackground()) {
+    displayClear();
+  }
 
   int pageCount = totalPages();
 
