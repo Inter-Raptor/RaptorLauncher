@@ -84,6 +84,52 @@ static uint16_t bmpColorTo565(uint8_t r, uint8_t g, uint8_t b) {
   return lcd.color565(r, g, b);
 }
 
+static inline int c565r(uint16_t c) { return (c >> 11) & 0x1F; }
+static inline int c565g(uint16_t c) { return (c >> 5) & 0x3F; }
+static inline int c565b(uint16_t c) { return c & 0x1F; }
+
+static bool detectRawLittleEndian(File& rawFile) {
+  const int SAMPLE_PIXELS = 256;
+  const int SAMPLE_BYTES = SAMPLE_PIXELS * 2;
+
+  uint8_t sample[SAMPLE_BYTES];
+  int n = rawFile.read(sample, SAMPLE_BYTES);
+  rawFile.seek(0);
+
+  if (n < 8) {
+    return true;
+  }
+
+  long scoreLE = 0;
+  long scoreBE = 0;
+  bool hasPrev = false;
+  uint16_t prevLE = 0;
+  uint16_t prevBE = 0;
+
+  for (int i = 0; i + 1 < n; i += 2) {
+    uint8_t b0 = sample[i];
+    uint8_t b1 = sample[i + 1];
+    uint16_t pxLE = ((uint16_t)b1 << 8) | (uint16_t)b0;
+    uint16_t pxBE = ((uint16_t)b0 << 8) | (uint16_t)b1;
+
+    if (hasPrev) {
+      scoreLE += abs(c565r(pxLE) - c565r(prevLE));
+      scoreLE += abs(c565g(pxLE) - c565g(prevLE));
+      scoreLE += abs(c565b(pxLE) - c565b(prevLE));
+
+      scoreBE += abs(c565r(pxBE) - c565r(prevBE));
+      scoreBE += abs(c565g(pxBE) - c565g(prevBE));
+      scoreBE += abs(c565b(pxBE) - c565b(prevBE));
+    }
+
+    prevLE = pxLE;
+    prevBE = pxBE;
+    hasPrev = true;
+  }
+
+  return scoreLE <= scoreBE;
+}
+
 static bool readLE16(File& f, uint16_t& value) {
   uint8_t b0, b1;
   if (f.read(&b0, 1) != 1) return false;
@@ -251,19 +297,27 @@ bool displayDrawRAW(const char* path, int x, int y, int width, int height) {
     return false;
   }
 
-  lcd.setSwapBytes(true);
+  bool littleEndian = detectRawLittleEndian(rawFile);
+  Serial.print("[RAW] endian detecte: ");
+  Serial.println(littleEndian ? "LE" : "BE");
+
+  lcd.setSwapBytes(false);
 
   for (int row = 0; row < drawHeight; row++) {
     for (int col = 0; col < drawWidth; col++) {
-      uint8_t hi, lo;
-      if (rawFile.read(&hi, 1) != 1 || rawFile.read(&lo, 1) != 1) {
+      uint8_t b0, b1;
+      if (rawFile.read(&b0, 1) != 1 || rawFile.read(&b1, 1) != 1) {
         Serial.println("[RAW] lecture pixel impossible");
         lcd.setSwapBytes(false);
         free(lineBuffer);
         rawFile.close();
         return false;
       }
-      lineBuffer[col] = ((uint16_t)hi << 8) | (uint16_t)lo;
+      if (littleEndian) {
+        lineBuffer[col] = ((uint16_t)b1 << 8) | (uint16_t)b0;
+      } else {
+        lineBuffer[col] = ((uint16_t)b0 << 8) | (uint16_t)b1;
+      }
     }
 
     if (width > drawWidth) {

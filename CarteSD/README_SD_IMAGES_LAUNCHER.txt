@@ -23,5 +23,5 @@ Notes :
 - boot_splash_w / boot_splash_h et home_bg_w / home_bg_h doivent correspondre EXACTEMENT a la taille du fichier RAW.
 - Si ton image est exportee en 240x320, mets 240x320 dans le settings (sinon l'image parait brouillee/cassee).
 - Si boot.raw ou home_bg.raw n'existe pas (ou est invalide), le launcher reste en mode classique.
-- Format attendu : RAW RGB565.
+- Format attendu : RAW RGB565 (endianness LE/BE detectee automatiquement par le launcher).
 - Taille conseillee : 320x240 pour eviter recadrage/perte.

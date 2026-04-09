@@ -90,3 +90,4 @@ Dans `settings.json` à la racine de la SD :
 - `home_bg_w` / `home_bg_h` : dimensions EXACTES du fichier RAW du fond d'accueil.
 - Le bouton **Paramètres** de l'accueil est remplacé par une icône **roue dentée** dessinée en code (pas chargée depuis la SD).
 - Si les dimensions ne correspondent pas au fichier RAW, l'image peut apparaître brouillée/cassée.
+- L'affichage RAW détecte automatiquement l'endianness (LE/BE) pour éviter les couleurs corrompues.
