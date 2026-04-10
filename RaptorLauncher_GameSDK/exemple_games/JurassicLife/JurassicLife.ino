@@ -1,4 +1,4 @@
-// tamadinov4.ino - ESP32 WROOM + CYD 2432S032R/2432S028 (ST7789) + LovyanGFX
+// tamadinov1.ino - ESP32 WROOM + CYD 2432S032R/2432S028 (ST7789) + LovyanGFX
 #include <stdint.h>
 
 // ================== CONFIG RAPIDE (à modifier en premier) ==================

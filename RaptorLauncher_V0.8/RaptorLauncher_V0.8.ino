@@ -17,7 +17,7 @@ void setup() {
   delay(200);
 
   Serial.println();
-  Serial.println("=== RaptorLauncher V4 ===");
+  Serial.println("=== RaptorLauncher V1 ===");
 
   displayInit();
   storageInit();
