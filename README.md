@@ -24,14 +24,31 @@ Si un jeu plante, on veut un retour launcher propre au boot suivant.
 4. **Fallback visuel** si image absente/corrompue (`home_bg.bmp`, `splash.bmp`).
 5. **Logs série** activés pendant le dev.
 
-## 3) Ta mini checklist avant test
+## 3) Aperçu visuel (images + GIF)
+
+> Tu me l’as demandé : voici les visuels directement dans le README principal ✅
+
+### 🚀 Lancement du launcher
+![Animation lancement launcher](presentation%20Lancement%20Launcher.gif)
+
+### 🧩 Pages applications
+![Page 1 applications](page1%20des%20application.jpg)
+![Page 2 applications](page2%20des%20application.jpg)
+
+### ⚙️ Paramètres
+![Affichage des paramètres](affichage%20des%20setting%20parametre.jpg)
+
+### 🎮 Présentation jeux / applications
+![Présentation jeux et applications](Presentation%20de%20queljeu%20et%20application.gif)
+
+## 4) Ta mini checklist avant test
 - [ ] le launcher démarre sans freeze
 - [ ] la pagination est claire et tactile
 - [ ] un jeu invalide est refusé proprement
 - [ ] retour launcher fonctionne après reboot forcé
 - [ ] pas de redraw complet en boucle inutile
 
-## 4) Résumé “ce qui casse le plus souvent”
+## 5) Résumé “ce qui casse le plus souvent”
 - trop de choses lancées dans `setup()`
 - grosses images mal dimensionnées
 - scans réseau bloquants
