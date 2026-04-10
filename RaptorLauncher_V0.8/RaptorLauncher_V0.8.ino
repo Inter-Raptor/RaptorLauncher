@@ -21,12 +21,12 @@ void setup() {
 
   displayInit();
   storageInit();
+  settingsInit();
 
   if (!displayDrawRAW("/boot.raw", 0, 0, 320, 240)) {
     displayDrawRAW("/boot.bg.raw", 0, 0, 320, 240);
   }
-
-  settingsInit();
+  delay(settingsGet().boot_splash_ms);
 
   touchInit();
   displaySetBrightness(map(settingsGet().brightness, 0, 100, 10, 255));

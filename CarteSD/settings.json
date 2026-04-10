@@ -1,4 +1,5 @@
 {
+  "_comment_general": "Reglages globaux du launcher. Les cles _comment_* sont informatives.",
   "volume": 30,
   "brightness": 25,
   "wifi_ssid": "VivienJardot",
@@ -10,5 +11,15 @@
   "touch_offset_x": 0,
   "touch_offset_y": -2,
   "led_brightness": 5,
-  "language": 1
+  "language": 1,
+  "show_info_badge": true,
+  "_comment_show_info_badge": "true = affiche le petit carre ? sur les icones.",
+  "text_color_mode": "white",
+  "_comment_text_color_mode": "Valeurs: white (defaut), red, black, hex.",
+  "text_color_hex": "#FFFFFF",
+  "_comment_text_color_hex": "Utilise seulement si text_color_mode = hex (format #RRGGBB).",
+  "boot_splash_ms": 1500,
+  "_comment_boot_splash_ms": "Duree affichage boot.raw en millisecondes (0 a 10000).",
+  "title_splash_ms": 3000,
+  "_comment_title_splash_ms": "Duree affichage ecran titre jeu avant lancement (0 a 15000)."
 }
