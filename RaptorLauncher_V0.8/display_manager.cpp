@@ -155,6 +155,13 @@ void displayDrawSmallTextColor(int x, int y, const char* text, uint16_t fg, uint
   lcd.print(text);
 }
 
+void displayDrawSmallTextTransparentColor(int x, int y, const char* text, uint16_t fg) {
+  lcd.setTextColor(fg);
+  lcd.setTextSize(1);
+  lcd.setCursor(x, y);
+  lcd.print(text);
+}
+
 void displayDrawCenteredText(int y, const char* text) {
   lcd.setTextSize(2);
   int w = lcd.textWidth(text);
@@ -169,6 +176,23 @@ void displayFillRect(int x, int y, int w, int h, uint16_t color) {
 
 void displayDrawRect(int x, int y, int w, int h, uint16_t color) {
   lcd.drawRect(x, y, w, h, color);
+}
+
+void displayDrawRoundRect(int x, int y, int w, int h, int r, uint16_t color) {
+  lcd.drawRoundRect(x, y, w, h, r, color);
+}
+
+void displayDrawSpriteRGB565Key(const uint16_t* pixels, int width, int height, uint16_t transparentKey, int x, int y, bool mirrorX) {
+  if (pixels == nullptr || width <= 0 || height <= 0) return;
+
+  for (int py = 0; py < height; ++py) {
+    for (int px = 0; px < width; ++px) {
+      int srcX = mirrorX ? (width - 1 - px) : px;
+      uint16_t color = pgm_read_word(&pixels[py * width + srcX]);
+      if (color == transparentKey) continue;
+      lcd.drawPixel(x + px, y + py, color);
+    }
+  }
 }
 
 int displayWidth() {

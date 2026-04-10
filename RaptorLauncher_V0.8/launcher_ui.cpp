@@ -12,6 +12,8 @@
 #include "game_boot_manager.h"
 #include "config.h"
 #include "types.h"
+#include "../Sprites/generated_headers/Fleche.h"
+#include "../Sprites/generated_headers/Engrenage.h"
 
 static bool gNeedsRedraw = true;
 static int gLastTouchX = -1;
@@ -83,36 +85,38 @@ static const uint16_t COLOR_PLAY_TEXT  = 0xFFFF;
 // --------------------------------------------------
 static const int ICON_W = 50;
 static const int ICON_H = 50;
-static const int SLOT_COUNT_PER_PAGE = 10;
+static const int SLOT_COUNT_PER_PAGE = 8;
 
-static const int ROW1_Y = 12;
-static const int ROW2_Y = 80;
-static const int ROW3_Y = 140;
+static const int ROW1_Y = 18;
+static const int ROW2_Y = 96;
 
 static const int COL1_X = 15;
 static const int COL2_X = 90;
 static const int COL3_X = 165;
 static const int COL4_X = 240;
 
-static const int ROW3_COL1_X = 72;
-static const int ROW3_COL2_X = 197;
-
-static const int LABEL_OFFSET_Y_LINE1 = 52;
-static const int LABEL_OFFSET_Y_LINE2 = 60;
+static const int LABEL_OFFSET_Y_LINE1 = 54;
+static const int LABEL_OFFSET_Y_LINE2 = 62;
+static const int ICON_CORNER_RADIUS = 6;
 
 static const int INFO_BOX_SIZE = 10;
 static const int INFO_HITBOX_SIZE = 20;
 
-static const int FOOTER_Y = 202;
-static const int BTN_LEFT_X = 8;
-static const int BTN_LEFT_Y = FOOTER_Y;
-static const int BTN_LEFT_W = 110;
-static const int BTN_LEFT_H = 34;
+static const int FOOTER_Y = 198;
+static const int BTN_PREV_X = 10;
+static const int BTN_PREV_Y = FOOTER_Y;
+static const int BTN_PREV_W = 32;
+static const int BTN_PREV_H = 32;
 
-static const int BTN_RIGHT_X = 202;
-static const int BTN_RIGHT_Y = FOOTER_Y;
-static const int BTN_RIGHT_W = 110;
-static const int BTN_RIGHT_H = 34;
+static const int BTN_NEXT_X = 278;
+static const int BTN_NEXT_Y = FOOTER_Y;
+static const int BTN_NEXT_W = 32;
+static const int BTN_NEXT_H = 32;
+
+static const int BTN_SETTINGS_W = 144;
+static const int BTN_SETTINGS_H = 34;
+static const int BTN_SETTINGS_X = (320 - BTN_SETTINGS_W) / 2;
+static const int BTN_SETTINGS_Y = 196;
 
 static const int INFO_PLAY_X = 8;
 static const int INFO_PLAY_Y = 202;
@@ -215,6 +219,47 @@ static int clampValue(int v, int minV, int maxV) {
   return v;
 }
 
+static uint16_t rgb888To565(uint8_t r, uint8_t g, uint8_t b) {
+  return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
+}
+
+static bool hexToNibble(char c, uint8_t& out) {
+  if (c >= '0' && c <= '9') { out = (uint8_t)(c - '0'); return true; }
+  if (c >= 'a' && c <= 'f') { out = (uint8_t)(10 + c - 'a'); return true; }
+  if (c >= 'A' && c <= 'F') { out = (uint8_t)(10 + c - 'A'); return true; }
+  return false;
+}
+
+static bool parseHexColor(const String& input, uint16_t& out565) {
+  String s = input;
+  s.trim();
+  if (s.startsWith("#")) s.remove(0, 1);
+  if (s.length() != 6) return false;
+
+  uint8_t nib[6];
+  for (int i = 0; i < 6; ++i) {
+    if (!hexToNibble(s[i], nib[i])) return false;
+  }
+
+  uint8_t r = (nib[0] << 4) | nib[1];
+  uint8_t g = (nib[2] << 4) | nib[3];
+  uint8_t b = (nib[4] << 4) | nib[5];
+  out565 = rgb888To565(r, g, b);
+  return true;
+}
+
+static uint16_t getLauncherTextColor() {
+  String mode = settingsGet().text_color_mode;
+  mode.toLowerCase();
+  if (mode == "red") return 0xF800;
+  if (mode == "black") return 0x0000;
+  if (mode == "hex") {
+    uint16_t parsed = 0xFFFF;
+    if (parseHexColor(settingsGet().text_color_hex, parsed)) return parsed;
+  }
+  return 0xFFFF;
+}
+
 static String resolveGamePath(const GameInfo& game, const String& path) {
   if (path.length() == 0) return "";
   if (path.startsWith("/")) return path;
@@ -307,8 +352,6 @@ static void getSlotRect(int slot, int &x, int &y, int &w, int &h) {
     case 5: x = COL2_X; y = ROW2_Y; break;
     case 6: x = COL3_X; y = ROW2_Y; break;
     case 7: x = COL4_X; y = ROW2_Y; break;
-    case 8: x = ROW3_COL1_X; y = ROW3_Y; break;
-    case 9: x = ROW3_COL2_X; y = ROW3_Y; break;
     default: x = 0; y = 0; break;
   }
 }
@@ -448,7 +491,7 @@ static void showGameTitleScreen(const GameInfo& game) {
     displayDrawCenteredText(90, game.name.c_str());
   }
 
-  delay(3000);
+  delay(clampValue(settingsGet().title_splash_ms, 0, 15000));
   gNeedsRedraw = true;
 }
 
@@ -504,11 +547,12 @@ static void drawHomeScreen() {
   }
 
   int pageCount = totalPages();
+  uint16_t textColor = getLauncherTextColor();
 
   if (pageCount > 1) {
     char pageBuf[32];
     snprintf(pageBuf, sizeof(pageBuf), "%d/%d", currentPage + 1, pageCount);
-    displayDrawSmallText(286, 4, pageBuf);
+    displayDrawSmallTextTransparentColor(286, 4, pageBuf, textColor);
   }
 
   int start = pageStartIndex();
@@ -534,32 +578,37 @@ static void drawHomeScreen() {
     }
 
     if (!imageOk) {
-      displayDrawSmallText(x + 8, y + 20, "KO");
+      displayDrawSmallTextTransparentColor(x + 8, y + 20, "KO", textColor);
     }
 
-    int qx, qy, qw, qh;
-    getInfoBoxDrawRectForSlot(slot, qx, qy, qw, qh);
-    displayFillRect(qx, qy, qw, qh, COLOR_INFO_BOX);
-    displayDrawRect(qx, qy, qw, qh, COLOR_INFO_TEXT);
-    displayDrawSmallTextColor(qx + 2, qy + 1, "?", COLOR_INFO_TEXT, COLOR_INFO_BOX);
+    displayDrawRoundRect(x, y, ICON_W, ICON_H, ICON_CORNER_RADIUS, COLOR_INFO_TEXT);
+
+    if (settingsGet().show_info_badge) {
+      int qx, qy, qw, qh;
+      getInfoBoxDrawRectForSlot(slot, qx, qy, qw, qh);
+      displayFillRect(qx, qy, qw, qh, COLOR_INFO_BOX);
+      displayDrawRect(qx, qy, qw, qh, COLOR_INFO_TEXT);
+      displayDrawSmallTextColor(qx + 2, qy + 1, "?", COLOR_INFO_TEXT, COLOR_INFO_BOX);
+    }
 
     String line1, line2;
     splitLabelTwoLines(game.name, line1, line2);
 
-    displayDrawSmallText(x, y + LABEL_OFFSET_Y_LINE1, line1.c_str());
+    displayDrawSmallTextTransparentColor(x, y + LABEL_OFFSET_Y_LINE1, line1.c_str(), textColor);
     if (line2.length() > 0) {
-      displayDrawSmallText(x, y + LABEL_OFFSET_Y_LINE2, line2.c_str());
+      displayDrawSmallTextTransparentColor(x, y + LABEL_OFFSET_Y_LINE2, line2.c_str(), textColor);
     }
   }
 
-  drawFooterButton(BTN_LEFT_X, BTN_LEFT_Y, tr(TK_PARAMETERS_BTN));
+  displayDrawSpriteRGB565Key(Engrenage, EngrenageW, EngrenageH, EngrenageKEY, BTN_SETTINGS_X + 10, BTN_SETTINGS_Y + 1);
+  displayDrawSmallTextTransparentColor(BTN_SETTINGS_X + 52, BTN_SETTINGS_Y + 12, tr(TK_PARAMETERS_BTN), textColor);
 
-  if (pageCount > 1) {
-    if (currentPage < pageCount - 1) {
-      drawFooterButton(BTN_RIGHT_X, BTN_RIGHT_Y, tr(TK_NEXT_PAGE));
-    } else {
-      drawFooterButton(BTN_RIGHT_X, BTN_RIGHT_Y, tr(TK_PAGE1));
-    }
+  if (pageCount > 1 && currentPage > 0) {
+    displayDrawSpriteRGB565Key(Fleche, FlecheW, FlecheH, FlecheKEY, BTN_PREV_X, BTN_PREV_Y, true);
+  }
+
+  if (pageCount > 1 && currentPage < pageCount - 1) {
+    displayDrawSpriteRGB565Key(Fleche, FlecheW, FlecheH, FlecheKEY, BTN_NEXT_X, BTN_NEXT_Y, false);
   }
 }
 
@@ -840,7 +889,7 @@ static int hitTestHomeGameImage(int x, int y) {
     int qx, qy, qw, qh;
     getInfoBoxHitRectForSlot(slot, qx, qy, qw, qh);
 
-    if (pointInRect(x, y, qx, qy, qw, qh)) continue;
+    if (settingsGet().show_info_badge && pointInRect(x, y, qx, qy, qw, qh)) continue;
     if (pointInRect(x, y, ix, iy, iw, ih)) return gameIndex;
   }
 
@@ -855,8 +904,10 @@ static int hitTestHomeInfo(int x, int y) {
     if (gameIndex >= (int)gameList.size()) break;
 
     int qx, qy, qw, qh;
-    getInfoBoxHitRectForSlot(slot, qx, qy, qw, qh);
-    if (pointInRect(x, y, qx, qy, qw, qh)) return gameIndex;
+    if (settingsGet().show_info_badge) {
+      getInfoBoxHitRectForSlot(slot, qx, qy, qw, qh);
+      if (pointInRect(x, y, qx, qy, qw, qh)) return gameIndex;
+    }
 
     int lx, ly, lw, lh;
     getLabelRectForSlot(slot, lx, ly, lw, lh);
@@ -994,15 +1045,21 @@ void launcherUpdate() {
         if (hitGame >= 0 && hitGame < (int)gameList.size()) {
           launchGameFromIndex(hitGame);
         }
-        else if (pointInRect(gLastTouchX, gLastTouchY, BTN_LEFT_X, BTN_LEFT_Y, BTN_LEFT_W, BTN_LEFT_H)) {
+        else if (pointInRect(gLastTouchX, gLastTouchY, BTN_SETTINGS_X, BTN_SETTINGS_Y, BTN_SETTINGS_W, BTN_SETTINGS_H)) {
           currentScreen = SCREEN_SETTINGS;
           gNeedsRedraw = true;
         }
-        else if (pointInRect(gLastTouchX, gLastTouchY, BTN_RIGHT_X, BTN_RIGHT_Y, BTN_RIGHT_W, BTN_RIGHT_H)) {
+        else if (pointInRect(gLastTouchX, gLastTouchY, BTN_NEXT_X, BTN_NEXT_Y, BTN_NEXT_W, BTN_NEXT_H)) {
           int pageCount = totalPages();
-          if (pageCount > 1) {
+          if (pageCount > 1 && currentPage < pageCount - 1) {
             currentPage++;
-            if (currentPage >= pageCount) currentPage = 0;
+            gNeedsRedraw = true;
+          }
+        }
+        else if (pointInRect(gLastTouchX, gLastTouchY, BTN_PREV_X, BTN_PREV_Y, BTN_PREV_W, BTN_PREV_H)) {
+          int pageCount = totalPages();
+          if (pageCount > 1 && currentPage > 0) {
+            currentPage--;
             gNeedsRedraw = true;
           }
         }

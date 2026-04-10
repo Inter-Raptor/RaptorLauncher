@@ -28,6 +28,11 @@ void settingsSetDefaults() {
   gSettings.touch_offset_y = 0;
   gSettings.led_brightness = 40;
   gSettings.language = 0;
+  gSettings.show_info_badge = true;
+  gSettings.text_color_mode = "white";
+  gSettings.text_color_hex = "#FFFFFF";
+  gSettings.boot_splash_ms = 1500;
+  gSettings.title_splash_ms = 3000;
 }
 
 SystemSettings& settingsGet() {
@@ -48,6 +53,11 @@ bool settingsSave() {
   doc["touch_offset_y"] = gSettings.touch_offset_y;
   doc["led_brightness"] = gSettings.led_brightness;
   doc["language"] = gSettings.language;
+  doc["show_info_badge"] = gSettings.show_info_badge;
+  doc["text_color_mode"] = gSettings.text_color_mode;
+  doc["text_color_hex"] = gSettings.text_color_hex;
+  doc["boot_splash_ms"] = gSettings.boot_splash_ms;
+  doc["title_splash_ms"] = gSettings.title_splash_ms;
 
   if (SD.exists(SETTINGS_TMP_PATH)) {
     SD.remove(SETTINGS_TMP_PATH);
@@ -122,6 +132,12 @@ bool settingsInit() {
   gSettings.touch_offset_y = clampValue(doc["touch_offset_y"] | 0, -80, 80);
   gSettings.led_brightness = clampValue(doc["led_brightness"] | 40, 0, 100);
   gSettings.language = clampValue(doc["language"] | 0, 0, 4);
+  gSettings.show_info_badge = doc["show_info_badge"] | true;
+  gSettings.text_color_mode = String((const char*)(doc["text_color_mode"] | "white"));
+  gSettings.text_color_mode.toLowerCase();
+  gSettings.text_color_hex = doc["text_color_hex"] | "#FFFFFF";
+  gSettings.boot_splash_ms = clampValue(doc["boot_splash_ms"] | 1500, 0, 10000);
+  gSettings.title_splash_ms = clampValue(doc["title_splash_ms"] | 3000, 0, 15000);
 
   Serial.print("[SETTINGS] volume = ");
   Serial.println(gSettings.volume);
@@ -148,6 +164,16 @@ bool settingsInit() {
   Serial.println(gSettings.led_brightness);
   Serial.print("[SETTINGS] language = ");
   Serial.println(gSettings.language);
+  Serial.print("[SETTINGS] show_info_badge = ");
+  Serial.println(gSettings.show_info_badge ? "true" : "false");
+  Serial.print("[SETTINGS] text_color_mode = ");
+  Serial.println(gSettings.text_color_mode);
+  Serial.print("[SETTINGS] text_color_hex = ");
+  Serial.println(gSettings.text_color_hex);
+  Serial.print("[SETTINGS] boot_splash_ms = ");
+  Serial.println(gSettings.boot_splash_ms);
+  Serial.print("[SETTINGS] title_splash_ms = ");
+  Serial.println(gSettings.title_splash_ms);
 
   return true;
 }
