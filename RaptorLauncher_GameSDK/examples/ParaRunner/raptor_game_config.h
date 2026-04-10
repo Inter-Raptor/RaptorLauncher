@@ -1,7 +1,7 @@
 #pragma once
 
 // -----------------------------------------------------------------------------
-// Profil hardware recommande pour RaptorLauncher V4
+// Profil hardware recommande pour RaptorLauncher V1
 // -----------------------------------------------------------------------------
 #define SDK_SCREEN_WIDTH   320
 #define SDK_SCREEN_HEIGHT  240
