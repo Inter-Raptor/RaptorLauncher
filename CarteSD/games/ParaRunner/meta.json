@@ -1,0 +1,17 @@
+{
+  "name": "ParaRunner",
+  "author": "Inter-Raptor",
+  "version": "1.2.0",
+  "description": "Runner Parasaurolophus jouable au tactile et aux boutons.",
+  "type": "game",
+  "indice": 3,
+  "icon": "",
+  "icon_w": 0,
+  "icon_h": 0,
+  "title": "",
+  "title_w": 0,
+  "title_h": 0,
+  "bin": "game.bin",
+  "save": "sauv.json",
+  "index": 3
+}

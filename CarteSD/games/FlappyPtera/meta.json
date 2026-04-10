@@ -1,0 +1,16 @@
+{
+  "name": "Flappy Ptera",
+  "author": "Vivien",
+  "description": "Jeu de reflexe type Flappy Bird avec un pteranodon.",
+  "type": "game",
+  "indice": 30,
+  "icon": "icon.raw",
+  "icon_w": 50,
+  "icon_h": 50,
+  "title": "title.raw",
+  "title_w": 320,
+  "title_h": 240,
+  "bin": "game.bin",
+  "save": "sauv.json",
+  "index": 30
+}

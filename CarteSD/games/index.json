@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "description": "Index manuel des jeux (ordre de menu recommande via index/indice).",
+  "entries": [
+    {
+      "index": 1,
+      "indice": 1,
+      "folder": "RaptorSDKTestLab",
+      "meta": "RaptorSDKTestLab/meta.json"
+    },
+    {
+      "index": 2,
+      "indice": 2,
+      "folder": "WiFiTouchConsole",
+      "meta": "WiFiTouchConsole/meta.json"
+    },
+    {
+      "index": 3,
+      "indice": 3,
+      "folder": "DinoBlaster",
+      "meta": "DinoBlaster/meta.json"
+    },
+    {
+      "index": 3,
+      "indice": 3,
+      "folder": "DinoLife",
+      "meta": "DinoLife/meta.json"
+    },
+    {
+      "index": 3,
+      "indice": 3,
+      "folder": "JurassicBrickBreaker",
+      "meta": "JurassicBrickBreaker/meta.json"
+    },
+    {
+      "index": 3,
+      "indice": 3,
+      "folder": "ParaRunner",
+      "meta": "ParaRunner/meta.json"
+    },
+    {
+      "index": 30,
+      "indice": 30,
+      "folder": "DinoInvaders",
+      "meta": "DinoInvaders/meta.json"
+    },
+    {
+      "index": 30,
+      "indice": 30,
+      "folder": "FlappyPtera",
+      "meta": "FlappyPtera/meta.json"
+    }
+  ]
+}

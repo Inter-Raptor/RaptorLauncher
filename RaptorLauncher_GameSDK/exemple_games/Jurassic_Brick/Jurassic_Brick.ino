@@ -33,7 +33,7 @@
 enum SfxId : uint8_t;
 
 // =====================================================
-// Pins RaptorLauncher V4
+// Pins RaptorLauncher V1
 // =====================================================
 static constexpr int TFT_SCLK = 14;
 static constexpr int TFT_MOSI = 13;
@@ -473,7 +473,7 @@ void requestLauncherOnNextBoot() {
   prefs.putBool("boot_launcher", true);
   prefs.end();
 
-  // Compat RaptorLauncher V4 OTA: retourne explicitement vers la partition launcher.
+  // Compat RaptorLauncher V1 OTA: retourne explicitement vers la partition launcher.
   prefs.begin("raptor_boot", false);
   String launcherLabel = prefs.getString("launcher", "");
   prefs.end();
