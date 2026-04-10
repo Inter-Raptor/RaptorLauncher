@@ -1,0 +1,21 @@
+Type: animation
+Nom: Ptera
+Header: Ptera.h
+Taille commune: 37x22
+Couleur KEY RGB565: 0xF81F
+Nombre de frames: 13
+
+Ordre des frames:
+1 -> ptera.png -> Ptera1
+2 -> ptera - Copie.png -> Ptera2
+3 -> ptera - Copie (2).png -> Ptera3
+4 -> ptera - Copie (3).png -> Ptera4
+5 -> ptera - Copie (4).png -> Ptera5
+6 -> ptera - Copie (5).png -> Ptera6
+7 -> ptera - Copie (6).png -> Ptera7
+8 -> ptera - Copie (7).png -> Ptera8
+9 -> ptera - Copie (8).png -> Ptera9
+10 -> ptera - Copie (9).png -> Ptera10
+11 -> ptera - Copie (10).png -> Ptera11
+12 -> ptera - Copie (11).png -> Ptera12
+13 -> ptera - Copie (12).png -> Ptera13

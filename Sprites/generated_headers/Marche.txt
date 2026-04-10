@@ -1,0 +1,16 @@
+Type: animation
+Nom: Marche
+Header: Marche.h
+Taille commune: 50x50
+Couleur KEY RGB565: 0xF81F
+Nombre de frames: 8
+
+Ordre des frames:
+1 -> marche1.png -> Marche1
+2 -> marche2.png -> Marche2
+3 -> marche2 - Copie.png -> Marche3
+4 -> marche3.png -> Marche4
+5 -> marche4.png -> Marche5
+6 -> marche5.png -> Marche6
+7 -> marche6.png -> Marche7
+8 -> marche7.png -> Marche8

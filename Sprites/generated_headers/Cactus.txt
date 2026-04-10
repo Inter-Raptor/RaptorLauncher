@@ -1,0 +1,11 @@
+Type: animation
+Nom: Cactus
+Header: Cactus.h
+Taille commune: 28x50
+Couleur KEY RGB565: 0xF81F
+Nombre de frames: 3
+
+Ordre des frames:
+1 -> cactus1.png -> Cactus1
+2 -> cactus2.png -> Cactus2
+3 -> cactus3.png -> Cactus3

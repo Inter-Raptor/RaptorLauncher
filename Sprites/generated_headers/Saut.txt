@@ -1,0 +1,10 @@
+Type: animation
+Nom: Saut
+Header: Saut.h
+Taille commune: 50x50
+Couleur KEY RGB565: 0xF81F
+Nombre de frames: 2
+
+Ordre des frames:
+1 -> saut1.png -> Saut1
+2 -> saut2.png -> Saut2

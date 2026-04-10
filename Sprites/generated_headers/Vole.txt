@@ -1,0 +1,12 @@
+Type: animation
+Nom: Vole
+Header: Vole.h
+Taille commune: 28x50
+Couleur KEY RGB565: 0xF81F
+Nombre de frames: 4
+
+Ordre des frames:
+1 -> vole1.png -> Vole1
+2 -> vole2.png -> Vole2
+3 -> vole3.png -> Vole3
+4 -> vole4.png -> Vole4

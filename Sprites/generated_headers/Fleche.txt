@@ -1,0 +1,7 @@
+Type: image simple
+Nom: Fleche
+Header: Fleche.h
+Source: fleche.png
+Taille: 32x32
+Couleur KEY RGB565: 0xF81F
+Nom genere: Fleche

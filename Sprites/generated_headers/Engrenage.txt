@@ -1,0 +1,7 @@
+Type: image simple
+Nom: Engrenage
+Header: Engrenage.h
+Source: engrenage.png
+Taille: 32x32
+Couleur KEY RGB565: 0xF81F
+Nom genere: Engrenage

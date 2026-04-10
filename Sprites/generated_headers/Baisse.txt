@@ -1,0 +1,10 @@
+Type: animation
+Nom: Baisse
+Header: Baisse.h
+Taille commune: 50x50
+Couleur KEY RGB565: 0xF81F
+Nombre de frames: 2
+
+Ordre des frames:
+1 -> baisse 1.png -> Baisse1
+2 -> baisse 2.png -> Baisse2

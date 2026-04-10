@@ -1,0 +1,15 @@
+Type: animation
+Nom: Course
+Header: Course.h
+Taille commune: 50x30
+Couleur KEY RGB565: 0xF81F
+Nombre de frames: 7
+
+Ordre des frames:
+1 -> course.png -> Course1
+2 -> course - Copie.png -> Course2
+3 -> course - Copie (2).png -> Course3
+4 -> course - Copie (3).png -> Course4
+5 -> course - Copie (4).png -> Course5
+6 -> course - Copie (5).png -> Course6
+7 -> course - Copie (6).png -> Course7

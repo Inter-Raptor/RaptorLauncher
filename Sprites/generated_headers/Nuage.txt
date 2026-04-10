@@ -1,0 +1,9 @@
+Type: animation
+Nom: Nuage
+Header: Nuage.h
+Taille commune: 50x30
+Couleur KEY RGB565: 0xF81F
+Nombre de frames: 1
+
+Ordre des frames:
+1 -> nuage - Copie.png -> Nuage1

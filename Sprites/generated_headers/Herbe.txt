@@ -1,0 +1,7 @@
+Type: image simple
+Nom: Herbe
+Header: Herbe.h
+Source: herbe.png
+Taille: 23x23
+Couleur KEY RGB565: 0xF81F
+Nom genere: Herbe
