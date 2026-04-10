@@ -221,6 +221,24 @@ bool displayDrawRAW(const char* path, int x, int y, int width, int height) {
     return false;
   }
 
+  const size_t expected565 = (size_t)width * (size_t)height * 2;
+  const size_t expected888 = (size_t)width * (size_t)height * 3;
+  const size_t fileSize = rawFile.size();
+
+  bool isRGB565 = (fileSize == expected565);
+  bool isRGB888 = (fileSize == expected888);
+
+  if (!isRGB565 && !isRGB888) {
+    Serial.print("[RAW] taille inattendue. fichier=");
+    Serial.print((unsigned long)fileSize);
+    Serial.print(" attendus RGB565=");
+    Serial.print((unsigned long)expected565);
+    Serial.print(" RGB888=");
+    Serial.println((unsigned long)expected888);
+    rawFile.close();
+    return false;
+  }
+
   int drawWidth = width;
   int drawHeight = height;
 
@@ -244,19 +262,32 @@ bool displayDrawRAW(const char* path, int x, int y, int width, int height) {
 
   for (int row = 0; row < drawHeight; row++) {
     for (int col = 0; col < drawWidth; col++) {
-      uint8_t hi, lo;
-      if (rawFile.read(&hi, 1) != 1 || rawFile.read(&lo, 1) != 1) {
-        Serial.println("[RAW] lecture pixel impossible");
-        lcd.setSwapBytes(false);
-        free(lineBuffer);
-        rawFile.close();
-        return false;
+      if (isRGB565) {
+        uint8_t hi, lo;
+        if (rawFile.read(&hi, 1) != 1 || rawFile.read(&lo, 1) != 1) {
+          Serial.println("[RAW] lecture pixel RGB565 impossible");
+          lcd.setSwapBytes(false);
+          free(lineBuffer);
+          rawFile.close();
+          return false;
+        }
+        lineBuffer[col] = ((uint16_t)hi << 8) | (uint16_t)lo;
+      } else {
+        uint8_t r, g, b;
+        if (rawFile.read(&r, 1) != 1 || rawFile.read(&g, 1) != 1 || rawFile.read(&b, 1) != 1) {
+          Serial.println("[RAW] lecture pixel RGB888 impossible");
+          lcd.setSwapBytes(false);
+          free(lineBuffer);
+          rawFile.close();
+          return false;
+        }
+        lineBuffer[col] = lcd.color565(r, g, b);
       }
-      lineBuffer[col] = ((uint16_t)hi << 8) | (uint16_t)lo;
     }
 
     if (width > drawWidth) {
-      rawFile.seek(rawFile.position() + (width - drawWidth) * 2);
+      const size_t bytesPerPixel = isRGB565 ? 2 : 3;
+      rawFile.seek(rawFile.position() + (width - drawWidth) * bytesPerPixel);
     }
 
     lcd.pushImage(x, y + row, drawWidth, 1, lineBuffer);
@@ -267,7 +298,8 @@ bool displayDrawRAW(const char* path, int x, int y, int width, int height) {
   free(lineBuffer);
   rawFile.close();
 
-  Serial.println("[RAW] affiche OK");
+  Serial.print("[RAW] affiche OK format=");
+  Serial.println(isRGB565 ? "RGB565" : "RGB888");
   return true;
 }
 
