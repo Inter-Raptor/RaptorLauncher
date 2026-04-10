@@ -574,13 +574,15 @@ static void drawHomeScreen() {
 
     if (game.icon.length() > 0 && game.iconW > 0 && game.iconH > 0) {
       String path = resolveGamePath(game, game.icon);
-      int iconX = x;
-      int iconY = y;
+      int drawW = game.iconW;
+      int drawH = game.iconH;
+      int iconX = x + (ICON_W - drawW) / 2;
+      int iconY = y + (ICON_H - drawH) / 2;
 
       if (game.icon.endsWith(".raw")) {
-        imageOk = displayDrawRAW(path.c_str(), iconX, iconY, ICON_W, ICON_H);
+        imageOk = displayDrawRAW(path.c_str(), iconX, iconY, drawW, drawH);
       } else if (game.icon.endsWith(".bmp")) {
-        imageOk = displayDrawBMPScaled(path.c_str(), iconX, iconY, ICON_W, ICON_H);
+        imageOk = displayDrawBMP(path.c_str(), iconX, iconY);
       }
     }
 
