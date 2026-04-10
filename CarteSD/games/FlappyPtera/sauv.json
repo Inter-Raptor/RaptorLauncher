@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "game_id": "FlappyPtera",
+  "player": {
+    "name": "AAA"
+  },
+  "stats": {
+    "high_score": 0,
+    "last_score": 0,
+    "plays": 0
+  },
+  "updated_at": "1970-01-01T00:00:00Z"
+}
