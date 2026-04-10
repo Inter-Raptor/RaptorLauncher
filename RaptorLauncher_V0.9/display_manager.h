@@ -9,10 +9,14 @@ void displayFillScreen(uint16_t color);
 void displayDrawText(int x, int y, const char* text);
 void displayDrawSmallText(int x, int y, const char* text);
 void displayDrawSmallTextColor(int x, int y, const char* text, uint16_t fg, uint16_t bg);
+void displayDrawSmallTextTransparent(int x, int y, const char* text, uint16_t fg);
 void displayDrawCenteredText(int y, const char* text);
 
 void displayFillRect(int x, int y, int w, int h, uint16_t color);
 void displayDrawRect(int x, int y, int w, int h, uint16_t color);
+void displayFillRoundRect(int x, int y, int w, int h, int radius, uint16_t color);
+void displayDrawRoundRect(int x, int y, int w, int h, int radius, uint16_t color);
+void displayDrawRGB565SpriteKey(int x, int y, const uint16_t* data, int w, int h, uint16_t keyColor, bool mirrorX = false);
 
 bool displayDrawRAW(const char* path, int x, int y, int width, int height);
 bool displayDrawBMP(const char* path, int x, int y);

@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <LovyanGFX.hpp>
 #include <SD.h>
+#include <pgmspace.h>
 #include "config.h"
 #include "display_manager.h"
 
@@ -155,6 +156,13 @@ void displayDrawSmallTextColor(int x, int y, const char* text, uint16_t fg, uint
   lcd.print(text);
 }
 
+void displayDrawSmallTextTransparent(int x, int y, const char* text, uint16_t fg) {
+  lcd.setTextColor(fg);
+  lcd.setTextSize(1);
+  lcd.setCursor(x, y);
+  lcd.print(text);
+}
+
 void displayDrawCenteredText(int y, const char* text) {
   lcd.setTextSize(2);
   int w = lcd.textWidth(text);
@@ -169,6 +177,26 @@ void displayFillRect(int x, int y, int w, int h, uint16_t color) {
 
 void displayDrawRect(int x, int y, int w, int h, uint16_t color) {
   lcd.drawRect(x, y, w, h, color);
+}
+
+void displayFillRoundRect(int x, int y, int w, int h, int radius, uint16_t color) {
+  lcd.fillRoundRect(x, y, w, h, radius, color);
+}
+
+void displayDrawRoundRect(int x, int y, int w, int h, int radius, uint16_t color) {
+  lcd.drawRoundRect(x, y, w, h, radius, color);
+}
+
+void displayDrawRGB565SpriteKey(int x, int y, const uint16_t* data, int w, int h, uint16_t keyColor, bool mirrorX) {
+  if (!data || w <= 0 || h <= 0) return;
+  for (int py = 0; py < h; py++) {
+    for (int px = 0; px < w; px++) {
+      int srcX = mirrorX ? (w - 1 - px) : px;
+      uint16_t c = pgm_read_word(&data[py * w + srcX]);
+      if (c == keyColor) continue;
+      lcd.drawPixel(x + px, y + py, c);
+    }
+  }
 }
 
 int displayWidth() {

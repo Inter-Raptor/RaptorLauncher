@@ -28,6 +28,10 @@ void settingsSetDefaults() {
   gSettings.touch_offset_y = 0;
   gSettings.led_brightness = 40;
   gSettings.language = 0;
+  gSettings.home_text_color_mode = 0;
+  gSettings.home_text_color_hex = "#FFFFFF";
+  gSettings.home_show_info_badge = true;
+  gSettings.home_boot_image_ms = 3000;
 }
 
 SystemSettings& settingsGet() {
@@ -48,6 +52,10 @@ bool settingsSave() {
   doc["touch_offset_y"] = gSettings.touch_offset_y;
   doc["led_brightness"] = gSettings.led_brightness;
   doc["language"] = gSettings.language;
+  doc["home_text_color_mode"] = gSettings.home_text_color_mode;
+  doc["home_text_color_hex"] = gSettings.home_text_color_hex;
+  doc["home_show_info_badge"] = gSettings.home_show_info_badge;
+  doc["home_boot_image_ms"] = gSettings.home_boot_image_ms;
 
   if (SD.exists(SETTINGS_TMP_PATH)) {
     SD.remove(SETTINGS_TMP_PATH);
@@ -122,6 +130,10 @@ bool settingsInit() {
   gSettings.touch_offset_y = clampValue(doc["touch_offset_y"] | 0, -80, 80);
   gSettings.led_brightness = clampValue(doc["led_brightness"] | 40, 0, 100);
   gSettings.language = clampValue(doc["language"] | 0, 0, 4);
+  gSettings.home_text_color_mode = clampValue(doc["home_text_color_mode"] | 0, 0, 3);
+  gSettings.home_text_color_hex = doc["home_text_color_hex"] | "#FFFFFF";
+  gSettings.home_show_info_badge = doc["home_show_info_badge"] | true;
+  gSettings.home_boot_image_ms = clampValue(doc["home_boot_image_ms"] | 3000, 500, 10000);
 
   Serial.print("[SETTINGS] volume = ");
   Serial.println(gSettings.volume);
@@ -148,6 +160,14 @@ bool settingsInit() {
   Serial.println(gSettings.led_brightness);
   Serial.print("[SETTINGS] language = ");
   Serial.println(gSettings.language);
+  Serial.print("[SETTINGS] home_text_color_mode = ");
+  Serial.println(gSettings.home_text_color_mode);
+  Serial.print("[SETTINGS] home_text_color_hex = ");
+  Serial.println(gSettings.home_text_color_hex);
+  Serial.print("[SETTINGS] home_show_info_badge = ");
+  Serial.println(gSettings.home_show_info_badge ? "true" : "false");
+  Serial.print("[SETTINGS] home_boot_image_ms = ");
+  Serial.println(gSettings.home_boot_image_ms);
 
   return true;
 }
