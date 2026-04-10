@@ -1,10 +1,9 @@
 {
-  "name": "ParaRunner",
-  "author": "Inter-Raptor",
-  "version": "1.2.0",
-  "description": "Runner Parasaurolophus jouable au tactile et aux boutons.",
+  "name": "Epic RPG",
+  "author": "Raptor Team",
+  "description": "Epic RPG sur Raptor Launcher.",
   "type": "game",
-  "indice": 3,
+  "indice": 30,
   "icon": "icon.raw",
   "icon_w": 50,
   "icon_h": 50,
@@ -13,5 +12,5 @@
   "title_h": 240,
   "bin": "game.bin",
   "save": "sauv.json",
-  "index": 3
+  "index": 30
 }

@@ -1,9 +1,9 @@
 {
-  "name": "WiFi Touch Console",
-  "author": "Raptor SDK",
-  "description": "Outil tactile pour scanner les reseaux Wi-Fi et diagnostiquer le LAN.",
+  "name": "Logic LAB",
+  "author": "Raptor Team",
+  "description": "Logic LAB sur Raptor Launcher.",
   "type": "utility",
-  "indice": 2,
+  "indice": 30,
   "icon": "icon.raw",
   "icon_w": 50,
   "icon_h": 50,
@@ -12,5 +12,5 @@
   "title_h": 240,
   "bin": "game.bin",
   "save": "sauv.json",
-  "index": 2
+  "index": 30
 }

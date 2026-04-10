@@ -49,6 +49,54 @@
       "indice": 30,
       "folder": "FlappyPtera",
       "meta": "FlappyPtera/meta.json"
+    },
+    {
+      "index": 30,
+      "indice": 30,
+      "folder": "DinoBlaster2",
+      "meta": "DinoBlaster2/meta.json"
+    },
+    {
+      "index": 30,
+      "indice": 30,
+      "folder": "EpicRPG",
+      "meta": "EpicRPG/meta.json"
+    },
+    {
+      "index": 30,
+      "indice": 30,
+      "folder": "GhostEscape",
+      "meta": "GhostEscape/meta.json"
+    },
+    {
+      "index": 30,
+      "indice": 30,
+      "folder": "LogicLAB",
+      "meta": "LogicLAB/meta.json"
+    },
+    {
+      "index": 30,
+      "indice": 30,
+      "folder": "NanoRacer",
+      "meta": "NanoRacer/meta.json"
+    },
+    {
+      "index": 30,
+      "indice": 30,
+      "folder": "pixelSurvivor",
+      "meta": "pixelSurvivor/meta.json"
+    },
+    {
+      "index": 30,
+      "indice": 30,
+      "folder": "SpaceMiner",
+      "meta": "SpaceMiner/meta.json"
+    },
+    {
+      "index": 30,
+      "indice": 30,
+      "folder": "Tetris32",
+      "meta": "Tetris32/meta.json"
     }
   ]
 }
