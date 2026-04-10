@@ -1,64 +1,75 @@
-# RaptorLauncher Game SDK PRO (Arduino IDE)
+# 🧰 RaptorLauncher Game SDK PRO (Arduino IDE)
 
-Ce dépôt vise un principe simple : **API publique, documentation et implémentation doivent rester alignées**.
+Ce SDK te permet de créer des jeux compatibles RaptorLauncher avec un cadre stable.  
+Doc en **2 niveaux** :
+- **Partie 1** : démarrage rapide, fun, sans friction.
+- **Partie 2** : détails techniques complets (API, contraintes, workflow pro).
 
-La **source de vérité** est :
-- `arduino_template/src/raptor_game_sdk.h`
-
-Si une fonction n'est pas déclarée dans ce fichier, elle ne doit pas être présentée comme disponible.
+> Source de vérité API publique : `arduino_template/src/raptor_game_sdk.h`
 
 ---
 
-## 1) Structure du kit
+## 🎉 Partie 1 — Démarrage rapide (fun & simple)
 
-- `docs/ASSETS_AUDIO_WIFI_POWER.md`
-  - guide complet assets/audio/wifi/luminosité/batterie/sd
-- `docs/API_PUBLIC.md`
-  - liste exacte des fonctions exposées + distinction core/optionnel
+## 1) Ce que fait le SDK
+- te donne une API de rendu, input, save, Wi‑Fi, etc.
+- uniformise le comportement entre jeux
+- protège la compatibilité launcher
+
+## 2) Les dossiers clés
+- `arduino_template/` : base de ton jeu
+- `sd_template/` : structure SD modèle
+- `docs/API_PUBLIC.md` : fonctions réellement exposées
+- `examples/SDK_TestLab/` : validation de référence
+
+## 3) Les 4 étapes pour lancer un jeu
+1. Installe le core ESP32 + libs listées
+2. Copie `arduino_template/` dans ton dossier sketch
+3. Mets le bon `SDK_GAME_FOLDER_NAME`
+4. Compile, flash, place `game.bin` + `meta.json` sur la SD
+
+## 4) Astuce sécurité
+Le SDK arme automatiquement le retour launcher au prochain boot via `sdk.begin()` (boot safety).
+
+---
+
+## 🧪 Partie 2 — Détails techniques complets
+
+## A) Arborescence du kit (rôle de chaque bloc)
+
 - `arduino_template/`
-  - `arduino_template.ino` : template jeu prêt à compiler
-  - `src/raptor_game_config.h` : pins + conventions meta/save
-  - `src/raptor_game_sdk.h/.cpp` : API publique et implémentation
-- `examples/SDK_TestLab/`
-  - sketch de validation officiel du SDK (compile = cohérence API)
-- `sd_template/games/MonJeu/`
-  - `meta.json` modèle compatible launcher
-  - `assets/` pour tes ressources
-- `docs/libraries_arduino_ide.txt`
-  - liste des bibliothèques IDE Arduino
-- `dependencies/README.md`
-  - stratégie recommandée pour gérer les dépendances sans alourdir le repo
+  - `arduino_template.ino` : point d’entrée sketch
+  - `src/raptor_game_sdk.h/.cpp` : API + implémentation
+  - `src/raptor_game_config.h` : constantes projet (dossier jeu, pins, options)
+- `docs/API_PUBLIC.md` : index API officiel
+- `docs/ASSETS_AUDIO_WIFI_POWER.md` : détails assets/audio/réseau/power
+- `sd_template/games/MonJeu/` : structure SD compatible launcher
+- `examples/SDK_TestLab/` : exemple de non-régression fonctionnelle
+- `dependencies/README.md` : stratégie dépendances
 
----
+## B) API publique — périmètre réel
 
-## 2) Niveaux de support
-
-### SDK de base (disponible)
-- affichage simple (`clear`, `drawRect`, `fillRect`, texte)
-- boutons (MCP23017)
-- tactile (`touchX/touchY`, pressed/released)
-- `drawRaw565(...)`
-- `playBeep(...)`
-- JSON save/load (`saveJson/loadJson`)
+### B1 — Fonctions cœur disponibles
+- rendu 2D basique (`clear`, `drawRect`, `fillRect`, texte)
+- input boutons MCP23017
+- input tactile (`touchX`, `touchY`, pressed/released)
+- rendu raw (`drawRaw565`)
+- bip (`playBeep`)
+- persistance (`saveJson`, `loadJson`, `saveJsonPath`)
 - LED RGB
-- capteur luminosité
+- capteur lumière
 - batterie (si ADC configuré)
 - Wi‑Fi via `settings.json`
-- boot safety / retour launcher
 
-### SDK optionnel selon build
-- `drawBmp(...)`
-- `drawJpg(...)`
-- `drawPng(...)`
-- `playWav(...)`
-- `playMp3(...)`
+### B2 — Fonctions optionnelles selon build/libs
+- `drawBmp`, `drawJpg`, `drawPng`
+- `playWav`, `playMp3`
 
-Ces appels existent toujours dans l'API publique, mais leur réussite dépend des capacités compilées.
+> Elles peuvent exister dans l’API mais retourner `false` si le support n’est pas compilé ou dépendances absentes.
 
----
+## C) Négociation de capacités (obligatoire avant appel optionnel)
 
-## 3) Fonctions de capacité (à vérifier avant usage optionnel)
-
+Vérifie systématiquement :
 - `hasBmpSupport()`
 - `hasJpgSupport()`
 - `hasPngSupport()`
@@ -70,97 +81,37 @@ Exemple recommandé :
 ```cpp
 if (sdk.hasPngSupport()) {
   (void)sdk.drawPng(sdk.assetPath("overlay.png"), 0, 0);
+} else {
+  // fallback simple (texte / raw)
 }
 ```
 
----
+## D) Conventions launcher imposées par le SDK
 
-## 4) Tableau de support réel (état actuel)
-
-| Fonction | État |
-|---|---|
-| `drawRaw565` | OK |
-| `drawBmp` | OK (si fichier présent sur SD) |
-| `drawJpg` | OK (si fichier présent sur SD) |
-| `drawPng` | OK (si fichier présent sur SD) |
-| `playBeep` | OK |
-| `playWav` | OK si lib audio installée; sinon `false` |
-| `playMp3` | OK si lib audio installée; sinon `false` |
-| `saveJson/loadJson` | OK |
-| `wifi*` | OK (si paramètres présents) |
-| `battery*` | OK (si pin ADC batterie configurée) |
-| `touch*` | OK |
-
-### Limites connues
-- GIF/WebP non supportés.
-- Les wrappers audio WAV/MP3 sont bloquants (lecture synchrone).
-
-### ⚠️ Erreurs fréquentes à éviter (version courte)
-- Ne pas faire de redraw complet à chaque frame (risque de scintillement).
-- Éviter les boucles de rendu pixel-par-pixel (`fillRect(1x1)`), coûteuses en performances.
-- Ne pas lancer de tâches lourdes en `setup()` (scan réseau, traitements bloquants).
-- Caler tôt la physique + hitbox (stand/duck/jump) pour garder un gameplay cohérent.
-- Centraliser pins/constantes/timings pour faciliter debug et équilibrage.
-- Utiliser le moniteur série pour diagnostiquer vite (SD, meta, bin, mémoire, réseau).
-- Préférer un rendu événementiel: redraw uniquement quand l'état change.
-
-### Retours d'expérience DEV (version détaillée)
-- **Scintillement UI**
-  - Cause: redraw complet en boucle.
-  - Solution: rendu événementiel (redraw seulement quand l'état change).
-- **Chutes de performances**
-  - Cause: rendu pixel-par-pixel massif (`fillRect(1x1)` en doubles boucles).
-  - Solution: réduire ces zones, regrouper les dessins, pré-calculer ce qui peut l'être.
-- **Freeze / retour launcher au boot**
-  - Cause: opérations lourdes en `setup()`.
-  - Solution: setup minimal, puis traitement progressif en `loop()` (asynchrone/étagé).
-- **Collisions ou sensations de saut incohérentes**
-  - Cause: physique et hitbox réglées trop tard.
-  - Solution: verrouiller tôt `GRAVITY`, `JUMP_VELOCITY`, positions Y et presets hitbox.
-- **Debug difficile**
-  - Cause: constantes dispersées et manque de logs.
-  - Solution: centraliser les paramètres clés + logs série simples (`spawn/hit/despawn/state`).
-
----
-
-## 5) Règles PRO prévues
-
-### A. Boot safety launcher
-Au `sdk.begin()`, le SDK appelle automatiquement `armReturnToLauncherOnNextBoot()`.
-Donc même si le jeu crash/reboot, le prochain boot repart sur le launcher (si le label launcher a été mémorisé par le launcher).
-
-### B. Sauvegarde JSON standard
-Le chemin de save est construit automatiquement:
-
+### D1 — Sauvegarde
+Chemin standard :
 `/games/<SDK_GAME_FOLDER_NAME>/sauv.json`
 
-Fonctions prêtes:
-- `sdk.saveJson(doc)`
-- `sdk.loadJson(doc)`
-- `sdk.saveJsonPath()`
+### D2 — `meta.json`
+Conventions attendues :
+- `icon_w=50`, `icon_h=50`
+- `title_w=320`, `title_h=240`
+- `save="sauv.json"`
+- `bin="game.bin"`
 
-### C. Meta.json contraint
-Par convention de ce kit:
-- `icon_w = 50`, `icon_h = 50`
-- `title_w = 320`, `title_h = 240`
-- `save = "sauv.json"`
-- `bin = "game.bin"`
+### D3 — Calibration tactile
+Le SDK lit `/settings.json` pour :
+- `touch_x_min/max`, `touch_y_min/max`
+- `touch_offset_x/y`
 
-### D. Calibration tactile depuis le launcher
-Le SDK lit automatiquement `/settings.json` (même fichier que le launcher) pour récupérer:
-- `touch_x_min`, `touch_x_max`, `touch_y_min`, `touch_y_max`
-- `touch_offset_x`, `touch_offset_y`
+Fallback sur macros de `raptor_game_config.h` si fichier absent/invalide.
 
-Si le fichier est absent/invalide, le SDK retombe sur les macros de `raptor_game_config.h`.
+## E) Installation et build (procédure complète)
 
----
-
-## 6) Installation rapide
-
-1. Installer la carte **ESP32 by Espressif**.
+1. Installer **ESP32 by Espressif** (Board Manager).
 2. Installer les libs de `docs/libraries_arduino_ide.txt`.
-3. Copier `arduino_template/` dans ton dossier de sketch.
-4. Garder la structure **officielle unique** suivante :
+3. Copier `arduino_template/` vers `MonJeu/`.
+4. Vérifier la structure :
 
 ```text
 MonJeu/
@@ -171,44 +122,41 @@ MonJeu/
     └── raptor_game_config.h
 ```
 
-5. Mettre le bon nom de dossier jeu dans `SDK_GAME_FOLDER_NAME` (`src/raptor_game_config.h`).
-6. Compiler/flash.
+5. Renseigner `SDK_GAME_FOLDER_NAME`.
+6. Compiler.
+7. Produire `game.bin`.
+8. Créer dossier SD `/games/MonJeu/` + `meta.json` + assets.
+
+## F) Contrat de test avant release
+
+### F1 — Fonctionnel
+- boot jeu sans freeze
+- START/quit retour launcher
+- tactile cohérent avec calibration
+- save/load JSON validé
+
+### F2 — Robustesse
+- comportement si asset manquant
+- comportement si `settings.json` absent
+- comportement si fonction optionnelle indisponible
+
+### F3 — Performance
+- pas de redraw intégral permanent
+- pas de charges lourdes en `setup()`
+- logs série exploitables
+
+## G) Documentation visuelle (images/GIF)
+
+Si tu ajoutes des images/GIF par écran/realm :
+- garde les médias proches du README concerné,
+- ajoute un caption “ce qu’on voit / ce qu’on teste”,
+- indique si le visuel correspond à 2432S022, 2432S028 ou ILI9341.
 
 ---
 
-## 7) Exemple meta.json (obligatoire)
-
-```json
-{
-  "name": "Mon Jeu",
-  "author": "Ton Nom",
-  "description": "Mon premier jeu compatible RaptorLauncher",
-  "type": "mixed",
-  "icon": "icon.raw",
-  "icon_w": 50,
-  "icon_h": 50,
-  "title": "title.raw",
-  "title_w": 320,
-  "title_h": 240,
-  "bin": "game.bin",
-  "save": "sauv.json"
-}
-```
-
----
-
-## 8) Checklist avant test
-
-- [ ] dossier SD: `/games/MonJeu/`
-- [ ] `meta.json` présent
-- [ ] `game.bin` présent
-- [ ] `icon.raw` en **50x50**
-- [ ] `title.raw` en **320x240**
-- [ ] nom de dossier aligné avec `SDK_GAME_FOLDER_NAME`
-- [ ] `settings.json` launcher présent (optionnel mais recommandé)
-- [ ] test bouton START (retour launcher)
-- [ ] test tactile (coordonnées et déplacement)
-- [ ] test écriture `sauv.json`
-- [ ] test exemple `examples/SDK_TestLab`
-
-Ce kit te donne une base solide pour créer vite, proprement, et garder la compatibilité launcher.
+## ✅ Checklist rapide finale
+- [ ] API utilisée = déclarée dans `raptor_game_sdk.h`
+- [ ] `meta.json` conforme
+- [ ] fallback si optionnel absent
+- [ ] save path correct
+- [ ] tests manuels validés

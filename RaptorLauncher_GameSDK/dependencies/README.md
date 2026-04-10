@@ -1,27 +1,65 @@
-# Dépendances Arduino - RaptorLauncher GameSDK
+# 📦 Dépendances Arduino — RaptorLauncher GameSDK
 
-Ce dossier remplace l'idée d'un dossier `bibliotheque/` avec des copies complètes de libs.
+README en 2 parties :
+- rapide pour comprendre la logique
+- technique pour verrouiller la reproductibilité
 
-## Pourquoi
-Versionner des bibliothèques entières dans le repo alourdit fortement le projet et crée vite des conflits.
+---
 
-## Stratégie recommandée
-- Garder ici uniquement **la liste des dépendances validées**.
-- Installer les libs via l'IDE Arduino (Library Manager).
-- Ne pas commiter les sources complètes des libs externes, sauf besoin exceptionnel.
+## 🎉 Partie 1 — version simple
 
-## Dépendances nécessaires (SDK de base)
+## Pourquoi on ne commit pas toutes les libs ?
+Parce que ça alourdit le repo et crée vite des conflits de versions.
+
+## Règle simple
+- installer les dépendances via Arduino Library Manager
+- garder ici la doc des libs validées
+
+## Dépendances cœur
 - LovyanGFX
 - XPT2046_Touchscreen
-- Adafruit MCP23017 (Adafruit_MCP23X17)
+- Adafruit_MCP23X17
 - ArduinoJson
-- ESP32 board package (Espressif)
+- Core ESP32 (Espressif)
 
-## Dépendances optionnelles (features avancées)
-- PNGdec (PNG custom)
-- JPEGDEC (JPEG custom)
-- ESP8266Audio (WAV/MP3 avancé)
+## Optionnelles
+- PNGdec
+- JPEGDEC
+- ESP8266Audio
 
-## Remarque
-Si tu veux figer des versions exactes, ajoute un fichier `versions.lock.md` dans ce dossier
-avec les numéros de version testés dans ton environnement.
+---
+
+## 🛠️ Partie 2 — version très technique
+
+## A) Politique de dépendances
+
+### A1 — Principe
+Le repository versionne le code applicatif + docs, pas des copies complètes de libs tierces (sauf exception critique).
+
+### A2 — Objectifs
+- réduire poids Git
+- simplifier merges/rebases
+- faciliter montée de version contrôlée
+
+## B) Installation recommandée
+
+1. Installer le board package ESP32 (Espressif)
+2. Installer les libs cœur
+3. Ajouter optionnelles selon fonctionnalités activées (PNG/JPG/Audio)
+
+## C) Verrouillage de versions (reproductibilité)
+
+Créer `versions.lock.md` avec :
+- nom de chaque lib
+- version exacte
+- version core ESP32
+- version Arduino IDE
+- date et contexte de validation
+
+## D) Stratégie de debug dépendances
+
+Quand un build casse après update :
+1. comparer avec `versions.lock.md`
+2. revenir à la dernière combinaison validée
+3. retester `SDK_TestLab`
+4. ne promouvoir une nouvelle version qu’après tests fonctionnels (rendu, input, save, audio)
