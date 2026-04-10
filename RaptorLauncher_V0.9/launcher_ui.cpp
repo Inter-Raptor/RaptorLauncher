@@ -83,22 +83,22 @@ static const uint16_t COLOR_PLAY_TEXT  = 0xFFFF;
 // --------------------------------------------------
 // Home
 // --------------------------------------------------
-static const int ICON_W = 50;
-static const int ICON_H = 50;
+static const int ICON_W = 58;
+static const int ICON_H = 58;
 static const int SLOT_COUNT_PER_PAGE = 8;
 static const int ICON_RADIUS = 6;
 
-static const int ROW1_Y = 12;
-static const int ROW2_Y = 80;
+static const int ROW1_Y = 8;
+static const int ROW2_Y = 96;
 static const int ROW3_Y = 140;
 
-static const int COL1_X = 15;
-static const int COL2_X = 90;
-static const int COL3_X = 165;
-static const int COL4_X = 240;
+static const int COL1_X = 8;
+static const int COL2_X = 86;
+static const int COL3_X = 164;
+static const int COL4_X = 242;
 
-static const int LABEL_OFFSET_Y_LINE1 = 52;
-static const int LABEL_OFFSET_Y_LINE2 = 60;
+static const int LABEL_OFFSET_Y_LINE1 = 62;
+static const int LABEL_OFFSET_Y_LINE2 = 70;
 
 static const int INFO_BOX_SIZE = 10;
 static const int INFO_HITBOX_SIZE = 20;
@@ -108,9 +108,9 @@ static const int BTN_NAV_SIZE = 32;
 static const int BTN_PREV_X = 10;
 static const int BTN_NEXT_X = 320 - BTN_NAV_SIZE - 10;
 static const int BTN_NAV_Y = FOOTER_Y;
-static const int BTN_SETTINGS_W = 130;
-static const int BTN_SETTINGS_H = 34;
-static const int BTN_SETTINGS_X = (320 - BTN_SETTINGS_W) / 2;
+static const int BTN_SETTINGS_W = 80;
+static const int BTN_SETTINGS_H = 42;
+static const int BTN_SETTINGS_X = (320 - EngrenageW) / 2;
 static const int BTN_SETTINGS_Y = FOOTER_Y;
 
 static const int INFO_PLAY_X = 8;
@@ -389,11 +389,9 @@ static void drawHomeNavigationButtons(bool showPrev, bool showNext) {
     displayDrawRGB565SpriteKey(BTN_NEXT_X, BTN_NAV_Y, Fleche, FlecheW, FlecheH, FlecheKEY, false);
   }
 
-  displayDrawRect(BTN_SETTINGS_X, BTN_SETTINGS_Y, BTN_SETTINGS_W, BTN_SETTINGS_H, COLOR_INFO_TEXT);
-  int iconY = BTN_SETTINGS_Y + (BTN_SETTINGS_H - EngrenageH) / 2;
-  int iconX = BTN_SETTINGS_X + 8;
-  displayDrawRGB565SpriteKey(iconX, iconY, Engrenage, EngrenageW, EngrenageH, EngrenageKEY, false);
-  displayDrawSmallTextTransparent(iconX + EngrenageW + 6, BTN_SETTINGS_Y + 12, tr(TK_PARAMETERS_BTN), homeLabelColor());
+  displayDrawRGB565SpriteKey(BTN_SETTINGS_X, BTN_SETTINGS_Y, Engrenage, EngrenageW, EngrenageH, EngrenageKEY, false);
+  int textX = BTN_SETTINGS_X - 6;
+  displayDrawSmallTextTransparent(textX, BTN_SETTINGS_Y + EngrenageH + 2, tr(TK_PARAMETERS_BTN), homeLabelColor());
 }
 
 static void drawPlayButton(int x, int y, int w, int h, const char* text) {
@@ -576,11 +574,13 @@ static void drawHomeScreen() {
 
     if (game.icon.length() > 0 && game.iconW > 0 && game.iconH > 0) {
       String path = resolveGamePath(game, game.icon);
+      int iconX = x;
+      int iconY = y;
 
       if (game.icon.endsWith(".raw")) {
-        imageOk = displayDrawRAW(path.c_str(), x, y, game.iconW, game.iconH);
+        imageOk = displayDrawRAW(path.c_str(), iconX, iconY, ICON_W, ICON_H);
       } else if (game.icon.endsWith(".bmp")) {
-        imageOk = displayDrawBMP(path.c_str(), x, y);
+        imageOk = displayDrawBMPScaled(path.c_str(), iconX, iconY, ICON_W, ICON_H);
       }
     }
 
@@ -1045,7 +1045,7 @@ void launcherUpdate() {
         if (hitGame >= 0 && hitGame < (int)gameList.size()) {
           launchGameFromIndex(hitGame);
         }
-        else if (pointInRect(gLastTouchX, gLastTouchY, BTN_SETTINGS_X, BTN_SETTINGS_Y, BTN_SETTINGS_W, BTN_SETTINGS_H)) {
+        else if (pointInRect(gLastTouchX, gLastTouchY, BTN_SETTINGS_X - 8, BTN_SETTINGS_Y, BTN_SETTINGS_W, BTN_SETTINGS_H)) {
           currentScreen = SCREEN_SETTINGS;
           gNeedsRedraw = true;
         }
