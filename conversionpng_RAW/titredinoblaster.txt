@@ -1,4 +1,0 @@
-file=titredinoblaster.raw
-width=320
-height=240
-format=RGB565_LE

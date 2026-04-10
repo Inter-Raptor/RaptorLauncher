@@ -1,4 +1,0 @@
-file=dinoinvadersicon.raw
-width=50
-height=50
-format=RGB565_LE
