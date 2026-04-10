@@ -139,4 +139,4 @@ Pour chaque changement important, documenter :
 
 ---
 
-Amuse-toi bien, et fais rugir les dinos… sans faire rugir le watchdog 🦕🔥
+Amuse-toi bien, et fais rugir les dinos… sans faire rugir le watchdog 🦕🔥00
