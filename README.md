@@ -1,8 +1,19 @@
-# 🦖 RaptorLauncher00 — Le repaire des jeux dinos
+# 🦖 RaptorLauncher00 — La console qui libère les jeux SD
 
-Bienvenue ! Ici tu peux lancer des jeux sur ESP32 depuis la SD, avec une UX propre, des sauvegardes stables et un debug sérieux.  
+RaptorLauncher00, c’est l’idée d’une **console ouverte** :  
+une base ESP32 qui te permet de **créer, lire et organiser tes jeux directement depuis la carte SD**.
+
+🎯 Le but :
+- **ajouter autant de jeux que tu veux** (pratiquement illimité, selon la taille SD),
+- **changer de jeu en quelques secondes** (copier/remplacer un dossier, sans tout recompiler),
+- **garder une expérience fun et simple** pour jouer, tester, partager.
+
+En gros : tu traites tes jeux comme une bibliothèque vivante.  
+Tu poses un nouveau dossier sur la SD, et boum — un nouveau jeu dans la console.
+
+> On peut le voir comme une nouvelle génération “DIY” entre Arduboy / ESPboy et une logique moderne orientée contenus SD : plus flexible, plus évolutive, plus créative.
+
 Ce README est volontairement en **2 niveaux** :
-
 - **Partie 1 (Fun & simple)** 👉 pour démarrer vite sans se noyer.
 - **Partie 2 (Ultra technique)** 👉 pour comprendre *tous* les détails, les limites et les bonnes pratiques pro.
 
