@@ -1,0 +1,4 @@
+file=Sprite-0001.raw
+width=64
+height=48
+format=RGB565_LE
